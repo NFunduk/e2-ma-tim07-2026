@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <color name="dark_blue">#0B1957</color> //toolbar, header
+    <color name="blue">#426BC2</color>  //dugmad, aktivni elementi
+    <color name="petal">#E8D9ED</color>  // kartice, sekcije
+    <color name="lace">#F7F4ED</color>  //glavna pozadina
+    <color name="lavender">#D2B3DB</color>  //kartice, sekcije
+    <color name="bridal_blue">#E9F3FF</color>  //selekcija
+</resources>
