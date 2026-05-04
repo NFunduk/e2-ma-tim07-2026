@@ -23,4 +23,14 @@
     <style name="BottomNavNoIndicator">
         <item name="android:color">@android:color/transparent</item>
     </style>
+
+    <style name="AssociationFieldButton">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">46dp</item>
+        <item name="android:layout_marginTop">4dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/dark_blue</item>
+        <item name="backgroundTint">@color/white</item>
+    </style>
 </resources>
