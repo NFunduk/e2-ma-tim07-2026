@@ -6,4 +6,21 @@
     </style>
 
     <style name="Theme.Sabona" parent="Base.Theme.Sabona" />
+
+    <style name="BottomNavIndicator">
+        <item name="android:color">@color/bridal_blue</item>
+    </style>
+
+    <style name="BottomNavTextActive">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="BottomNavTextInactive">
+        <item name="android:textSize">11sp</item>
+    </style>
+
+    <style name="BottomNavNoIndicator">
+        <item name="android:color">@android:color/transparent</item>
+    </style>
 </resources>
