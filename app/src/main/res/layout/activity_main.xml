@@ -5,8 +5,8 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity"
-    android:background="@color/lace">
+    android:background="@color/lace"
+    tools:context=".MainActivity">
 
     <TextView
         android:id="@+id/textView"
@@ -21,79 +21,126 @@
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@color/dark_blue"
-        app:layout_constraintTop_toTopOf="parent"
+        android:layout_height="78dp"
+        android:background="@drawable/top_bar_bg"
+        android:elevation="10dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp"
+        app:contentInsetEnd="0dp"
+        app:contentInsetStart="0dp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="SaBoNa"
-            android:textColor="@color/white"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_gravity="start"
-            android:layout_marginStart="12dp"/>
+        app:layout_constraintTop_toTopOf="parent">
 
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_gravity="end"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <!-- stars -->
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:src="@drawable/star"
-                app:tint="@color/petal"/>
-
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="120"
-                android:textColor="@color/petal"
-                android:layout_marginStart="4dp"
-                android:layout_marginEnd="12dp"/>
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-            <!-- tokens -->
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:src="@drawable/outline_capture_24"
-                app:tint="@color/petal"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.05"
+                    android:text="SaBoNa"
+                    android:textColor="@color/white"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
 
-            <TextView
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/lavender"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="5"
-                android:textColor="@color/petal"
-                android:layout_marginStart="4dp"
-                android:layout_marginEnd="12dp"/>
+                android:layout_height="40dp"
+                android:background="@drawable/stats_chip_bg"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingStart="10dp"
+                android:paddingEnd="12dp">
 
-            <!-- avatar -->
+                <ImageView
+                    android:layout_width="17dp"
+                    android:layout_height="17dp"
+                    android:src="@drawable/star"
+                    app:tint="@color/petal" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:text="120"
+                    android:textColor="@color/white"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <ImageView
+                    android:layout_width="17dp"
+                    android:layout_height="17dp"
+                    android:layout_marginStart="13dp"
+                    android:src="@drawable/outline_capture_24"
+                    app:tint="@color/petal" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:text="5"
+                    android:textColor="@color/white"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
             <ImageView
-                android:layout_width="28dp"
-                android:layout_height="28dp"
+                android:id="@+id/btnNotifications"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/profile_circle_bg"
+                android:padding="7dp"
+                android:src="@drawable/outline_notifications_24"
+                app:tint="@color/dark_blue" />
+
+
+            <ImageView
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/profile_circle_bg"
+                android:padding="6dp"
                 android:src="@drawable/outline_account_circle_24"
-                app:tint="@color/petal"/>
-        </LinearLayout>
+                app:tint="@color/dark_blue" />
 
+        </LinearLayout>
     </androidx.appcompat.widget.Toolbar>
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottomNav"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/dark_blue"
-        app:itemIconTint="@color/petal"
-        app:itemTextColor="@color/petal"
-        app:menu="@menu/bottom_menu"
+        android:layout_height="84dp"
+        android:background="@drawable/bottom_bar_bg"
+        android:elevation="14dp"
+        android:paddingTop="6dp"
+        app:itemActiveIndicatorStyle="@style/BottomNavNoIndicator"
+        app:itemIconSize="27dp"
+        app:itemIconTint="@color/bottom_nav_selector"
+        app:itemTextAppearanceActive="@style/BottomNavTextActive"
+        app:itemTextAppearanceInactive="@style/BottomNavTextInactive"
+        app:itemTextColor="@color/bottom_nav_selector"
+        app:labelVisibilityMode="labeled"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
-
+        app:menu="@menu/bottom_menu" />
 </androidx.constraintlayout.widget.ConstraintLayout>
