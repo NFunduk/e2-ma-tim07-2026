@@ -1,3 +1,47 @@
 <resources>
     <string name="app_name">sabona</string>
+
+    <!-- Profile strings -->
+    <string name="profile_title">Profil</string>
+    <string name="logout">Odjava</string>
+    <string name="change_avatar">Promeni avatar</string>
+    <string name="avatar_border">Okvir avatara</string>
+    <string name="avatar">Avatar</string>
+    <string name="placeholder_username">Korisničko ime</string>
+    <string name="placeholder_email">email@example.com</string>
+    <string name="placeholder_region">Region</string>
+    <string name="placeholder_tokens">0</string>
+    <string name="placeholder_stars">0</string>
+    <string name="placeholder_league">-</string>
+    <string name="placeholder_zero">0</string>
+    <string name="placeholder_percent">0%</string>
+    <string name="placeholder_stats">0 - 0 bod.</string>
+    <string name="tokens_label">Tokeni</string>
+    <string name="stars_label">Zvezde</string>
+    <string name="league_label">Liga</string>
+    <string name="qr_title">QR Kod</string>
+    <string name="qr_subtitle">Skeniraj za dodavanje prijatelja</string>
+    <string name="qr_code">QR kod</string>
+    <string name="stats_title">Statistika</string>
+    <string name="total_games_label">Ukupno odigranih partija</string>
+    <string name="wins_label">Pobede</string>
+    <string name="losses_label">Porazi</string>
+    <string name="stats_per_game_title">Po igri (prosečni bodovi)</string>
+    <string name="game_ko_zna_zna">Ko zna zna</string>
+    <string name="game_spojnice">Spojnice</string>
+    <string name="game_asocijacije">Asocijacije</string>
+    <string name="game_skocko">Skočko</string>
+    <string name="game_korak_po_korak">Korak po korak</string>
+    <string name="game_moj_broj">Moj broj</string>
+    <string name="change_password_title">Promeni lozinku</string>
+    <string name="old_password_hint">Stara lozinka</string>
+    <string name="new_password_hint">Nova lozinka</string>
+    <string name="confirm_password_hint">Potvrdi novu lozinku</string>
+    <string name="save_password_btn">Sačuvaj lozinku</string>
+    <string name="avatar_change_soon">Promena avatara dolazi uskoro!</string>
+    <string name="fill_all_fields">Popunite sva polja</string>
+    <string name="passwords_dont_match">Lozinke se ne podudaraju</string>
+    <string name="password_too_short">Lozinka mora imati najmanje 6 znakova</string>
+    <string name="password_changed_success">Lozinka uspešno promenjena!</string>
+    <string name="logged_out">Odjavljeni ste</string>
 </resources>
