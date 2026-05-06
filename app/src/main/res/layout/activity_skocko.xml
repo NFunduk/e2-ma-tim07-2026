@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/skockoRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/lace">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbarSkocko"
+        android:layout_width="match_parent"
+        android:layout_height="76dp"
+        android:background="@color/dark_blue"
+        android:elevation="10dp"
+        android:paddingStart="18dp"
+        android:paddingEnd="18dp"
+        app:contentInsetStart="0dp"
+        app:contentInsetEnd="0dp"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Skočko"
+            android:textColor="@color/white"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+    </androidx.appcompat.widget.Toolbar>
+
+    <ScrollView
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toBottomOf="@id/toolbarSkocko"
+        app:layout_constraintBottom_toTopOf="@id/bottomNav"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="4dp"
+                app:cardBackgroundColor="@color/dark_blue">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:id="@+id/tvSkockoRound"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Runda 1/2"
+                        android:textColor="@color/white"
+                        android:textSize="20sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvSkockoPlayer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Na potezu: igrač 1"
+                        android:textColor="@color/lavender"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvSkockoTimer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="00:30"
+                        android:textColor="@color/petal"
+                        android:textSize="26sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvSkockoScore"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Igrač 1: 0 | Igrač 2: 0"
+                        android:textColor="@color/white"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <TextView
+                android:id="@+id/tvSkockoInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/channel_chip_bg"
+                android:padding="12dp"
+                android:text="Izaberi 4 znaka i proveri kombinaciju."
+                android:textColor="@color/dark_blue"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/attemptsContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:orientation="vertical">
+
+                <TextView android:id="@+id/row1" style="@style/SkockoRowText" />
+                <TextView android:id="@+id/row2" style="@style/SkockoRowText" />
+                <TextView android:id="@+id/row3" style="@style/SkockoRowText" />
+                <TextView android:id="@+id/row4" style="@style/SkockoRowText" />
+                <TextView android:id="@+id/row5" style="@style/SkockoRowText" />
+                <TextView android:id="@+id/row6" style="@style/SkockoRowText" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/currentGuess"
+                android:layout_width="match_parent"
+                android:layout_height="78dp"
+                android:layout_marginTop="14dp"
+                android:gravity="center"
+                android:text="_  _  _  _"
+                android:textColor="@color/dark_blue"
+                android:textSize="34sp"
+                android:textStyle="bold"
+                android:background="@drawable/filter_unselected_bg" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/symbol1"
+                    style="@style/SkockoSymbolButton"
+                    android:src="@drawable/ic_skocko" />
+
+                <ImageButton
+                    android:id="@+id/symbol2"
+                    style="@style/SkockoSymbolButton"
+                    android:src="@drawable/ic_square" />
+
+                <ImageButton
+                    android:id="@+id/symbol3"
+                    style="@style/SkockoSymbolButton"
+                    android:src="@drawable/ic_circle" />
+
+                <ImageButton
+                    android:id="@+id/symbol4"
+                    style="@style/SkockoSymbolButton"
+                    android:src="@drawable/ic_heart" />
+
+                <ImageButton
+                    android:id="@+id/symbol5"
+                    style="@style/SkockoSymbolButton"
+                    android:src="@drawable/ic_triangle" />
+
+                <ImageButton
+                    android:id="@+id/symbol6"
+                    style="@style/SkockoSymbolButton"
+                    android:src="@drawable/ic_star" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnCheck"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="12dp"
+                android:text="Proveri"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                android:backgroundTint="@color/blue" />
+
+            <Button
+                android:id="@+id/btnClear"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:text="Obriši unos"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                android:backgroundTint="@color/dark_blue" />
+
+            <Button
+                android:id="@+id/btnNextSkocko"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:text="Sledeća runda"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                android:backgroundTint="@color/dark_blue"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </ScrollView>
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNav"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="@color/dark_blue"
+        app:itemIconTint="@color/bottom_nav_selector"
+        app:itemTextColor="@color/bottom_nav_selector"
+        app:menu="@menu/bottom_menu"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

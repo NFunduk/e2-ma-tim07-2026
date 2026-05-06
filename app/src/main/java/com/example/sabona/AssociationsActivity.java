@@ -1,5 +1,6 @@
 package com.example.sabona;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.view.View;
@@ -13,6 +14,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 public class AssociationsActivity extends AppCompatActivity {
 
@@ -32,6 +35,8 @@ public class AssociationsActivity extends AppCompatActivity {
     private boolean[][] opened = new boolean[4][4];
     private boolean[] columnSolved = new boolean[4];
     private boolean finalSolved = false;
+    private boolean fieldOpenedThisTurn = false;
+    private boolean roundFinished = false;
 
     private CountDownTimer timer;
 
@@ -39,25 +44,25 @@ public class AssociationsActivity extends AppCompatActivity {
             {
                     {"Lav", "Tigar", "Vuk", "Medved"},
                     {"Jabuka", "Kruška", "Šljiva", "Breskva"},
-                    {"Crvena", "Plava", "Žuta", "Zelena"},
-                    {"Gitara", "Klavir", "Violina", "Bubanj"}
+                    {"Ruža", "Lala", "Hrast", "Bor"},
+                    {"Sava", "Dunav", "Tisa", "Morava"}
             },
             {
-                    {"Sava", "Dunav", "Tisa", "Morava"},
-                    {"Zima", "Leto", "Proleće", "Jesen"},
                     {"Fudbal", "Tenis", "Košarka", "Odbojka"},
-                    {"Zlato", "Srebro", "Bronza", "Medalja"}
+                    {"Zlato", "Srebro", "Bronza", "Pehar"},
+                    {"Golman", "Kapiten", "Rezerva", "Igrač"},
+                    {"Sudija", "Pravila", "Faul", "Zapisnik"}
             }
     };
 
     private final String[][] columnAnswers = {
-            {"Životinje", "Voće", "Boje", "Instrumenti"},
-            {"Reke", "Godišnja doba", "Sportovi", "Nagrada"}
+            {"Zivotinje", "Voce", "Biljke", "Reke"},
+            {"Sportovi", "Nagrade", "Tim", "Sudjenje"}
     };
 
     private final String[] finalAnswers = {
-            "Pojmovi",
-            "Takmičenje"
+            "Priroda",
+            "Takmicenje"
     };
 
     @Override
@@ -74,6 +79,7 @@ public class AssociationsActivity extends AppCompatActivity {
 
         connectViews();
         setupClicks();
+        setupBottomNavigation();
         startRound();
     }
 
@@ -141,29 +147,35 @@ public class AssociationsActivity extends AppCompatActivity {
         btnGuessFinal.setOnClickListener(v -> guessFinal());
 
         btnNextRound.setOnClickListener(v -> {
-            if (round == 1) {
-                round = 2;
-                currentPlayer = 2;
-                startRound();
+            if (roundFinished) {
+                if (round == 1) {
+                    round = 2;
+                    currentPlayer = 2;
+                    startRound();
+                } else {
+                    showEndGame();
+                }
             } else {
-                showEndGame();
+                passTurn();
             }
         });
     }
 
     private void startRound() {
-        if (timer != null) {
-            timer.cancel();
-        }
+        if (timer != null) timer.cancel();
 
-        int boardIndex = round - 1;
         finalSolved = false;
+        fieldOpenedThisTurn = false;
+        roundFinished = false;
+
+        btnNextRound.setText("Dalje");
         btnNextRound.setVisibility(View.GONE);
 
         for (int col = 0; col < 4; col++) {
             columnSolved[col] = false;
             columnSolutions[col].setText("?");
             columnInputs[col].setText("");
+            columnInputs[col].setEnabled(true);
             guessColumnButtons[col].setEnabled(true);
 
             for (int row = 0; row < 4; row++) {
@@ -174,103 +186,163 @@ public class AssociationsActivity extends AppCompatActivity {
         }
 
         finalInput.setText("");
+        finalInput.setEnabled(true);
         btnGuessFinal.setEnabled(true);
 
-        tvInfo.setText("Otvori polje ili pogodi kolonu / konačno rešenje.");
+        tvInfo.setText("Otvori jedno polje, pa pogodi kolonu ili konačno rešenje.");
         updateHeader();
         startTimer();
     }
 
     private void openField(int col, int row) {
-        if (opened[col][row] || columnSolved[col] || finalSolved) {
+        if (opened[col][row] || columnSolved[col] || finalSolved || fieldOpenedThisTurn || roundFinished) {
             return;
         }
 
         opened[col][row] = true;
-        fieldButtons[col][row].setText(fields[round - 1][col][row]);
-        fieldButtons[col][row].setEnabled(false);
+        fieldOpenedThisTurn = true;
 
-        tvInfo.setText("Otvoreno polje. Sada igra drugi igrač.");
+        fieldButtons[col][row].setText(fields[round - 1][col][row]);
+        disableFieldOpening();
+
+        btnNextRound.setText("Dalje");
+        btnNextRound.setVisibility(View.VISIBLE);
+
+        tvInfo.setText("Otvoreno polje. Možeš da pogađaš ili klikni Dalje.");
+        updateHeader();
+    }
+
+    private void passTurn() {
         switchPlayer();
+        fieldOpenedThisTurn = false;
+        btnNextRound.setVisibility(View.GONE);
+        enableFieldOpening();
+        tvInfo.setText("Na potezu je igrač " + currentPlayer + ". Otvori jedno polje.");
         updateHeader();
     }
 
     private void guessColumn(int col) {
-        if (columnSolved[col] || finalSolved) {
+        if (columnSolved[col] || finalSolved || roundFinished) return;
+
+        if (!canGuessNow()) {
+            Toast.makeText(this, "Prvo otvori jedno polje.", Toast.LENGTH_SHORT).show();
             return;
         }
 
         String guess = columnInputs[col].getText().toString().trim();
         String answer = columnAnswers[round - 1][col];
 
+        if (guess.isEmpty()) {
+            Toast.makeText(this, "Unesi rešenje kolone", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         if (guess.equalsIgnoreCase(answer)) {
             int points = calculateColumnPoints(col);
             addPoints(points);
-
-            columnSolved[col] = true;
-            columnSolutions[col].setText(answer);
-            guessColumnButtons[col].setEnabled(false);
-
-            for (int row = 0; row < 4; row++) {
-                fieldButtons[col][row].setEnabled(false);
-                if (!opened[col][row]) {
-                    fieldButtons[col][row].setText(fields[round - 1][col][row]);
-                }
-            }
-
-            tvInfo.setText("Tačno! Dobijeno bodova za kolonu: " + points);
+            revealColumn(col);
+            tvInfo.setText("Tačno! Dobijeno bodova za kolonu: " + points + ". Možeš dalje da pogađaš ili klikni Dalje.");
+            btnNextRound.setText("Dalje");
+            btnNextRound.setVisibility(View.VISIBLE);
         } else {
             tvInfo.setText("Netačno. Igra drugi igrač.");
             Toast.makeText(this, "Netačno rešenje kolone", Toast.LENGTH_SHORT).show();
-            switchPlayer();
+            passTurn();
         }
 
         updateHeader();
     }
 
     private void guessFinal() {
-        if (finalSolved) {
+        if (finalSolved || roundFinished) return;
+
+        if (!canGuessNow()) {
+            Toast.makeText(this, "Prvo otvori jedno polje.", Toast.LENGTH_SHORT).show();
             return;
         }
 
         String guess = finalInput.getText().toString().trim();
         String answer = finalAnswers[round - 1];
 
+        if (guess.isEmpty()) {
+            Toast.makeText(this, "Unesi konačno rešenje", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         if (guess.equalsIgnoreCase(answer)) {
             int points = calculateFinalPoints();
             addPoints(points);
 
             finalSolved = true;
-            btnGuessFinal.setEnabled(false);
-
-            for (int col = 0; col < 4; col++) {
-                columnSolutions[col].setText(columnAnswers[round - 1][col]);
-                guessColumnButtons[col].setEnabled(false);
-
-                for (int row = 0; row < 4; row++) {
-                    fieldButtons[col][row].setText(fields[round - 1][col][row]);
-                    fieldButtons[col][row].setEnabled(false);
-                }
-            }
+            revealAllAnswers();
 
             tvInfo.setText("Tačno konačno rešenje! Dobijeno bodova: " + points);
             finishRound();
         } else {
             tvInfo.setText("Netačno konačno rešenje. Igra drugi igrač.");
             Toast.makeText(this, "Netačno konačno rešenje", Toast.LENGTH_SHORT).show();
-            switchPlayer();
+            passTurn();
         }
 
         updateHeader();
     }
 
-    private int calculateColumnPoints(int col) {
-        int unopened = 0;
-        for (int row = 0; row < 4; row++) {
-            if (!opened[col][row]) {
-                unopened++;
+    private void disableFieldOpening() {
+        for (int col = 0; col < 4; col++) {
+            for (int row = 0; row < 4; row++) {
+                if (!opened[col][row] && !columnSolved[col]) {
+                    fieldButtons[col][row].setEnabled(false);
+                }
             }
         }
+    }
+
+    private void enableFieldOpening() {
+        for (int col = 0; col < 4; col++) {
+            for (int row = 0; row < 4; row++) {
+                if (!opened[col][row] && !columnSolved[col] && !finalSolved && !roundFinished) {
+                    fieldButtons[col][row].setEnabled(true);
+                }
+            }
+        }
+    }
+
+    private void revealColumn(int col) {
+        columnSolved[col] = true;
+        columnSolutions[col].setText(columnAnswers[round - 1][col]);
+        guessColumnButtons[col].setEnabled(false);
+        columnInputs[col].setEnabled(false);
+
+        for (int row = 0; row < 4; row++) {
+            fieldButtons[col][row].setText(fields[round - 1][col][row]);
+            fieldButtons[col][row].setEnabled(false);
+        }
+    }
+
+    private void revealAllAnswers() {
+        for (int col = 0; col < 4; col++) {
+            columnSolutions[col].setText(columnAnswers[round - 1][col]);
+            guessColumnButtons[col].setEnabled(false);
+            columnInputs[col].setEnabled(false);
+
+            for (int row = 0; row < 4; row++) {
+                fieldButtons[col][row].setText(fields[round - 1][col][row]);
+                fieldButtons[col][row].setEnabled(false);
+            }
+        }
+
+        finalInput.setText(finalAnswers[round - 1]);
+        finalInput.setEnabled(false);
+        btnGuessFinal.setEnabled(false);
+    }
+
+    private int calculateColumnPoints(int col) {
+        int unopened = 0;
+
+        for (int row = 0; row < 4; row++) {
+            if (!opened[col][row]) unopened++;
+        }
+
         return 2 + unopened;
     }
 
@@ -278,19 +350,17 @@ public class AssociationsActivity extends AppCompatActivity {
         int points = 7;
 
         for (int col = 0; col < 4; col++) {
-            if (!columnSolved[col]) {
-                int openedCount = 0;
-                for (int row = 0; row < 4; row++) {
-                    if (opened[col][row]) {
-                        openedCount++;
-                    }
-                }
+            if (columnSolved[col]) continue;
 
-                if (openedCount == 0) {
-                    points += 6;
-                } else {
-                    points += calculateColumnPoints(col);
-                }
+            int openedCount = 0;
+            for (int row = 0; row < 4; row++) {
+                if (opened[col][row]) openedCount++;
+            }
+
+            if (openedCount == 0) {
+                points += 6;
+            } else {
+                points += calculateColumnPoints(col);
             }
         }
 
@@ -316,14 +386,14 @@ public class AssociationsActivity extends AppCompatActivity {
                 long seconds = millisUntilFinished / 1000;
                 long minutes = seconds / 60;
                 long restSeconds = seconds % 60;
-
                 tvTimer.setText(String.format("%02d:%02d", minutes, restSeconds));
             }
 
             @Override
             public void onFinish() {
                 tvTimer.setText("00:00");
-                tvInfo.setText("Vreme je isteklo.");
+                tvInfo.setText("Vreme je isteklo. Rešenja su otkrivena.");
+                revealAllAnswers();
                 finishRound();
             }
         };
@@ -332,17 +402,21 @@ public class AssociationsActivity extends AppCompatActivity {
     }
 
     private void finishRound() {
-        if (timer != null) {
-            timer.cancel();
-        }
+        if (timer != null) timer.cancel();
+
+        roundFinished = true;
+        fieldOpenedThisTurn = false;
 
         for (int col = 0; col < 4; col++) {
             guessColumnButtons[col].setEnabled(false);
+            columnInputs[col].setEnabled(false);
+
             for (int row = 0; row < 4; row++) {
                 fieldButtons[col][row].setEnabled(false);
             }
         }
 
+        finalInput.setEnabled(false);
         btnGuessFinal.setEnabled(false);
         btnNextRound.setVisibility(View.VISIBLE);
 
@@ -359,21 +433,67 @@ public class AssociationsActivity extends AppCompatActivity {
         String winner;
 
         if (player1Score > player2Score) {
-            winner = "Pobednik je igrač 1!";
+            winner = "Pobednik asocijacija je igrač 1!";
         } else if (player2Score > player1Score) {
-            winner = "Pobednik je igrač 2!";
+            winner = "Pobednik asocijacija je igrač 2!";
         } else {
-            winner = "Nerešeno je!";
+            winner = "Asocijacije su nerešene!";
         }
 
-        tvInfo.setText("Kraj igre. " + winner);
-        btnNextRound.setVisibility(View.GONE);
-        Toast.makeText(this, winner, Toast.LENGTH_LONG).show();
+        Toast.makeText(this, winner + " Sledi igra Skočko.", Toast.LENGTH_LONG).show();
+
+        Intent intent = new Intent(AssociationsActivity.this, SkockoActivity.class);
+        startActivity(intent);
+        finish();
     }
 
     private void updateHeader() {
         tvRound.setText("Runda " + round + "/2");
         tvPlayer.setText("Na potezu: igrač " + currentPlayer);
         tvScore.setText("Igrač 1: " + player1Score + "  |  Igrač 2: " + player2Score);
+    }
+
+    private void setupBottomNavigation() {
+        BottomNavigationView bottomNav = findViewById(R.id.bottomNav);
+
+        bottomNav.setSelectedItemId(R.id.play);
+
+        bottomNav.setOnItemSelectedListener(item -> {
+            int id = item.getItemId();
+
+            if (id == R.id.home) {
+                startActivity(new Intent(AssociationsActivity.this, MainActivity.class));
+                finish();
+                return true;
+            } else if (id == R.id.play) {
+                return true;
+            } else if (id == R.id.profile) {
+                startActivity(new Intent(AssociationsActivity.this, ProfileActivity.class));
+                return true;
+            } else if (id == R.id.rank) {
+                return true;
+            } else if (id == R.id.friends) {
+                return true;
+            }
+
+            return false;
+        });
+    }
+
+    private boolean hasOpenableField() {
+        for (int col = 0; col < 4; col++) {
+            if (!columnSolved[col]) {
+                for (int row = 0; row < 4; row++) {
+                    if (!opened[col][row]) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean canGuessNow() {
+        return fieldOpenedThisTurn || !hasOpenableField();
     }
 }

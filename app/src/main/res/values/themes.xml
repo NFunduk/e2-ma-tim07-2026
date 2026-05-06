@@ -33,4 +33,33 @@
         <item name="android:textColor">@color/dark_blue</item>
         <item name="backgroundTint">@color/white</item>
     </style>
+
+    <style name="SkockoRowText">
+    <item name="android:layout_width">match_parent</item>
+    <item name="android:layout_height">82dp</item>
+
+    <item name="android:layout_marginBottom">8dp</item>
+
+    <item name="android:gravity">center_vertical</item>
+
+    <item name="android:paddingStart">18dp</item>
+    <item name="android:paddingEnd">18dp</item>
+
+    <item name="android:textSize">22sp</item>
+    <item name="android:textStyle">bold</item>
+
+    <item name="android:textColor">@color/dark_blue</item>
+
+    <item name="android:background">@drawable/filter_unselected_bg</item>
+</style>
+
+
+    <style name="SkockoSymbolButton">
+        <item name="android:layout_width">56dp</item>
+        <item name="android:layout_height">56dp</item>
+        <item name="android:layout_margin">5dp</item>
+        <item name="android:background">@drawable/skocko_symbol_bg</item>
+        <item name="android:scaleType">centerInside</item>
+        <item name="android:padding">11dp</item>
+    </style>
 </resources>

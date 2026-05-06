@@ -12,12 +12,10 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
-
 public class MainActivity extends AppCompatActivity {
 
-    private ImageView btnNotifications;
+    private ImageView btnNotifications, btnProfile;
     private BottomNavigationView bottomNav;
-    private ImageView btnProfile;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,38 +30,34 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btnNotifications = findViewById(R.id.btnNotifications);
-
-        btnNotifications.setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, NotificationsActivity.class);
-            startActivity(intent);
-        });
-
-        btnNotifications = findViewById(R.id.btnNotifications);
-        btnProfile = findViewById(R.id.btnProfile);  // ← DODAJ OVO
-
-        btnNotifications.setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, NotificationsActivity.class);
-            startActivity(intent);
-        });
-
-        btnProfile.setOnClickListener(v -> {  // ← DODAJ OVO
-            Intent intent = new Intent(MainActivity.this, ProfileActivity.class);
-            startActivity(intent);
-        });
-
-        // Bottom navigacija
+        btnProfile = findViewById(R.id.btnProfile);
         bottomNav = findViewById(R.id.bottomNav);
+
+        btnNotifications.setOnClickListener(v -> {
+            startActivity(new Intent(MainActivity.this, NotificationsActivity.class));
+        });
+
+        btnProfile.setOnClickListener(v -> {
+            startActivity(new Intent(MainActivity.this, ProfileActivity.class));
+        });
+
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
 
-            if (id == R.id.profile) {
-                Intent intent = new Intent(MainActivity.this, ProfileActivity.class);
-                startActivity(intent);
+            if (id == R.id.home) {
                 return true;
-            } else if (id == R.id.home) {
-                return true; // Vec smo na Home
+            } else if (id == R.id.play) {
+                startActivity(new Intent(MainActivity.this, AssociationsActivity.class));
+                return true;
+            } else if (id == R.id.profile) {
+                startActivity(new Intent(MainActivity.this, ProfileActivity.class));
+                return true;
+            } else if (id == R.id.rank) {
+                return true;
+            } else if (id == R.id.friends) {
+                return true;
             }
-            // TODO: ostale stranice kad budu gotove
+
             return false;
         });
     }
