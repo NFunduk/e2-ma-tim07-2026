@@ -11,33 +11,27 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Sabona">
-        <activity
-            android:name=".activity_korak_po_korak"
-            android:exported="false" />
-        <activity
-            android:name=".activity_reset_password"
-            android:exported="false" />
-        <activity
-            android:name=".activity_verify_email"
-            android:exported="false" />
-        <activity
-            android:name=".activity_login"
-            android:exported="false" />
-        <activity
-            android:name=".activity_register"
-            android:exported="false" />
+
+        <activity android:name=".LoginActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".RegisterActivity" />
+        <activity android:name=".VerifyEmailActivity" />
+        <activity android:name=".ResetPasswordActivity" />
+        <activity android:name=".KorakPoKorakActivity" />
+        <activity android:name=".MojBrojActivity" />
+
         <activity android:name=".NotificationsActivity" />
         <activity android:name=".ProfileActivity" />
         <activity android:name=".AssociationsActivity" />
         <activity android:name=".SkockoActivity" />
         <activity
             android:name=".MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
+           >
 
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
         </activity>
     </application>
 
