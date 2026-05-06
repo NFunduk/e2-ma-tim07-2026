@@ -47,7 +47,7 @@ public class MainActivity extends AppCompatActivity {
             if (id == R.id.home) {
                 return true;
             } else if (id == R.id.play) {
-                startActivity(new Intent(MainActivity.this, AssociationsActivity.class));
+                startActivity(new Intent(MainActivity.this, SpojniceActivity.class));
                 return true;
             } else if (id == R.id.profile) {
                 startActivity(new Intent(MainActivity.this, ProfileActivity.class));
