@@ -328,18 +328,18 @@ public class SpojniceActivity extends AppCompatActivity {
     private void showEndGame() {
         String winner;
         if (player1Score > player2Score) {
-            winner = "Pobednik spojnica je Igrač 1!";
+            winner = "Pobjednik spojnica je Igrač 1!";
         } else if (player2Score > player1Score) {
-            winner = "Pobednik spojnica je Igrač 2!";
+            winner = "Pobjednik spojnica je Igrač 2!";
         } else {
             winner = "Spojnice su nerješene!";
         }
 
-        Toast.makeText(this, winner + " Slijedi: Ko zna zna.", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, winner, Toast.LENGTH_LONG).show();
 
-        // TODO: navigacija na sljedecu igru
-        // Intent intent = new Intent(SpojniceActivity.this, KoZnaZnaActivity.class);
-        // startActivity(intent);
+        // Sledeca igra je Asocijacije
+        Intent intent = new Intent(SpojniceActivity.this, AssociationsActivity.class);
+        startActivity(intent);
         finish();
     }
 
