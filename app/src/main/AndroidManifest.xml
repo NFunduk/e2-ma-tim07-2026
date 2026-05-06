@@ -12,6 +12,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Sabona">
         <activity
+            android:name=".activity_korak_po_korak"
+            android:exported="false" />
+        <activity
             android:name=".activity_reset_password"
             android:exported="false" />
         <activity
