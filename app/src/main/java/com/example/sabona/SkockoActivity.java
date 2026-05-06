@@ -468,9 +468,18 @@ public class SkockoActivity extends AppCompatActivity {
             winner = "Skočko je nerešen!";
         }
 
+        //tvInfo.setText(winner);
+        //Toast.makeText(this, winner, Toast.LENGTH_LONG).show();
+        //btnNextSkocko.setVisibility(View.GONE);
+
         tvInfo.setText(winner);
-        Toast.makeText(this, winner, Toast.LENGTH_LONG).show();
-        btnNextSkocko.setVisibility(View.GONE);
+        Toast.makeText(this, winner + " Sledi Korak po korak!", Toast.LENGTH_LONG).show();
+        btnNextSkocko.setText("Nastavi ");
+        btnNextSkocko.setVisibility(View.VISIBLE);
+        btnNextSkocko.setOnClickListener(v -> {
+            startActivity(new Intent(SkockoActivity.this, KorakPoKorakActivity.class));
+            finish();
+        });
     }
 
     private void setupBottomNavigation() {

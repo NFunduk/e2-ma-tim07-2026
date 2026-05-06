@@ -270,8 +270,9 @@ public class MojBrojActivity extends AppCompatActivity {
         else winner = "Nerešeno!";
 
         Toast.makeText(this, winner + " Kraj partije.", Toast.LENGTH_LONG).show();
-        // TODO: Navigacija ka sledećoj igri u sekvenci partije
-        startActivity(new Intent(MojBrojActivity.this, MainActivity.class));
+        Intent intent = new Intent(MojBrojActivity.this, GameOverActivity.class);
+        intent.putExtra("winner", winner);
+        startActivity(intent);
         finish();
     }
 

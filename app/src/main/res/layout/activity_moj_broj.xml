@@ -319,7 +319,52 @@
                         android:gravity="center"
                         android:layout_marginBottom="10dp" />
 
-                    <!-- Operandi dugmad -->
+                    <!-- Operandi dugmad - red 1 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center"
+                        android:layout_marginBottom="8dp">
+
+                        <Button
+                            android:id="@+id/btnOpPlus"
+                            android:layout_width="0dp"
+                            android:layout_height="52dp"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="6dp"
+                            android:text="+"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/white"
+                            android:backgroundTint="@color/blue" />
+
+                        <Button
+                            android:id="@+id/btnOpMinus"
+                            android:layout_width="0dp"
+                            android:layout_height="52dp"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="6dp"
+                            android:text="−"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/white"
+                            android:backgroundTint="@color/blue" />
+
+                        <Button
+                            android:id="@+id/btnOpMultiply"
+                            android:layout_width="0dp"
+                            android:layout_height="52dp"
+                            android:layout_weight="1"
+                            android:text="×"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/white"
+                            android:backgroundTint="@color/blue" />
+
+                    </LinearLayout>
+
+                    <!-- Operandi dugmad - red 2 -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -328,49 +373,13 @@
                         android:layout_marginBottom="10dp">
 
                         <Button
-                            android:id="@+id/btnOpPlus"
-                            android:layout_width="0dp"
-                            android:layout_height="44dp"
-                            android:layout_weight="1"
-                            android:layout_marginEnd="6dp"
-                            android:text="+"
-                            android:textSize="18sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/white"
-                            android:backgroundTint="@color/blue" />
-
-                        <Button
-                            android:id="@+id/btnOpMinus"
-                            android:layout_width="0dp"
-                            android:layout_height="44dp"
-                            android:layout_weight="1"
-                            android:layout_marginEnd="6dp"
-                            android:text="-"
-                            android:textSize="18sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/white"
-                            android:backgroundTint="@color/blue" />
-
-                        <Button
-                            android:id="@+id/btnOpMultiply"
-                            android:layout_width="0dp"
-                            android:layout_height="44dp"
-                            android:layout_weight="1"
-                            android:layout_marginEnd="6dp"
-                            android:text="×"
-                            android:textSize="18sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/white"
-                            android:backgroundTint="@color/blue" />
-
-                        <Button
                             android:id="@+id/btnOpDivide"
                             android:layout_width="0dp"
-                            android:layout_height="44dp"
+                            android:layout_height="52dp"
                             android:layout_weight="1"
                             android:layout_marginEnd="6dp"
                             android:text="÷"
-                            android:textSize="18sp"
+                            android:textSize="22sp"
                             android:textStyle="bold"
                             android:textColor="@color/white"
                             android:backgroundTint="@color/blue" />
@@ -378,11 +387,11 @@
                         <Button
                             android:id="@+id/btnOpOpenParen"
                             android:layout_width="0dp"
-                            android:layout_height="44dp"
+                            android:layout_height="52dp"
                             android:layout_weight="1"
                             android:layout_marginEnd="6dp"
                             android:text="("
-                            android:textSize="18sp"
+                            android:textSize="22sp"
                             android:textStyle="bold"
                             android:textColor="@color/dark_blue"
                             android:backgroundTint="@color/lavender" />
@@ -390,13 +399,14 @@
                         <Button
                             android:id="@+id/btnOpCloseParen"
                             android:layout_width="0dp"
-                            android:layout_height="44dp"
+                            android:layout_height="52dp"
                             android:layout_weight="1"
                             android:text=")"
-                            android:textSize="18sp"
+                            android:textSize="22sp"
                             android:textStyle="bold"
                             android:textColor="@color/dark_blue"
                             android:backgroundTint="@color/lavender" />
+
                     </LinearLayout>
 
                     <!-- Polje za unos izraza -->
