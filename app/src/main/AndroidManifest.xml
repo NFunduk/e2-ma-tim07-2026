@@ -11,6 +11,18 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Sabona">
+        <activity
+            android:name=".activity_reset_password"
+            android:exported="false" />
+        <activity
+            android:name=".activity_verify_email"
+            android:exported="false" />
+        <activity
+            android:name=".activity_login"
+            android:exported="false" />
+        <activity
+            android:name=".activity_register"
+            android:exported="false" />
         <activity android:name=".NotificationsActivity" />
         <activity android:name=".ProfileActivity" />
         <activity android:name=".AssociationsActivity" />

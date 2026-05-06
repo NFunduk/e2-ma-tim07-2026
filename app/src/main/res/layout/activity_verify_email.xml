@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/lace"
+    android:padding="24dp">
+
+    <!-- Ikona -->
+    <ImageView
+        android:id="@+id/imgEmail"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:src="@drawable/outline_notifications_24"
+        app:tint="@color/dark_blue"
+        android:padding="16dp"
+        android:background="@drawable/profile_circle_bg"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/tvVerifyTitle"
+        app:layout_constraintVerticalChainStyle="packed"
+        android:layout_marginBottom="24dp" />
+
+    <TextView
+        android:id="@+id/tvVerifyTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Proveri email"
+        android:textColor="@color/dark_blue"
+        android:textSize="26sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="12dp"
+        app:layout_constraintTop_toBottomOf="@id/imgEmail"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/tvVerifyMessage" />
+
+    <TextView
+        android:id="@+id/tvVerifyMessage"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Poslali smo ti link za potvrdu na tvoju email adresu. Klikni na link u emailu da aktiviraš nalog."
+        android:textColor="@color/dark_blue"
+        android:textSize="15sp"
+        android:gravity="center"
+        android:lineSpacingExtra="4dp"
+        android:layout_marginBottom="32dp"
+        app:layout_constraintTop_toBottomOf="@id/tvVerifyTitle"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/btnCheckVerification" />
+
+    <Button
+        android:id="@+id/btnCheckVerification"
+        android:layout_width="0dp"
+        android:layout_height="52dp"
+        android:text="Već sam potvrdio/la"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="@color/white"
+        android:backgroundTint="@color/dark_blue"
+        android:layout_marginBottom="14dp"
+        app:layout_constraintTop_toBottomOf="@id/tvVerifyMessage"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/btnResendEmail" />
+
+    <Button
+        android:id="@+id/btnResendEmail"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:text="Pošalji ponovo"
+        android:textSize="15sp"
+        android:textColor="@color/dark_blue"
+        android:backgroundTint="@color/petal"
+        app:layout_constraintTop_toBottomOf="@id/btnCheckVerification"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
