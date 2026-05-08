@@ -115,16 +115,6 @@
                 app:tint="@color/dark_blue" />
 
 
-            <ImageView
-                android:id="@+id/btnProfile"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:layout_marginStart="10dp"
-                android:background="@drawable/profile_circle_bg"
-                android:padding="6dp"
-                android:src="@drawable/outline_account_circle_24"
-                app:tint="@color/dark_blue" />
-
         </LinearLayout>
     </androidx.appcompat.widget.Toolbar>
 

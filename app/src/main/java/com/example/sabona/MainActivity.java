@@ -44,7 +44,6 @@ public class MainActivity extends AppCompatActivity {
 
         bottomNav = findViewById(R.id.bottomNav);
         ImageView btnNotifications = findViewById(R.id.btnNotifications);
-        ImageView btnProfile = findViewById(R.id.btnProfile);
         Toolbar toolbar = findViewById(R.id.toolbar);
 
         NavHostFragment navHostFragment = (NavHostFragment)
@@ -75,7 +74,6 @@ public class MainActivity extends AppCompatActivity {
         btnNotifications.setOnClickListener(v ->
                 navController.navigate(R.id.notificationsFragment));
 
-        btnProfile.setOnClickListener(v ->
-                navController.navigate(R.id.profileFragment));
+
     }
 }
