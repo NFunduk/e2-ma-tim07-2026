@@ -345,25 +345,34 @@ public class SkockoActivity extends AppCompatActivity {
     }
 
     private void finishRound() {
-        if (timer != null) {
-            timer.cancel();
-        }
+        if (timer != null) timer.cancel();
 
         roundFinished = true;
         enableGame(false);
         currentGuess.setText(buildSolutionText());
 
-        btnNextSkocko.setVisibility(View.VISIBLE);
+        // Automatski prelaz nakon 3 sekunde
+        new CountDownTimer(3000, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                long seconds = millisUntilFinished / 1000;
+                tvInfo.setText("Runda završena! Sljedeća za: " + seconds + "s");
+            }
 
-        if (round == 1) {
-            btnNextSkocko.setText("Sledeća runda");
-        } else {
-            btnNextSkocko.setText("Završi igru");
-        }
+            @Override
+            public void onFinish() {
+                if (round == 1) {
+                    round = 2;
+                    currentPlayer = 2;
+                    startRound();
+                } else {
+                    showEndGame();
+                }
+            }
+        }.start();
 
         updateHeader();
     }
-
     private SpannableString buildSolutionText() {
         String text = "Rešenje: ●  ●  ●  ●";
 
@@ -468,18 +477,11 @@ public class SkockoActivity extends AppCompatActivity {
             winner = "Skočko je nerešen!";
         }
 
-        //tvInfo.setText(winner);
-        //Toast.makeText(this, winner, Toast.LENGTH_LONG).show();
-        //btnNextSkocko.setVisibility(View.GONE);
-
-        tvInfo.setText(winner);
         Toast.makeText(this, winner + " Sledi Korak po korak!", Toast.LENGTH_LONG).show();
-        btnNextSkocko.setText("Nastavi ");
-        btnNextSkocko.setVisibility(View.VISIBLE);
-        btnNextSkocko.setOnClickListener(v -> {
-            startActivity(new Intent(SkockoActivity.this, KorakPoKorakActivity.class));
-            finish();
-        });
+
+        Intent intent = new Intent(SkockoActivity.this, KorakPoKorakActivity.class);
+        startActivity(intent);
+        finish();
     }
 
     private void setupBottomNavigation() {

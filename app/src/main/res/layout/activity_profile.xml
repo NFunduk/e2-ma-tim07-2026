@@ -213,13 +213,21 @@
                             android:orientation="vertical"
                             android:gravity="center">
 
+                            <ImageView
+                                android:id="@+id/imgLeagueIcon"
+                                android:layout_width="28dp"
+                                android:layout_height="28dp"
+                                android:src="@drawable/star"
+                                android:contentDescription="Liga ikona"
+                                app:tint="@color/lavender" />
+
                             <TextView
                                 android:id="@+id/tvLeague"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="@string/placeholder_league"
                                 android:textColor="@color/white"
-                                android:textSize="20sp"
+                                android:textSize="14sp"
                                 android:textStyle="bold" />
 
                             <TextView
@@ -433,21 +441,30 @@
                         android:textSize="15sp"
                         android:textStyle="bold" />
 
-                    <!-- Ko zna zna -->
+                    <!-- Ko zna zna - opseg bodova + odnos tacnih/netacnih -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/game_ko_zna_zna"
+                        android:textColor="@color/dark_blue"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:layout_marginBottom="10dp">
+                        android:layout_marginBottom="4dp">
 
                         <TextView
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="@string/game_ko_zna_zna"
+                            android:text="Prosečni bodovi"
                             android:textColor="@color/dark_blue"
-                            android:textSize="13sp" />
+                            android:textSize="12sp"
+                            android:alpha="0.7" />
 
                         <TextView
                             android:id="@+id/tvStatsKoZnaZna"
@@ -455,25 +472,67 @@
                             android:layout_height="wrap_content"
                             android:text="@string/placeholder_stats"
                             android:textColor="@color/blue"
-                            android:textSize="13sp"
+                            android:textSize="12sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
-                    <!-- Spojnice -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:layout_marginBottom="10dp">
+                        android:layout_marginBottom="12dp">
 
                         <TextView
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="@string/game_spojnice"
+                            android:text="Tačno / Netačno"
                             android:textColor="@color/dark_blue"
-                            android:textSize="13sp" />
+                            android:textSize="12sp"
+                            android:alpha="0.7" />
+
+                        <TextView
+                            android:id="@+id/tvStatsKzzRatio"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0 / 0"
+                            android:textColor="@color/blue"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/lavender"
+                        android:alpha="0.4" />
+
+                    <!-- Spojnice - opseg bodova + procenat spojenih -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/game_spojnice"
+                        android:textColor="@color/dark_blue"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="4dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Prosečni bodovi"
+                            android:textColor="@color/dark_blue"
+                            android:textSize="12sp"
+                            android:alpha="0.7" />
 
                         <TextView
                             android:id="@+id/tvStatsSpojnice"
@@ -481,25 +540,67 @@
                             android:layout_height="wrap_content"
                             android:text="@string/placeholder_stats"
                             android:textColor="@color/blue"
-                            android:textSize="13sp"
+                            android:textSize="12sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
-                    <!-- Asocijacije -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:layout_marginBottom="10dp">
+                        android:layout_marginBottom="12dp">
 
                         <TextView
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="@string/game_asocijacije"
+                            android:text="Uspešno spojeno"
                             android:textColor="@color/dark_blue"
-                            android:textSize="13sp" />
+                            android:textSize="12sp"
+                            android:alpha="0.7" />
+
+                        <TextView
+                            android:id="@+id/tvStatsSpojnicePercent"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0%"
+                            android:textColor="@color/blue"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/lavender"
+                        android:alpha="0.4" />
+
+                    <!-- Asocijacije -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/game_asocijacije"
+                        android:textColor="@color/dark_blue"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="4dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Prosečni bodovi"
+                            android:textColor="@color/dark_blue"
+                            android:textSize="12sp"
+                            android:alpha="0.7" />
 
                         <TextView
                             android:id="@+id/tvStatsAsocijacije"
@@ -507,25 +608,67 @@
                             android:layout_height="wrap_content"
                             android:text="@string/placeholder_stats"
                             android:textColor="@color/blue"
-                            android:textSize="13sp"
+                            android:textSize="12sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
-                    <!-- Skocko -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:layout_marginBottom="10dp">
+                        android:layout_marginBottom="12dp">
 
                         <TextView
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="@string/game_skocko"
+                            android:text="Riješeno / Neriješeno"
                             android:textColor="@color/dark_blue"
-                            android:textSize="13sp" />
+                            android:textSize="12sp"
+                            android:alpha="0.7" />
+
+                        <TextView
+                            android:id="@+id/tvStatsAsocijacijeRatio"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0 / 0"
+                            android:textColor="@color/blue"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/lavender"
+                        android:alpha="0.4" />
+
+                    <!-- Skocko -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/game_skocko"
+                        android:textColor="@color/dark_blue"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="4dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Prosečni bodovi"
+                            android:textColor="@color/dark_blue"
+                            android:textSize="12sp"
+                            android:alpha="0.7" />
 
                         <TextView
                             android:id="@+id/tvStatsSkocko"
@@ -533,25 +676,67 @@
                             android:layout_height="wrap_content"
                             android:text="@string/placeholder_stats"
                             android:textColor="@color/blue"
-                            android:textSize="13sp"
+                            android:textSize="12sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
-                    <!-- Korak po korak -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:layout_marginBottom="10dp">
+                        android:layout_marginBottom="12dp">
 
                         <TextView
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="@string/game_korak_po_korak"
+                            android:text="% pogođeno po pokušaju"
                             android:textColor="@color/dark_blue"
-                            android:textSize="13sp" />
+                            android:textSize="12sp"
+                            android:alpha="0.7" />
+
+                        <TextView
+                            android:id="@+id/tvStatsSkockoPercent"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0% / 0% / 0%"
+                            android:textColor="@color/blue"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/lavender"
+                        android:alpha="0.4" />
+
+                    <!-- Korak po korak -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/game_korak_po_korak"
+                        android:textColor="@color/dark_blue"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="4dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Prosečni bodovi"
+                            android:textColor="@color/dark_blue"
+                            android:textSize="12sp"
+                            android:alpha="0.7" />
 
                         <TextView
                             android:id="@+id/tvStatsKorakPoKorak"
@@ -559,11 +744,78 @@
                             android:layout_height="wrap_content"
                             android:text="@string/placeholder_stats"
                             android:textColor="@color/blue"
-                            android:textSize="13sp"
+                            android:textSize="12sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="% po koraku (1-7)"
+                            android:textColor="@color/dark_blue"
+                            android:textSize="12sp"
+                            android:alpha="0.7" />
+
+                        <TextView
+                            android:id="@+id/tvStatsKorakPercent"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="40% k.1 / 30% k.2"
+                            android:textColor="@color/blue"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/lavender"
+                        android:alpha="0.4" />
+
                     <!-- Moj broj -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/game_moj_broj"
+                        android:textColor="@color/dark_blue"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="4dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Prosečni bodovi"
+                            android:textColor="@color/dark_blue"
+                            android:textSize="12sp"
+                            android:alpha="0.7" />
+
+                        <TextView
+                            android:id="@+id/tvStatsMojBroj"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/placeholder_stats"
+                            android:textColor="@color/blue"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -574,17 +826,18 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="@string/game_moj_broj"
+                            android:text="% tačnog broja"
                             android:textColor="@color/dark_blue"
-                            android:textSize="13sp" />
+                            android:textSize="12sp"
+                            android:alpha="0.7" />
 
                         <TextView
-                            android:id="@+id/tvStatsMojBroj"
+                            android:id="@+id/tvStatsMojBrojPercent"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="@string/placeholder_stats"
+                            android:text="0%"
                             android:textColor="@color/blue"
-                            android:textSize="13sp"
+                            android:textSize="12sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 

@@ -127,7 +127,7 @@ public class AssociationsActivity extends AppCompatActivity {
 
         finalInput = findViewById(R.id.inputFinal);
         btnGuessFinal = findViewById(R.id.btnGuessFinal);
-        btnNextRound = findViewById(R.id.btnNextRound);
+        //btnNextRound = findViewById(R.id.btnNextRound);
     }
 
     private void setupClicks() {
@@ -146,7 +146,7 @@ public class AssociationsActivity extends AppCompatActivity {
 
         btnGuessFinal.setOnClickListener(v -> guessFinal());
 
-        btnNextRound.setOnClickListener(v -> {
+        /*btnNextRound.setOnClickListener(v -> {
             if (roundFinished) {
                 if (round == 1) {
                     round = 2;
@@ -158,7 +158,7 @@ public class AssociationsActivity extends AppCompatActivity {
             } else {
                 passTurn();
             }
-        });
+        });*/
     }
 
     private void startRound() {
@@ -168,8 +168,8 @@ public class AssociationsActivity extends AppCompatActivity {
         fieldOpenedThisTurn = false;
         roundFinished = false;
 
-        btnNextRound.setText("Dalje");
-        btnNextRound.setVisibility(View.GONE);
+        //btnNextRound.setText("Dalje");
+        //btnNextRound.setVisibility(View.GONE);
 
         for (int col = 0; col < 4; col++) {
             columnSolved[col] = false;
@@ -205,8 +205,8 @@ public class AssociationsActivity extends AppCompatActivity {
         fieldButtons[col][row].setText(fields[round - 1][col][row]);
         disableFieldOpening();
 
-        btnNextRound.setText("Dalje");
-        btnNextRound.setVisibility(View.VISIBLE);
+        //btnNextRound.setText("Dalje");
+        //btnNextRound.setVisibility(View.VISIBLE);
 
         tvInfo.setText("Otvoreno polje. Možeš da pogađaš ili klikni Dalje.");
         updateHeader();
@@ -242,8 +242,8 @@ public class AssociationsActivity extends AppCompatActivity {
             addPoints(points);
             revealColumn(col);
             tvInfo.setText("Tačno! Dobijeno bodova za kolonu: " + points + ". Možeš dalje da pogađaš ili klikni Dalje.");
-            btnNextRound.setText("Dalje");
-            btnNextRound.setVisibility(View.VISIBLE);
+            //btnNextRound.setText("Dalje");
+            //btnNextRound.setVisibility(View.VISIBLE);
         } else {
             tvInfo.setText("Netačno. Igra drugi igrač.");
             Toast.makeText(this, "Netačno rešenje kolone", Toast.LENGTH_SHORT).show();
@@ -418,13 +418,26 @@ public class AssociationsActivity extends AppCompatActivity {
 
         finalInput.setEnabled(false);
         btnGuessFinal.setEnabled(false);
-        btnNextRound.setVisibility(View.VISIBLE);
 
-        if (round == 1) {
-            btnNextRound.setText("Sledeća runda");
-        } else {
-            btnNextRound.setText("Završi igru");
-        }
+        // Automatski prelaz nakon 3 sekunde
+        new CountDownTimer(3000, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                long seconds = millisUntilFinished / 1000;
+                tvInfo.setText("Runda završena! Sljedeća za: " + seconds + "s");
+            }
+
+            @Override
+            public void onFinish() {
+                if (round == 1) {
+                    round = 2;
+                    currentPlayer = 2;
+                    startRound();
+                } else {
+                    showEndGame();
+                }
+            }
+        }.start();
 
         updateHeader();
     }
