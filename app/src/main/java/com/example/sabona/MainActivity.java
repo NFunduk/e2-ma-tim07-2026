@@ -30,6 +30,15 @@ public class MainActivity extends AppCompatActivity {
             R.id.verifyEmailFragment
     ));
 
+    private final Set<Integer> gameDestinations = new HashSet<>(Arrays.asList(
+            R.id.koZnaZnaFragment,
+            R.id.spojniceFragment,
+            R.id.associationsFragment,
+            R.id.skockoFragment,
+            R.id.korakPoKorakFragment,
+            R.id.mojBrojFragment
+    ));
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -43,7 +52,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         bottomNav = findViewById(R.id.bottomNav);
-        ImageView btnNotifications = findViewById(R.id.btnNotifications);
+        final ImageView btnNotifications = findViewById(R.id.btnNotifications);
         Toolbar toolbar = findViewById(R.id.toolbar);
 
         NavHostFragment navHostFragment = (NavHostFragment)
@@ -52,8 +61,18 @@ public class MainActivity extends AppCompatActivity {
 
         navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
             boolean isAuth = authDestinations.contains(destination.getId());
+            boolean isGame = gameDestinations.contains(destination.getId());
+
             toolbar.setVisibility(isAuth ? View.GONE : View.VISIBLE);
             bottomNav.setVisibility(isAuth ? View.GONE : View.VISIBLE);
+
+            // Tokom igre blokiraj sve tabove i notifikacije
+            bottomNav.setEnabled(!isGame);
+            for (int i = 0; i < bottomNav.getMenu().size(); i++) {
+                bottomNav.getMenu().getItem(i).setEnabled(!isGame);
+            }
+            btnNotifications.setEnabled(!isGame);
+            btnNotifications.setAlpha(isGame ? 0.3f : 1.0f);
         });
 
         bottomNav.setOnItemSelectedListener(item -> {
