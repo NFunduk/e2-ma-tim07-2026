@@ -63,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
                 navController.navigate(R.id.homeFragment);
                 return true;
             } else if (id == R.id.play) {
-                navController.navigate(R.id.korakPoKorakFragment);
+                navController.navigate(R.id.koZnaZnaFragment);
                 return true;
             } else if (id == R.id.profile) {
                 navController.navigate(R.id.profileFragment);
