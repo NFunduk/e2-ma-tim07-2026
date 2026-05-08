@@ -405,15 +405,7 @@
                         android:textColor="@color/white"
                         android:textStyle="bold" />
 
-                    <Button
-                        android:id="@+id/btnKorakNext"
-                        android:layout_width="match_parent"
-                        android:layout_height="46dp"
-                        android:layout_marginTop="6dp"
-                        android:text="Sledeća runda"
-                        android:backgroundTint="@color/dark_blue"
-                        android:textColor="@color/white"
-                        android:visibility="gone" />
+
 
                 </LinearLayout>
             </androidx.cardview.widget.CardView>

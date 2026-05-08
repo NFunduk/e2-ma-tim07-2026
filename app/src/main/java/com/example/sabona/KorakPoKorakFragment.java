@@ -21,7 +21,8 @@ public class KorakPoKorakFragment extends Fragment {
     private TextView tvKorakInfo, tvCurrentPoints;
     private TextView tvStep1, tvStep2, tvStep3, tvStep4, tvStep5, tvStep6, tvStep7;
     private EditText etKorakAnswer;
-    private Button btnKorakGuess, btnKorakNext;
+    //private Button btnKorakGuess, btnKorakNext;
+    private Button btnKorakGuess;
 
     private int round = 1;
     private int currentPlayer = 1;
@@ -81,18 +82,10 @@ public class KorakPoKorakFragment extends Fragment {
         tvStep7         = view.findViewById(R.id.tvStep7);
         etKorakAnswer   = view.findViewById(R.id.etKorakAnswer);
         btnKorakGuess   = view.findViewById(R.id.btnKorakGuess);
-        btnKorakNext    = view.findViewById(R.id.btnKorakNext);
+       // btnKorakNext    = view.findViewById(R.id.btnKorakNext);
 
         btnKorakGuess.setOnClickListener(v -> checkAnswer());
-        btnKorakNext.setOnClickListener(v -> {
-            if (round == 1) {
-                round = 2;
-                currentPlayer = 2;
-                startRound();
-            } else {
-                showEndGame();
-            }
-        });
+
 
         startRound();
     }
@@ -107,7 +100,7 @@ public class KorakPoKorakFragment extends Fragment {
         if (timer != null) timer.cancel();
         currentStep = 0;
         roundFinished = false;
-        btnKorakNext.setVisibility(View.GONE);
+       // btnKorakNext.setVisibility(View.GONE);
         resetStepFields();
         etKorakAnswer.setText("");
         tvKorakInfo.setText("Čekaj — otvara se novi korak svakih 10 sekundi.");
@@ -192,9 +185,28 @@ public class KorakPoKorakFragment extends Fragment {
 
     private void finishRound() {
         if (timer != null) timer.cancel();
+
         roundFinished = true;
-        btnKorakNext.setVisibility(View.VISIBLE);
-        btnKorakNext.setText(round == 1 ? "Sledeća runda" : "Završi igru");
+
+        new CountDownTimer(3000, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                long seconds = millisUntilFinished / 1000;
+                tvKorakInfo.setText("Runda završena! Sledeća za: " + seconds + "s");
+            }
+
+            @Override
+            public void onFinish() {
+                if (round == 1) {
+                    round = 2;
+                    currentPlayer = 2;
+                    startRound();
+                } else {
+                    showEndGame();
+                }
+            }
+        }.start();
+
         updateHeader();
     }
 

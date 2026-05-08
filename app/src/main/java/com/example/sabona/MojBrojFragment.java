@@ -98,15 +98,7 @@ public class MojBrojFragment extends Fragment {
         tvNum5.setOnClickListener(v -> appendToExpression(tvNum5.getText().toString()));
         tvNum6.setOnClickListener(v -> appendToExpression(tvNum6.getText().toString()));
 
-        btnMojBrojNext.setOnClickListener(v -> {
-            if (round == 1) {
-                round = 2;
-                currentPlayer = 2;
-                startRound();
-            } else {
-                showEndGame();
-            }
-        });
+
 
         startRound();
     }
@@ -221,9 +213,29 @@ public class MojBrojFragment extends Fragment {
 
     private void finishRound() {
         if (timer != null) timer.cancel();
+
         roundFinished = true;
-        btnMojBrojNext.setVisibility(View.VISIBLE);
-        btnMojBrojNext.setText(round == 1 ? "Sledeća runda" : "Završi igru");
+        btnMojBrojNext.setVisibility(View.GONE);
+
+        new CountDownTimer(3000, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                long seconds = millisUntilFinished / 1000;
+                tvMojBrojInfo.setText("Runda završena! Sledeća za: " + seconds + "s");
+            }
+
+            @Override
+            public void onFinish() {
+                if (round == 1) {
+                    round = 2;
+                    currentPlayer = 2;
+                    startRound();
+                } else {
+                    showEndGame();
+                }
+            }
+        }.start();
+
         updateHeader();
     }
 
