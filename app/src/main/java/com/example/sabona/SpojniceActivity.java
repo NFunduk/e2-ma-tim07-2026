@@ -115,7 +115,7 @@ public class SpojniceActivity extends AppCompatActivity {
         tvRoundScore1 = findViewById(R.id.tvRoundScore1);
         tvRoundScore2 = findViewById(R.id.tvRoundScore2);
         tvConnected = findViewById(R.id.tvConnected);
-        btnNextRound = findViewById(R.id.btnNextRound);
+        //btnNextRound = findViewById(R.id.btnNextRound);
 
         leftButtons[0] = findViewById(R.id.btnLeft1);
         leftButtons[1] = findViewById(R.id.btnLeft2);
@@ -149,7 +149,7 @@ public class SpojniceActivity extends AppCompatActivity {
             rightButtons[i].setOnClickListener(v -> onRightClick(index));
         }
 
-        btnNextRound.setOnClickListener(v -> {
+        /*btnNextRound.setOnClickListener(v -> {
             if (roundFinished) {
                 if (round == 1) {
                     round = 2;
@@ -159,7 +159,7 @@ public class SpojniceActivity extends AppCompatActivity {
                     showEndGame();
                 }
             }
-        });
+        });*/
     }
 
     private void onLeftClick(int index) {
@@ -261,7 +261,7 @@ public class SpojniceActivity extends AppCompatActivity {
             connectedBy[i] = 0;
         }
 
-        btnNextRound.setVisibility(View.GONE);
+        //btnNextRound.setVisibility(View.GONE);
 
         // Postavi tekst i boje na dugmad
         for (int i = 0; i < 5; i++) {
@@ -307,22 +307,33 @@ public class SpojniceActivity extends AppCompatActivity {
         if (timer != null) timer.cancel();
         roundFinished = true;
 
-        // Onemogući sva dugmad
         for (int i = 0; i < 5; i++) {
             leftButtons[i].setEnabled(false);
             rightButtons[i].setEnabled(false);
         }
 
-        btnNextRound.setVisibility(View.VISIBLE);
-
-        if (round == 1) {
-            btnNextRound.setText("Sljedeća runda →");
-        } else {
-            btnNextRound.setText("Završi igru");
-        }
-
         tvInfo.setText("Runda završena! Igrač 1: " + roundScore1 + " bod. | Igrač 2: " + roundScore2 + " bod.");
         updateHeader();
+
+        // Automatski prelaz nakon 3 sekunde
+        new CountDownTimer(3000, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                long seconds = millisUntilFinished / 1000;
+                tvInfo.setText("Runda završena! Sljedeća za: " + seconds + "s");
+            }
+
+            @Override
+            public void onFinish() {
+                if (round == 1) {
+                    round = 2;
+                    currentPlayer = 2;
+                    startRound();
+                } else {
+                    showEndGame();
+                }
+            }
+        }.start();
     }
 
     private void showEndGame() {
