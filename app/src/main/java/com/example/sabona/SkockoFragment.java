@@ -1,41 +1,40 @@
 package com.example.sabona;
 
-import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.AbsoluteSizeSpan;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.ImageSpan;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
-import androidx.appcompat.app.AppCompatActivity;
-
-import com.google.android.material.bottomnavigation.BottomNavigationView;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
+import androidx.fragment.app.Fragment;
+import androidx.navigation.fragment.NavHostFragment;
 
 import java.util.Arrays;
 import java.util.Random;
-import android.graphics.Color;
-import android.text.SpannableString;
-import android.text.Spanned;
-import android.text.style.ForegroundColorSpan;
 
-import android.widget.ImageButton;
-
-import android.graphics.drawable.Drawable;
-import android.text.style.ImageSpan;
-import android.text.style.AbsoluteSizeSpan;
-import androidx.core.content.ContextCompat;
-
-public class SkockoActivity extends AppCompatActivity {
+public class SkockoFragment extends Fragment {
 
     private TextView tvRound, tvPlayer, tvTimer, tvScore, tvInfo, currentGuess;
-    private TextView[] rows = new TextView[6];
-    private ImageButton[] symbolButtons = new ImageButton[6];
+    private final TextView[] rows = new TextView[6];
+    private final ImageButton[] symbolButtons = new ImageButton[6];
     private Button btnCheck, btnClear, btnNextSkocko;
 
     private final String[] symbols = {"☻", "■", "●", "♥", "▲", "★"};
-    private String[] secret = new String[4];
+    private final String[] secret = new String[4];
     private String[] guess = new String[4];
 
     private int guessIndex = 0;
@@ -49,44 +48,58 @@ public class SkockoActivity extends AppCompatActivity {
     private boolean roundFinished = false;
 
     private CountDownTimer timer;
+    private CountDownTimer finishTimer;
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater,
+                             ViewGroup container,
+                             Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_skocko, container, false);
+    }
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
-        setContentView(R.layout.activity_skocko);
+    public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
 
-        connectViews();
+        connectViews(view);
         setupClicks();
-        setupBottomNavigation();
         startRound();
     }
 
-    private void connectViews() {
-        tvRound = findViewById(R.id.tvSkockoRound);
-        tvPlayer = findViewById(R.id.tvSkockoPlayer);
-        tvTimer = findViewById(R.id.tvSkockoTimer);
-        tvScore = findViewById(R.id.tvSkockoScore);
-        tvInfo = findViewById(R.id.tvSkockoInfo);
-        currentGuess = findViewById(R.id.currentGuess);
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
 
-        rows[0] = findViewById(R.id.row1);
-        rows[1] = findViewById(R.id.row2);
-        rows[2] = findViewById(R.id.row3);
-        rows[3] = findViewById(R.id.row4);
-        rows[4] = findViewById(R.id.row5);
-        rows[5] = findViewById(R.id.row6);
+        if (timer != null) timer.cancel();
+        if (finishTimer != null) finishTimer.cancel();
+    }
 
-        symbolButtons[0] = findViewById(R.id.symbol1);
-        symbolButtons[1] = findViewById(R.id.symbol2);
-        symbolButtons[2] = findViewById(R.id.symbol3);
-        symbolButtons[3] = findViewById(R.id.symbol4);
-        symbolButtons[4] = findViewById(R.id.symbol5);
-        symbolButtons[5] = findViewById(R.id.symbol6);
+    private void connectViews(View view) {
+        tvRound = view.findViewById(R.id.tvSkockoRound);
+        tvPlayer = view.findViewById(R.id.tvSkockoPlayer);
+        tvTimer = view.findViewById(R.id.tvSkockoTimer);
+        tvScore = view.findViewById(R.id.tvSkockoScore);
+        tvInfo = view.findViewById(R.id.tvSkockoInfo);
+        currentGuess = view.findViewById(R.id.currentGuess);
 
-        btnCheck = findViewById(R.id.btnCheck);
-        btnClear = findViewById(R.id.btnClear);
-        btnNextSkocko = findViewById(R.id.btnNextSkocko);
+        rows[0] = view.findViewById(R.id.row1);
+        rows[1] = view.findViewById(R.id.row2);
+        rows[2] = view.findViewById(R.id.row3);
+        rows[3] = view.findViewById(R.id.row4);
+        rows[4] = view.findViewById(R.id.row5);
+        rows[5] = view.findViewById(R.id.row6);
+
+        symbolButtons[0] = view.findViewById(R.id.symbol1);
+        symbolButtons[1] = view.findViewById(R.id.symbol2);
+        symbolButtons[2] = view.findViewById(R.id.symbol3);
+        symbolButtons[3] = view.findViewById(R.id.symbol4);
+        symbolButtons[4] = view.findViewById(R.id.symbol5);
+        symbolButtons[5] = view.findViewById(R.id.symbol6);
+
+        btnCheck = view.findViewById(R.id.btnCheck);
+        btnClear = view.findViewById(R.id.btnClear);
+        btnNextSkocko = view.findViewById(R.id.btnNextSkocko);
     }
 
     private void setupClicks() {
@@ -110,9 +123,8 @@ public class SkockoActivity extends AppCompatActivity {
     }
 
     private void startRound() {
-        if (timer != null) {
-            timer.cancel();
-        }
+        if (timer != null) timer.cancel();
+        if (finishTimer != null) finishTimer.cancel();
 
         generateSecret();
 
@@ -145,12 +157,10 @@ public class SkockoActivity extends AppCompatActivity {
     }
 
     private void addSymbol(String symbol) {
-        if (roundFinished) {
-            return;
-        }
+        if (roundFinished) return;
 
         if (guessIndex >= 4) {
-            Toast.makeText(this, "Već su izabrana 4 znaka.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Već su izabrana 4 znaka.", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -170,12 +180,10 @@ public class SkockoActivity extends AppCompatActivity {
     }
 
     private void checkGuess() {
-        if (roundFinished) {
-            return;
-        }
+        if (roundFinished) return;
 
         if (guessIndex < 4) {
-            Toast.makeText(this, "Izaberi 4 znaka.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Izaberi 4 znaka.", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -259,9 +267,7 @@ public class SkockoActivity extends AppCompatActivity {
     }
 
     private void startOpponentChance() {
-        if (timer != null) {
-            timer.cancel();
-        }
+        if (timer != null) timer.cancel();
 
         opponentChance = true;
         switchPlayer();
@@ -284,7 +290,8 @@ public class SkockoActivity extends AppCompatActivity {
         int[] circlePositions = {21, 23, 25, 27};
 
         for (int i = 0; i < 4; i++) {
-            Drawable drawable = ContextCompat.getDrawable(this, getIconForSymbol(guess[i]));
+            Drawable drawable = ContextCompat.getDrawable(requireContext(), getIconForSymbol(guess[i]));
+
             if (drawable != null) {
                 drawable.setBounds(0, 0, 78, 78);
 
@@ -301,11 +308,11 @@ public class SkockoActivity extends AppCompatActivity {
             int color;
 
             if (i < correctPlace) {
-                color = Color.RED;          // tačno mesto
+                color = Color.RED;
             } else if (i < correctPlace + correctSymbol) {
-                color = Color.YELLOW;       // pogođen znak, pogrešno mesto
+                color = Color.YELLOW;
             } else {
-                color = Color.rgb(7, 28, 95); // ništa nije pogođeno
+                color = Color.rgb(7, 28, 95);
             }
 
             spannable.setSpan(
@@ -351,12 +358,11 @@ public class SkockoActivity extends AppCompatActivity {
         enableGame(false);
         currentGuess.setText(buildSolutionText());
 
-        // Automatski prelaz nakon 3 sekunde
-        new CountDownTimer(3000, 1000) {
+        finishTimer = new CountDownTimer(3000, 1000) {
             @Override
             public void onTick(long millisUntilFinished) {
                 long seconds = millisUntilFinished / 1000;
-                tvInfo.setText("Runda završena! Sljedeća za: " + seconds + "s");
+                tvInfo.setText("Runda završena! Sledeća za: " + seconds + "s");
             }
 
             @Override
@@ -369,14 +375,14 @@ public class SkockoActivity extends AppCompatActivity {
                     showEndGame();
                 }
             }
-        }.start();
+        };
 
+        finishTimer.start();
         updateHeader();
     }
+
     private SpannableString buildSolutionText() {
         String text = "Rešenje: ●  ●  ●  ●";
-
-
         SpannableString spannable = new SpannableString(text);
 
         spannable.setSpan(
@@ -389,7 +395,8 @@ public class SkockoActivity extends AppCompatActivity {
         int[] positions = {9, 12, 15, 18};
 
         for (int i = 0; i < 4; i++) {
-            Drawable drawable = ContextCompat.getDrawable(this, getIconForSymbol(secret[i]));
+            Drawable drawable = ContextCompat.getDrawable(requireContext(), getIconForSymbol(secret[i]));
+
             if (drawable != null) {
                 drawable.setBounds(0, 0, 64, 64);
 
@@ -415,9 +422,7 @@ public class SkockoActivity extends AppCompatActivity {
     }
 
     private void startTimer(long duration) {
-        if (timer != null) {
-            timer.cancel();
-        }
+        if (timer != null) timer.cancel();
 
         timer = new CountDownTimer(duration, 1000) {
             @Override
@@ -440,13 +445,6 @@ public class SkockoActivity extends AppCompatActivity {
         };
 
         timer.start();
-    }
-
-    private String guessText() {
-        return Arrays.toString(guess)
-                .replace("[", "")
-                .replace("]", "")
-                .replace(",", " ");
     }
 
     private String secretText() {
@@ -477,41 +475,11 @@ public class SkockoActivity extends AppCompatActivity {
             winner = "Skočko je nerešen!";
         }
 
-        Toast.makeText(this, winner + " Sledi Korak po korak!", Toast.LENGTH_LONG).show();
+        Toast.makeText(requireContext(), winner + " Sledi Korak po korak!", Toast.LENGTH_LONG).show();
 
-
-        Intent intent = new Intent(SkockoActivity.this, KorakPoKorakFragment.class);
-        startActivity(intent);
-        finish();
+        NavHostFragment.findNavController(this)
+                .navigate(R.id.action_skocko_to_korak);
     }
-
-    private void setupBottomNavigation() {
-        BottomNavigationView bottomNav = findViewById(R.id.bottomNav);
-
-        bottomNav.setSelectedItemId(R.id.play);
-
-        bottomNav.setOnItemSelectedListener(item -> {
-            int id = item.getItemId();
-
-            if (id == R.id.home) {
-                startActivity(new Intent(SkockoActivity.this, MainActivity.class));
-                finish();
-                return true;
-            } else if (id == R.id.play) {
-                return true;
-            } else if (id == R.id.profile) {
-                startActivity(new Intent(SkockoActivity.this, ProfileActivity.class));
-                return true;
-            } else if (id == R.id.rank) {
-                return true;
-            } else if (id == R.id.friends) {
-                return true;
-            }
-
-            return false;
-        });
-    }
-
 
     private int getIconForSymbol(String symbol) {
         switch (symbol) {
@@ -531,7 +499,6 @@ public class SkockoActivity extends AppCompatActivity {
                 return R.drawable.ic_circle;
         }
     }
-
 
     private SpannableString buildIconsText(String[] values, boolean showEmpty) {
         String text = "●  ●  ●  ●";
@@ -554,13 +521,13 @@ public class SkockoActivity extends AppCompatActivity {
                 continue;
             }
 
-            Drawable drawable = ContextCompat.getDrawable(this, getIconForSymbol(values[i]));
+            Drawable drawable = ContextCompat.getDrawable(requireContext(), getIconForSymbol(values[i]));
+
             if (drawable != null) {
                 drawable.setBounds(0, 0, 62, 62);
 
-                ImageSpan imageSpan = new ImageSpan(drawable, ImageSpan.ALIGN_BOTTOM);
                 spannable.setSpan(
-                        imageSpan,
+                        new ImageSpan(drawable, ImageSpan.ALIGN_BOTTOM),
                         start,
                         start + 1,
                         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
