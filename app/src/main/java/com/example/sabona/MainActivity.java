@@ -1,21 +1,34 @@
 package com.example.sabona;
 
-import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.ImageView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.navigation.NavController;
+import androidx.navigation.fragment.NavHostFragment;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
 public class MainActivity extends AppCompatActivity {
 
-    private ImageView btnNotifications, btnProfile;
     private BottomNavigationView bottomNav;
+    private NavController navController;
+
+    private final Set<Integer> authDestinations = new HashSet<>(Arrays.asList(
+            R.id.loginFragment,
+            R.id.registerFragment,
+            R.id.verifyEmailFragment
+    ));
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,36 +42,40 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-        btnNotifications = findViewById(R.id.btnNotifications);
-        btnProfile = findViewById(R.id.btnProfile);
         bottomNav = findViewById(R.id.bottomNav);
+        ImageView btnNotifications = findViewById(R.id.btnNotifications);
+        ImageView btnProfile = findViewById(R.id.btnProfile);
+        Toolbar toolbar = findViewById(R.id.toolbar);
 
-        btnNotifications.setOnClickListener(v -> {
-            startActivity(new Intent(MainActivity.this, NotificationsActivity.class));
-        });
+        NavHostFragment navHostFragment = (NavHostFragment)
+                getSupportFragmentManager().findFragmentById(R.id.navHostFragment);
+        navController = navHostFragment.getNavController();
 
-        btnProfile.setOnClickListener(v -> {
-            startActivity(new Intent(MainActivity.this, ProfileActivity.class));
+        navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
+            boolean isAuth = authDestinations.contains(destination.getId());
+            toolbar.setVisibility(isAuth ? View.GONE : View.VISIBLE);
+            bottomNav.setVisibility(isAuth ? View.GONE : View.VISIBLE);
         });
 
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
-
             if (id == R.id.home) {
+                navController.navigate(R.id.homeFragment);
                 return true;
             } else if (id == R.id.play) {
-                startActivity(new Intent(MainActivity.this, KoZnaZnaActivity.class));
+                navController.navigate(R.id.korakPoKorakFragment);
                 return true;
             } else if (id == R.id.profile) {
-                startActivity(new Intent(MainActivity.this, ProfileActivity.class));
-                return true;
-            } else if (id == R.id.rank) {
-                return true;
-            } else if (id == R.id.friends) {
+                navController.navigate(R.id.profileFragment);
                 return true;
             }
-
             return false;
         });
+
+        btnNotifications.setOnClickListener(v ->
+                navController.navigate(R.id.notificationsFragment));
+
+        btnProfile.setOnClickListener(v ->
+                navController.navigate(R.id.profileFragment));
     }
 }

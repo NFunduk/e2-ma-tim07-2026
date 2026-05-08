@@ -477,7 +477,7 @@ public class SkockoActivity extends AppCompatActivity {
         btnNextSkocko.setText("Nastavi ");
         btnNextSkocko.setVisibility(View.VISIBLE);
         btnNextSkocko.setOnClickListener(v -> {
-            startActivity(new Intent(SkockoActivity.this, KorakPoKorakActivity.class));
+            startActivity(new Intent(SkockoActivity.this, KorakPoKorakFragment.class));
             finish();
         });
     }

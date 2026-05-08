@@ -1,19 +1,22 @@
 package com.example.sabona;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AppCompatActivity;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+import androidx.navigation.fragment.NavHostFragment;
 
-import com.google.android.material.bottomnavigation.BottomNavigationView;
+public class KorakPoKorakFragment extends Fragment {
 
-public class KorakPoKorakActivity extends AppCompatActivity {
     private TextView tvKorakRound, tvKorakPlayer, tvKorakTimer, tvKorakScore;
     private TextView tvKorakInfo, tvCurrentPoints;
     private TextView tvStep1, tvStep2, tvStep3, tvStep4, tvStep5, tvStep6, tvStep7;
@@ -24,14 +27,12 @@ public class KorakPoKorakActivity extends AppCompatActivity {
     private int currentPlayer = 1;
     private int player1Score = 0;
     private int player2Score = 0;
-    private int currentStep = 0;  // koliko koraka je otvoreno
+    private int currentStep = 0;
     private boolean roundFinished = false;
 
     private CountDownTimer timer;
 
-    // Primer podataka
     private final String[][] steps = {
-            // Runda 1
             {
                     "Osnovan 1687. godine",
                     "Nalazi se u Engleskoj",
@@ -41,7 +42,6 @@ public class KorakPoKorakActivity extends AppCompatActivity {
                     "Ivy League",
                     "Čuveni univerzitet u UK"
             },
-            // Runda 2
             {
                     "Prva ga je koristila u 2. veku",
                     "Napravljen od zlata i srebra",
@@ -55,33 +55,33 @@ public class KorakPoKorakActivity extends AppCompatActivity {
 
     private final String[] answers = {"Kembridž", "Tijara"};
 
+    @Nullable
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_korak_po_korak);
-
-        initViews();
-        setupBottomNavigation();
-        startRound();
+    public View onCreateView(@NonNull LayoutInflater inflater,
+                             ViewGroup container, Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_korak_po_korak, container, false);
     }
 
-    private void initViews() {
-        tvKorakRound = findViewById(R.id.tvKorakRound);
-        tvKorakPlayer = findViewById(R.id.tvKorakPlayer);
-        tvKorakTimer = findViewById(R.id.tvKorakTimer);
-        tvKorakScore = findViewById(R.id.tvKorakScore);
-        tvKorakInfo = findViewById(R.id.tvKorakInfo);
-        tvCurrentPoints = findViewById(R.id.tvCurrentPoints);
-        tvStep1 = findViewById(R.id.tvStep1);
-        tvStep2 = findViewById(R.id.tvStep2);
-        tvStep3 = findViewById(R.id.tvStep3);
-        tvStep4 = findViewById(R.id.tvStep4);
-        tvStep5 = findViewById(R.id.tvStep5);
-        tvStep6 = findViewById(R.id.tvStep6);
-        tvStep7 = findViewById(R.id.tvStep7);
-        etKorakAnswer = findViewById(R.id.etKorakAnswer);
-        btnKorakGuess = findViewById(R.id.btnKorakGuess);
-        btnKorakNext = findViewById(R.id.btnKorakNext);
+    @Override
+    public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+
+        tvKorakRound    = view.findViewById(R.id.tvKorakRound);
+        tvKorakPlayer   = view.findViewById(R.id.tvKorakPlayer);
+        tvKorakTimer    = view.findViewById(R.id.tvKorakTimer);
+        tvKorakScore    = view.findViewById(R.id.tvKorakScore);
+        tvKorakInfo     = view.findViewById(R.id.tvKorakInfo);
+        tvCurrentPoints = view.findViewById(R.id.tvCurrentPoints);
+        tvStep1         = view.findViewById(R.id.tvStep1);
+        tvStep2         = view.findViewById(R.id.tvStep2);
+        tvStep3         = view.findViewById(R.id.tvStep3);
+        tvStep4         = view.findViewById(R.id.tvStep4);
+        tvStep5         = view.findViewById(R.id.tvStep5);
+        tvStep6         = view.findViewById(R.id.tvStep6);
+        tvStep7         = view.findViewById(R.id.tvStep7);
+        etKorakAnswer   = view.findViewById(R.id.etKorakAnswer);
+        btnKorakGuess   = view.findViewById(R.id.btnKorakGuess);
+        btnKorakNext    = view.findViewById(R.id.btnKorakNext);
 
         btnKorakGuess.setOnClickListener(v -> checkAnswer());
         btnKorakNext.setOnClickListener(v -> {
@@ -93,42 +93,38 @@ public class KorakPoKorakActivity extends AppCompatActivity {
                 showEndGame();
             }
         });
+
+        startRound();
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (timer != null) timer.cancel();
     }
 
     private void startRound() {
         if (timer != null) timer.cancel();
-
         currentStep = 0;
         roundFinished = false;
         btnKorakNext.setVisibility(View.GONE);
-
         resetStepFields();
         etKorakAnswer.setText("");
-
         tvKorakInfo.setText("Čekaj — otvara se novi korak svakih 10 sekundi.");
         updateHeader();
         updatePoints();
-
-        // Otvori prvi korak odmah
         openNextStep();
-
-        // Tajmer koji otvara korak svakih 10 sekundi
         startStepTimer();
     }
 
     private void resetStepFields() {
-        tvStep1.setText("???");
-        tvStep2.setText("???");
-        tvStep3.setText("???");
-        tvStep4.setText("???");
-        tvStep5.setText("???");
-        tvStep6.setText("???");
+        tvStep1.setText("???"); tvStep2.setText("???"); tvStep3.setText("???");
+        tvStep4.setText("???"); tvStep5.setText("???"); tvStep6.setText("???");
         tvStep7.setText("???");
     }
 
     private void openNextStep() {
         if (currentStep >= 7) return;
-
         String stepText = steps[round - 1][currentStep];
         switch (currentStep) {
             case 0: tvStep1.setText(stepText); break;
@@ -144,21 +140,16 @@ public class KorakPoKorakActivity extends AppCompatActivity {
     }
 
     private void startStepTimer() {
-        // Otvara korak svakih 10 sekundi
         timer = new CountDownTimer(70000, 1000) {
-            private long stepCountdown = 10;
-
             @Override
             public void onTick(long millisUntilFinished) {
                 long secondsLeft = millisUntilFinished / 1000;
                 tvKorakTimer.setText(String.format("00:%02d", secondsLeft % 70));
-
                 long elapsed = 70 - secondsLeft;
                 if (elapsed > 0 && elapsed % 10 == 0 && currentStep < 7) {
                     openNextStep();
                 }
             }
-
             @Override
             public void onFinish() {
                 tvKorakTimer.setText("00:00");
@@ -173,28 +164,24 @@ public class KorakPoKorakActivity extends AppCompatActivity {
 
     private void checkAnswer() {
         if (roundFinished) return;
-
         String guess = etKorakAnswer.getText().toString().trim();
         if (guess.isEmpty()) {
-            Toast.makeText(this, "Unesi odgovor", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Unesi odgovor", Toast.LENGTH_SHORT).show();
             return;
         }
-
         if (guess.equalsIgnoreCase(answers[round - 1])) {
-            // Tačan odgovor: 20 - (currentStep-1)*2 bodova
             int points = Math.max(20 - (currentStep - 1) * 2, 0);
             addPoints(points);
             tvKorakInfo.setText("Tačno! Osvajate " + points + " bodova.");
             finishRound();
         } else {
-            Toast.makeText(this, "Netačno, pokušaj ponovo.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Netačno, pokušaj ponovo.", Toast.LENGTH_SHORT).show();
         }
-
         updateHeader();
     }
 
     private void updatePoints() {
-        int points = Math.max(20 - (currentStep) * 2, 0);
+        int points = Math.max(20 - currentStep * 2, 0);
         tvCurrentPoints.setText(String.valueOf(points));
     }
 
@@ -222,26 +209,8 @@ public class KorakPoKorakActivity extends AppCompatActivity {
         if (player1Score > player2Score) winner = "Pobedio igrač 1!";
         else if (player2Score > player1Score) winner = "Pobedio igrač 2!";
         else winner = "Nerešeno!";
-
-        Toast.makeText(this, winner + " Sledi Moj broj.", Toast.LENGTH_LONG).show();
-        startActivity(new Intent(KorakPoKorakActivity.this, MojBrojActivity.class));
-        finish();
-    }
-
-    private void setupBottomNavigation() {
-        BottomNavigationView bottomNav = findViewById(R.id.bottomNav);
-        bottomNav.setSelectedItemId(R.id.play);
-        bottomNav.setOnItemSelectedListener(item -> {
-            int id = item.getItemId();
-            if (id == R.id.home) {
-                startActivity(new Intent(this, MainActivity.class));
-                finish();
-                return true;
-            } else if (id == R.id.profile) {
-                startActivity(new Intent(this, ProfileActivity.class));
-                return true;
-            }
-            return id == R.id.play;
-        });
+        Toast.makeText(requireContext(), winner, Toast.LENGTH_LONG).show();
+        NavHostFragment.findNavController(this)
+                .navigate(R.id.action_korak_to_mojbroj);
     }
 }
