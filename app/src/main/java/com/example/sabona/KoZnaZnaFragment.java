@@ -212,6 +212,13 @@ public class KoZnaZnaFragment extends Fragment {
                 ContextCompat.getColor(requireContext(), R.color.white));
     }
 
+    private void markCorrectAnswerTimeout(int correctIndex) {
+        answerButtons[correctIndex].setBackgroundTintList(
+                ContextCompat.getColorStateList(requireContext(), R.color.lavender));
+        answerButtons[correctIndex].setTextColor(
+                ContextCompat.getColor(requireContext(), R.color.dark_blue));
+    }
+
     private void finishQuestion() {
         if (timer != null) timer.cancel();
         questionFinished = true;
@@ -262,7 +269,7 @@ public class KoZnaZnaFragment extends Fragment {
 
                 if (!questionFinished) {
                     int correctIndex = (int) questions[currentQuestion][5];
-                    markCorrectAnswer(correctIndex);
+                    markCorrectAnswerTimeout(correctIndex); // <- ovo umjesto markCorrectAnswer
                     finishQuestion();
                 }
             }
