@@ -304,9 +304,8 @@ public class SpojniceFragment extends Fragment {
 
         Toast.makeText(requireContext(), winner, Toast.LENGTH_LONG).show();
 
-        // Navigacija na Korak po korak (koleginicin fragment)
         NavHostFragment.findNavController(this)
-                .navigate(R.id.action_spojnice_to_korak);
+                .navigate(R.id.action_spojnice_to_associations);
     }
 
     private void updateHeader() {

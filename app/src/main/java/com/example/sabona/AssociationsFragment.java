@@ -1,23 +1,21 @@
 package com.example.sabona;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+import androidx.navigation.fragment.NavHostFragment;
 
-import com.google.android.material.bottomnavigation.BottomNavigationView;
-
-public class AssociationsActivity extends AppCompatActivity {
+public class AssociationsFragment extends Fragment {
 
     private TextView tvRound, tvPlayer, tvTimer, tvScore, tvInfo;
     private Button[][] fieldButtons = new Button[4][4];
@@ -25,7 +23,7 @@ public class AssociationsActivity extends AppCompatActivity {
     private EditText[] columnInputs = new EditText[4];
     private Button[] guessColumnButtons = new Button[4];
     private EditText finalInput;
-    private Button btnGuessFinal, btnNextRound;
+    private Button btnGuessFinal;
 
     private int round = 1;
     private int currentPlayer = 1;
@@ -65,69 +63,73 @@ public class AssociationsActivity extends AppCompatActivity {
             "Takmicenje"
     };
 
+    @Nullable
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
-        setContentView(R.layout.fragment_associations);
+    public View onCreateView(@NonNull LayoutInflater inflater,
+                             ViewGroup container,
+                             Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_associations, container, false);
+    }
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.associationsRoot), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
+    @Override
+    public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
 
-        connectViews();
+        connectViews(view);
         setupClicks();
-        setupBottomNavigation();
         startRound();
     }
 
-    private void connectViews() {
-        tvRound = findViewById(R.id.tvRound);
-        tvPlayer = findViewById(R.id.tvPlayer);
-        tvTimer = findViewById(R.id.tvTimer);
-        tvScore = findViewById(R.id.tvScore);
-        tvInfo = findViewById(R.id.tvInfo);
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (timer != null) timer.cancel();
+    }
 
-        fieldButtons[0][0] = findViewById(R.id.a1);
-        fieldButtons[0][1] = findViewById(R.id.a2);
-        fieldButtons[0][2] = findViewById(R.id.a3);
-        fieldButtons[0][3] = findViewById(R.id.a4);
+    private void connectViews(View view) {
+        tvRound = view.findViewById(R.id.tvRound);
+        tvPlayer = view.findViewById(R.id.tvPlayer);
+        tvTimer = view.findViewById(R.id.tvTimer);
+        tvScore = view.findViewById(R.id.tvScore);
+        tvInfo = view.findViewById(R.id.tvInfo);
 
-        fieldButtons[1][0] = findViewById(R.id.b1);
-        fieldButtons[1][1] = findViewById(R.id.b2);
-        fieldButtons[1][2] = findViewById(R.id.b3);
-        fieldButtons[1][3] = findViewById(R.id.b4);
+        fieldButtons[0][0] = view.findViewById(R.id.a1);
+        fieldButtons[0][1] = view.findViewById(R.id.a2);
+        fieldButtons[0][2] = view.findViewById(R.id.a3);
+        fieldButtons[0][3] = view.findViewById(R.id.a4);
 
-        fieldButtons[2][0] = findViewById(R.id.c1);
-        fieldButtons[2][1] = findViewById(R.id.c2);
-        fieldButtons[2][2] = findViewById(R.id.c3);
-        fieldButtons[2][3] = findViewById(R.id.c4);
+        fieldButtons[1][0] = view.findViewById(R.id.b1);
+        fieldButtons[1][1] = view.findViewById(R.id.b2);
+        fieldButtons[1][2] = view.findViewById(R.id.b3);
+        fieldButtons[1][3] = view.findViewById(R.id.b4);
 
-        fieldButtons[3][0] = findViewById(R.id.d1);
-        fieldButtons[3][1] = findViewById(R.id.d2);
-        fieldButtons[3][2] = findViewById(R.id.d3);
-        fieldButtons[3][3] = findViewById(R.id.d4);
+        fieldButtons[2][0] = view.findViewById(R.id.c1);
+        fieldButtons[2][1] = view.findViewById(R.id.c2);
+        fieldButtons[2][2] = view.findViewById(R.id.c3);
+        fieldButtons[2][3] = view.findViewById(R.id.c4);
 
-        columnSolutions[0] = findViewById(R.id.solutionA);
-        columnSolutions[1] = findViewById(R.id.solutionB);
-        columnSolutions[2] = findViewById(R.id.solutionC);
-        columnSolutions[3] = findViewById(R.id.solutionD);
+        fieldButtons[3][0] = view.findViewById(R.id.d1);
+        fieldButtons[3][1] = view.findViewById(R.id.d2);
+        fieldButtons[3][2] = view.findViewById(R.id.d3);
+        fieldButtons[3][3] = view.findViewById(R.id.d4);
 
-        columnInputs[0] = findViewById(R.id.inputA);
-        columnInputs[1] = findViewById(R.id.inputB);
-        columnInputs[2] = findViewById(R.id.inputC);
-        columnInputs[3] = findViewById(R.id.inputD);
+        columnSolutions[0] = view.findViewById(R.id.solutionA);
+        columnSolutions[1] = view.findViewById(R.id.solutionB);
+        columnSolutions[2] = view.findViewById(R.id.solutionC);
+        columnSolutions[3] = view.findViewById(R.id.solutionD);
 
-        guessColumnButtons[0] = findViewById(R.id.btnGuessA);
-        guessColumnButtons[1] = findViewById(R.id.btnGuessB);
-        guessColumnButtons[2] = findViewById(R.id.btnGuessC);
-        guessColumnButtons[3] = findViewById(R.id.btnGuessD);
+        columnInputs[0] = view.findViewById(R.id.inputA);
+        columnInputs[1] = view.findViewById(R.id.inputB);
+        columnInputs[2] = view.findViewById(R.id.inputC);
+        columnInputs[3] = view.findViewById(R.id.inputD);
 
-        finalInput = findViewById(R.id.inputFinal);
-        btnGuessFinal = findViewById(R.id.btnGuessFinal);
-        //btnNextRound = findViewById(R.id.btnNextRound);
+        guessColumnButtons[0] = view.findViewById(R.id.btnGuessA);
+        guessColumnButtons[1] = view.findViewById(R.id.btnGuessB);
+        guessColumnButtons[2] = view.findViewById(R.id.btnGuessC);
+        guessColumnButtons[3] = view.findViewById(R.id.btnGuessD);
+
+        finalInput = view.findViewById(R.id.inputFinal);
+        btnGuessFinal = view.findViewById(R.id.btnGuessFinal);
     }
 
     private void setupClicks() {
@@ -145,20 +147,6 @@ public class AssociationsActivity extends AppCompatActivity {
         }
 
         btnGuessFinal.setOnClickListener(v -> guessFinal());
-
-        /*btnNextRound.setOnClickListener(v -> {
-            if (roundFinished) {
-                if (round == 1) {
-                    round = 2;
-                    currentPlayer = 2;
-                    startRound();
-                } else {
-                    showEndGame();
-                }
-            } else {
-                passTurn();
-            }
-        });*/
     }
 
     private void startRound() {
@@ -167,9 +155,6 @@ public class AssociationsActivity extends AppCompatActivity {
         finalSolved = false;
         fieldOpenedThisTurn = false;
         roundFinished = false;
-
-        //btnNextRound.setText("Dalje");
-        //btnNextRound.setVisibility(View.GONE);
 
         for (int col = 0; col < 4; col++) {
             columnSolved[col] = false;
@@ -205,17 +190,13 @@ public class AssociationsActivity extends AppCompatActivity {
         fieldButtons[col][row].setText(fields[round - 1][col][row]);
         disableFieldOpening();
 
-        //btnNextRound.setText("Dalje");
-        //btnNextRound.setVisibility(View.VISIBLE);
-
-        tvInfo.setText("Otvoreno polje. Možeš da pogađaš ili klikni Dalje.");
+        tvInfo.setText("Otvoreno polje. Sada možeš da pogađaš.");
         updateHeader();
     }
 
     private void passTurn() {
         switchPlayer();
         fieldOpenedThisTurn = false;
-        btnNextRound.setVisibility(View.GONE);
         enableFieldOpening();
         tvInfo.setText("Na potezu je igrač " + currentPlayer + ". Otvori jedno polje.");
         updateHeader();
@@ -225,7 +206,7 @@ public class AssociationsActivity extends AppCompatActivity {
         if (columnSolved[col] || finalSolved || roundFinished) return;
 
         if (!canGuessNow()) {
-            Toast.makeText(this, "Prvo otvori jedno polje.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Prvo otvori jedno polje.", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -233,7 +214,7 @@ public class AssociationsActivity extends AppCompatActivity {
         String answer = columnAnswers[round - 1][col];
 
         if (guess.isEmpty()) {
-            Toast.makeText(this, "Unesi rešenje kolone", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Unesi rešenje kolone", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -241,12 +222,10 @@ public class AssociationsActivity extends AppCompatActivity {
             int points = calculateColumnPoints(col);
             addPoints(points);
             revealColumn(col);
-            tvInfo.setText("Tačno! Dobijeno bodova za kolonu: " + points + ". Možeš dalje da pogađaš ili klikni Dalje.");
-            //btnNextRound.setText("Dalje");
-            //btnNextRound.setVisibility(View.VISIBLE);
+            tvInfo.setText("Tačno! Dobijeno bodova za kolonu: " + points);
         } else {
             tvInfo.setText("Netačno. Igra drugi igrač.");
-            Toast.makeText(this, "Netačno rešenje kolone", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Netačno rešenje kolone", Toast.LENGTH_SHORT).show();
             passTurn();
         }
 
@@ -257,7 +236,7 @@ public class AssociationsActivity extends AppCompatActivity {
         if (finalSolved || roundFinished) return;
 
         if (!canGuessNow()) {
-            Toast.makeText(this, "Prvo otvori jedno polje.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Prvo otvori jedno polje.", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -265,7 +244,7 @@ public class AssociationsActivity extends AppCompatActivity {
         String answer = finalAnswers[round - 1];
 
         if (guess.isEmpty()) {
-            Toast.makeText(this, "Unesi konačno rešenje", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Unesi konačno rešenje", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -280,7 +259,7 @@ public class AssociationsActivity extends AppCompatActivity {
             finishRound();
         } else {
             tvInfo.setText("Netačno konačno rešenje. Igra drugi igrač.");
-            Toast.makeText(this, "Netačno konačno rešenje", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Netačno konačno rešenje", Toast.LENGTH_SHORT).show();
             passTurn();
         }
 
@@ -419,12 +398,11 @@ public class AssociationsActivity extends AppCompatActivity {
         finalInput.setEnabled(false);
         btnGuessFinal.setEnabled(false);
 
-        // Automatski prelaz nakon 3 sekunde
         new CountDownTimer(3000, 1000) {
             @Override
             public void onTick(long millisUntilFinished) {
                 long seconds = millisUntilFinished / 1000;
-                tvInfo.setText("Runda završena! Sljedeća za: " + seconds + "s");
+                tvInfo.setText("Runda završena! Sledeća za: " + seconds + "s");
             }
 
             @Override
@@ -453,44 +431,16 @@ public class AssociationsActivity extends AppCompatActivity {
             winner = "Asocijacije su nerešene!";
         }
 
-        Toast.makeText(this, winner + " Sledi igra Skočko.", Toast.LENGTH_LONG).show();
+        Toast.makeText(requireContext(), winner + " Sledi igra Korak po korak.", Toast.LENGTH_LONG).show();
 
-        Intent intent = new Intent(AssociationsActivity.this, SkockoActivity.class);
-        startActivity(intent);
-        finish();
+        NavHostFragment.findNavController(this)
+                .navigate(R.id.action_associations_to_skocko);
     }
 
     private void updateHeader() {
         tvRound.setText("Runda " + round + "/2");
         tvPlayer.setText("Na potezu: igrač " + currentPlayer);
         tvScore.setText("Igrač 1: " + player1Score + "  |  Igrač 2: " + player2Score);
-    }
-
-    private void setupBottomNavigation() {
-        BottomNavigationView bottomNav = findViewById(R.id.bottomNav);
-
-        bottomNav.setSelectedItemId(R.id.play);
-
-        bottomNav.setOnItemSelectedListener(item -> {
-            int id = item.getItemId();
-
-            if (id == R.id.home) {
-                startActivity(new Intent(AssociationsActivity.this, MainActivity.class));
-                finish();
-                return true;
-            } else if (id == R.id.play) {
-                return true;
-            } else if (id == R.id.profile) {
-                startActivity(new Intent(AssociationsActivity.this, ProfileActivity.class));
-                return true;
-            } else if (id == R.id.rank) {
-                return true;
-            } else if (id == R.id.friends) {
-                return true;
-            }
-
-            return false;
-        });
     }
 
     private boolean hasOpenableField() {

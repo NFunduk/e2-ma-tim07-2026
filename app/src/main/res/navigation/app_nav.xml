@@ -55,7 +55,26 @@
         android:id="@+id/spojniceFragment"
         android:name="com.example.sabona.SpojniceFragment"
         android:label="Spojnice">
-        <action android:id="@+id/action_spojnice_to_korak"
+        <action
+            android:id="@+id/action_spojnice_to_associations"
+            app:destination="@id/associationsFragment"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/associationsFragment"
+        android:name="com.example.sabona.AssociationsFragment"
+        android:label="Associations">
+        <action
+            android:id="@+id/action_associations_to_skocko"
+            app:destination="@id/skockoFragment"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/skockoFragment"
+        android:name="com.example.sabona.SkockoFragment"
+        android:label="Skocko">
+        <action
+            android:id="@+id/action_skocko_to_korak"
             app:destination="@id/korakPoKorakFragment"/>
     </fragment>
 
