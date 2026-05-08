@@ -479,7 +479,8 @@ public class SkockoActivity extends AppCompatActivity {
 
         Toast.makeText(this, winner + " Sledi Korak po korak!", Toast.LENGTH_LONG).show();
 
-        Intent intent = new Intent(SkockoActivity.this, KorakPoKorakActivity.class);
+
+        Intent intent = new Intent(SkockoActivity.this, KorakPoKorakFragment.class);
         startActivity(intent);
         finish();
     }

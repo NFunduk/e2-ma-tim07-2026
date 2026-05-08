@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/app_nav"
+    app:startDestination="@id/loginFragment">
+
+    <fragment
+        android:id="@+id/loginFragment"
+        android:name="com.example.sabona.LoginFragment"
+        android:label="Login" >
+        <action android:id="@+id/action_login_to_home"
+            app:destination="@id/homeFragment"
+            app:popUpTo="@id/loginFragment"
+            app:popUpToInclusive="true"/>
+        <action android:id="@+id/action_login_to_register"
+            app:destination="@id/registerFragment"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/registerFragment"
+        android:name="com.example.sabona.RegisterFragment"
+        android:label="Register">
+        <action android:id="@+id/action_register_to_verify"
+            app:destination="@id/verifyEmailFragment"/>
+        <action android:id="@+id/action_register_to_login"
+            app:destination="@id/loginFragment"
+            app:popUpTo="@id/loginFragment"
+            app:popUpToInclusive="true"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/verifyEmailFragment"
+        android:name="com.example.sabona.VerifyEmailFragment"
+        android:label="VerifyEmail">
+        <action android:id="@+id/action_verify_to_login"
+            app:destination="@id/loginFragment"
+            app:popUpTo="@id/loginFragment"
+            app:popUpToInclusive="true"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.example.sabona.HomeFragment"
+        android:label="Home"/>
+
+    <fragment
+        android:id="@+id/korakPoKorakFragment"
+        android:name="com.example.sabona.KorakPoKorakFragment"
+        android:label="KorakPoKorak">
+        <action android:id="@+id/action_korak_to_mojbroj"
+            app:destination="@id/mojBrojFragment"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/mojBrojFragment"
+        android:name="com.example.sabona.MojBrojFragment"
+        android:label="MojBroj">
+        <argument android:name="player1Score"
+            app:argType="integer" android:defaultValue="0"/>
+        <argument android:name="player2Score"
+            app:argType="integer" android:defaultValue="0"/>
+        <action android:id="@+id/action_mojbroj_to_gameover"
+            app:destination="@id/gameOverFragment"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/gameOverFragment"
+        android:name="com.example.sabona.GameOverFragment"
+        android:label="GameOver">
+        <argument android:name="winner"
+            app:argType="string" android:defaultValue=""/>
+        <action android:id="@+id/action_gameover_to_home"
+            app:destination="@id/homeFragment"
+            app:popUpTo="@id/homeFragment"
+            app:popUpToInclusive="true"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/profileFragment"
+        android:name="com.example.sabona.ProfileFragment"
+        android:label="Profile"/>
+
+    <fragment
+        android:id="@+id/notificationsFragment"
+        android:name="com.example.sabona.NotificationsFragment"
+        android:label="Notifications"/>
+
+</navigation>
