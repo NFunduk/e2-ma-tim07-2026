@@ -82,7 +82,7 @@
 
     <fragment
         android:id="@+id/notificationsFragment"
-        android:name="com.example.sabona.NotificationsFragment"
+        android:name="com.example.sabona.NotificationFragment"
         android:label="Notifications"/>
 
 </navigation>

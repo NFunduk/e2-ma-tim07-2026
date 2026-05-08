@@ -12,7 +12,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Sabona">
         <activity android:name=".ResetPasswordActivity" />
-        <activity android:name=".NotificationsActivity" />
         <activity android:name=".ProfileActivity" />
         <activity android:name=".AssociationsActivity" />
         <activity android:name=".SkockoActivity" />
