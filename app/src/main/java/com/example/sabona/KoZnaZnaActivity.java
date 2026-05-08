@@ -87,7 +87,7 @@ public class KoZnaZnaActivity extends AppCompatActivity {
         tvPlayer2Status = findViewById(R.id.tvPlayer2Status);
         tvScore1        = findViewById(R.id.tvScore1);
         tvScore2        = findViewById(R.id.tvScore2);
-        btnNext         = findViewById(R.id.btnNext);
+        //btnNext         = findViewById(R.id.btnNext);
 
         answerButtons[0] = findViewById(R.id.btnAnswer1);
         answerButtons[1] = findViewById(R.id.btnAnswer2);
@@ -101,14 +101,14 @@ public class KoZnaZnaActivity extends AppCompatActivity {
             answerButtons[i].setOnClickListener(v -> onAnswerClick(answerIndex));
         }
 
-        btnNext.setOnClickListener(v -> {
+        /*btnNext.setOnClickListener(v -> {
             currentQuestion++;
             if (currentQuestion < questions.length) {
                 loadQuestion();
             } else {
                 showEndGame();
             }
-        });
+        });*/
     }
 
     private void loadQuestion() {
@@ -119,7 +119,7 @@ public class KoZnaZnaActivity extends AppCompatActivity {
         player2Answered = false;
         questionFinished = false;
         activePlayer = 1;
-        btnNext.setVisibility(View.GONE);
+        //btnNext.setVisibility(View.GONE);
 
         // Postavi tekst pitanja i odgovora
         Object[] q = questions[currentQuestion];
@@ -222,13 +222,23 @@ public class KoZnaZnaActivity extends AppCompatActivity {
             btn.setEnabled(false);
         }
 
-        btnNext.setVisibility(View.VISIBLE);
+        // Automatski prelaz na sljedece pitanje nakon 2 sekunde
+        new CountDownTimer(2000, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                // ne treba nista
+            }
 
-        if (currentQuestion == questions.length - 1) {
-            btnNext.setText("Završi igru");
-        } else {
-            btnNext.setText("Sledeće pitanje →");
-        }
+            @Override
+            public void onFinish() {
+                currentQuestion++;
+                if (currentQuestion < questions.length) {
+                    loadQuestion();
+                } else {
+                    showEndGame();
+                }
+            }
+        }.start();
 
         updateScoreViews();
     }

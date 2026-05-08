@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.textfield.TextInputEditText;
+import android.content.Intent;
 
 public class ProfileActivity extends AppCompatActivity {
 
@@ -49,6 +50,15 @@ public class ProfileActivity extends AppCompatActivity {
 
     // Bottom nav
     private BottomNavigationView bottomNav;
+
+    // Jos statistika
+    private TextView tvStatsKzzRatio;
+    private TextView tvStatsSpojnicePercent;
+    private TextView tvStatsAsocijacijeRatio;
+    private TextView tvStatsSkockoPercent;
+    private TextView tvStatsKorakPercent;
+    private TextView tvStatsMojBrojPercent;
+    private ImageView imgLeagueIcon;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,6 +100,14 @@ public class ProfileActivity extends AppCompatActivity {
 
         btnLogout = findViewById(R.id.btnLogout);
         bottomNav = findViewById(R.id.bottomNav);
+
+        tvStatsKzzRatio = findViewById(R.id.tvStatsKzzRatio);
+        tvStatsSpojnicePercent = findViewById(R.id.tvStatsSpojnicePercent);
+        tvStatsAsocijacijeRatio = findViewById(R.id.tvStatsAsocijacijeRatio);
+        tvStatsSkockoPercent = findViewById(R.id.tvStatsSkockoPercent);
+        tvStatsKorakPercent = findViewById(R.id.tvStatsKorakPercent);
+        tvStatsMojBrojPercent = findViewById(R.id.tvStatsMojBrojPercent);
+        imgLeagueIcon = findViewById(R.id.imgLeagueIcon);
     }
 
     /**
@@ -114,6 +132,15 @@ public class ProfileActivity extends AppCompatActivity {
         tvStatsSkocko.setText("5 - 25 bod.");
         tvStatsKorakPoKorak.setText("8 - 20 bod.");
         tvStatsMojBroj.setText("5 - 10 bod.");
+
+        // Detaljna statistika
+        tvStatsKzzRatio.setText("32 / 8");
+        tvStatsSpojnicePercent.setText("78%");
+        tvStatsAsocijacijeRatio.setText("14 / 5");
+        tvStatsSkockoPercent.setText("25% / 40% / 35%");
+        tvStatsKorakPercent.setText("30% k.1 / 45% k.2");
+        tvStatsMojBrojPercent.setText("55%");
+        imgLeagueIcon.setImageResource(R.drawable.star);
     }
 
     private void setupListeners() {
@@ -154,8 +181,11 @@ public class ProfileActivity extends AppCompatActivity {
         });
 
         btnLogout.setOnClickListener(v -> {
-            // TODO: Implementirati logout logiku
-            //Toast.makeText(this, getString(R.string.logged_out), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Odjavljeni ste!", Toast.LENGTH_SHORT).show();
+            // TODO: Ovdje ce ici Firebase signOut() kad se implementira auth
+            Intent intent = new Intent(ProfileActivity.this, MainActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
             finish();
         });
     }
