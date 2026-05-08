@@ -44,6 +44,22 @@
         android:label="Home"/>
 
     <fragment
+        android:id="@+id/koZnaZnaFragment"
+        android:name="com.example.sabona.KoZnaZnaFragment"
+        android:label="KoZnaZna">
+        <action android:id="@+id/action_kozna_to_spojnice"
+            app:destination="@id/spojniceFragment"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/spojniceFragment"
+        android:name="com.example.sabona.SpojniceFragment"
+        android:label="Spojnice">
+        <action android:id="@+id/action_spojnice_to_korak"
+            app:destination="@id/korakPoKorakFragment"/>
+    </fragment>
+
+    <fragment
         android:id="@+id/korakPoKorakFragment"
         android:name="com.example.sabona.KorakPoKorakFragment"
         android:label="KorakPoKorak">
@@ -82,7 +98,7 @@
 
     <fragment
         android:id="@+id/notificationsFragment"
-        android:name="com.example.sabona.NotificationsFragment"
+        android:name="com.example.sabona.NotificationFragment"
         android:label="Notifications"/>
 
 </navigation>
