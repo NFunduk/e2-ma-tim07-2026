@@ -3,8 +3,10 @@ package com.example.sabona;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.graphics.Insets;
@@ -23,6 +25,8 @@ public class MainActivity extends AppCompatActivity {
 
     private BottomNavigationView bottomNav;
     private NavController navController;
+    private ImageView btnNotifications;
+    private TextView tvToolbarTitle;
 
     private final Set<Integer> authDestinations = new HashSet<>(Arrays.asList(
             R.id.loginFragment,
@@ -52,8 +56,9 @@ public class MainActivity extends AppCompatActivity {
         });
 
         bottomNav = findViewById(R.id.bottomNav);
-        final ImageView btnNotifications = findViewById(R.id.btnNotifications);
+        btnNotifications = findViewById(R.id.btnNotifications);
         Toolbar toolbar = findViewById(R.id.toolbar);
+        tvToolbarTitle = findViewById(R.id.tvToolbarTitle);
 
         NavHostFragment navHostFragment = (NavHostFragment)
                 getSupportFragmentManager().findFragmentById(R.id.navHostFragment);
@@ -62,17 +67,28 @@ public class MainActivity extends AppCompatActivity {
         navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
             boolean isAuth = authDestinations.contains(destination.getId());
             boolean isGame = gameDestinations.contains(destination.getId());
+            int id = destination.getId();
 
             toolbar.setVisibility(isAuth ? View.GONE : View.VISIBLE);
             bottomNav.setVisibility(isAuth ? View.GONE : View.VISIBLE);
 
-            // Tokom igre blokiraj sve tabove i notifikacije
             bottomNav.setEnabled(!isGame);
             for (int i = 0; i < bottomNav.getMenu().size(); i++) {
                 bottomNav.getMenu().getItem(i).setEnabled(!isGame);
             }
-            btnNotifications.setEnabled(!isGame);
-            btnNotifications.setAlpha(isGame ? 0.3f : 1.0f);
+
+            btnNotifications.setImageResource(isGame
+                    ? R.drawable.outline_close_24
+                    : R.drawable.outline_notifications_24);
+            btnNotifications.setAlpha(1.0f);
+
+            if (id == R.id.koZnaZnaFragment)       tvToolbarTitle.setText("Ko zna zna");
+            else if (id == R.id.spojniceFragment)   tvToolbarTitle.setText("Spojnice");
+            else if (id == R.id.associationsFragment) tvToolbarTitle.setText("Asocijacije");
+            else if (id == R.id.skockoFragment)     tvToolbarTitle.setText("Skočko");
+            else if (id == R.id.korakPoKorakFragment) tvToolbarTitle.setText("Korak po korak");
+            else if (id == R.id.mojBrojFragment)    tvToolbarTitle.setText("Moj broj");
+            else                                    tvToolbarTitle.setText("SaBoNa");
         });
 
         bottomNav.setOnItemSelectedListener(item -> {
@@ -90,9 +106,21 @@ public class MainActivity extends AppCompatActivity {
             return false;
         });
 
-        btnNotifications.setOnClickListener(v ->
-                navController.navigate(R.id.notificationsFragment));
+        btnNotifications.setOnClickListener(v -> {
+            boolean isGame = gameDestinations.contains(
+                    navController.getCurrentDestination().getId());
 
-
+            if (isGame) {
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("Odustajanje")
+                        .setMessage("Da li želiš da odustaneš od partije?")
+                        .setNegativeButton("Nastavi igru", null)
+                        .setPositiveButton("Odustani", (dialog, which) ->
+                                navController.navigate(R.id.homeFragment))
+                        .show();
+            } else {
+                navController.navigate(R.id.notificationsFragment);
+            }
+        });
     }
 }
