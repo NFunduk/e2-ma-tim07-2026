@@ -64,7 +64,8 @@
                             android:id="@+id/etEmail"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textEmailAddress" />
+                            android:inputType="textEmailAddress"
+                            android:textColor="@color/dark_blue" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Korisnicko ime -->
@@ -79,7 +80,8 @@
                             android:id="@+id/etUsername"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="text" />
+                            android:inputType="text"
+                            android:textColor="@color/dark_blue" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Region (spinner) -->
@@ -112,7 +114,8 @@
                             android:id="@+id/etPassword"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textPassword" />
+                            android:inputType="textPassword"
+                            android:textColor="@color/dark_blue" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Potvrda lozinke -->
@@ -128,7 +131,8 @@
                             android:id="@+id/etPasswordConfirm"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textPassword" />
+                            android:inputType="textPassword"
+                            android:textColor="@color/dark_blue" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Dugme registracija -->

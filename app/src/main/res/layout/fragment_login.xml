@@ -74,7 +74,8 @@
                             android:id="@+id/etLoginIdentifier"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textEmailAddress" />
+                            android:inputType="textEmailAddress"
+                            android:textColor="@color/dark_blue" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Lozinka -->
@@ -90,7 +91,8 @@
                             android:id="@+id/etLoginPassword"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textPassword" />
+                            android:inputType="textPassword"
+                            android:textColor="@color/dark_blue" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Dugme logovanje -->
@@ -103,17 +105,6 @@
                         android:textStyle="bold"
                         android:textColor="@color/white"
                         android:backgroundTint="@color/dark_blue" />
-
-                    <!-- Zaboravljena lozinka -->
-                    <TextView
-                        android:id="@+id/tvForgotPassword"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Zaboravili ste lozinku?"
-                        android:textColor="@color/blue"
-                        android:textSize="13sp"
-                        android:gravity="center"
-                        android:layout_marginTop="12dp" />
 
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
