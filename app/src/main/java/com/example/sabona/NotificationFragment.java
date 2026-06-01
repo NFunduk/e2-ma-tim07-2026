@@ -5,12 +5,22 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.sabona.model.AppNotification;
+import com.example.sabona.repository.NotificationRepository;
+import com.example.sabona.utils.NotificationHelper;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +29,6 @@ public class NotificationFragment extends Fragment {
 
     private TextView filterAll, filterUnread, filterRead;
     private TextView channelChat, channelRanking, channelRewards, channelOther, channelAll;
-
     private RecyclerView notificationsRecycler;
 
     private NotificationAdapter adapter;
@@ -27,6 +36,10 @@ public class NotificationFragment extends Fragment {
 
     private int currentFilter = 0;
     private String selectedChannel = "Svi";
+
+    private FirebaseFirestore db;
+    private ListenerRegistration listenerRegistration;
+    private NotificationRepository repository;
 
     @Nullable
     @Override
@@ -48,16 +61,43 @@ public class NotificationFragment extends Fragment {
 
         notificationsRecycler = view.findViewById(R.id.notificationsRecycler);
 
-        prepareNotifications();
+        db = FirebaseFirestore.getInstance();
+        repository = new NotificationRepository();
 
-        adapter = new NotificationAdapter(requireContext(), new ArrayList<>());
+        adapter = new NotificationAdapter(
+                requireContext(),
+                new ArrayList<>(),
+                new NotificationAdapter.NotificationActionListener() {
+                    @Override
+                    public void onMarkAsRead(AppNotification notification) {
+                        repository.markAsRead(notification.getId());
+                    }
 
-        notificationsRecycler.setLayoutManager(
-                new LinearLayoutManager(requireContext())
+                    @Override
+                    public void onAccept(AppNotification notification) {
+                        handleNotificationAction(notification, true);
+                    }
+
+                    @Override
+                    public void onReject(AppNotification notification) {
+                        handleNotificationAction(notification, false);
+                    }
+                }
         );
 
+        notificationsRecycler.setLayoutManager(new LinearLayoutManager(requireContext()));
         notificationsRecycler.setAdapter(adapter);
 
+        setupFilters();
+        selectFilter(filterAll, filterUnread, filterRead);
+        selectChannel(channelAll, channelChat, channelRanking, channelRewards, channelOther);
+
+        listenForNotifications();
+
+        return view;
+    }
+
+    private void setupFilters() {
         filterAll.setOnClickListener(v -> {
             currentFilter = 0;
             selectFilter(filterAll, filterUnread, filterRead);
@@ -73,6 +113,12 @@ public class NotificationFragment extends Fragment {
         filterRead.setOnClickListener(v -> {
             currentFilter = 2;
             selectFilter(filterRead, filterAll, filterUnread);
+            applyFilter();
+        });
+
+        channelAll.setOnClickListener(v -> {
+            selectedChannel = "Svi";
+            selectChannel(channelAll, channelChat, channelRanking, channelRewards, channelOther);
             applyFilter();
         });
 
@@ -99,75 +145,45 @@ public class NotificationFragment extends Fragment {
             selectChannel(channelOther, channelAll, channelChat, channelRanking, channelRewards);
             applyFilter();
         });
-
-        channelAll.setOnClickListener(v -> {
-            selectedChannel = "Svi";
-            selectChannel(channelAll, channelChat, channelRanking, channelRewards, channelOther);
-            applyFilter();
-        });
-
-        selectChannel(channelAll, channelChat, channelRanking, channelRewards, channelOther);
-
-        applyFilter();
-
-        return view;
     }
 
-    private void prepareNotifications() {
+    private void listenForNotifications() {
 
-        allNotifications.add(new AppNotification(
-                "Nova poruka",
-                "Marko ti je poslao poruku u četu.",
-                "Čet",
-                "pre 1 min",
-                false,
-                false,
-                "chat"
-        ));
+        if (FirebaseAuth.getInstance().getCurrentUser() == null) {
+            Toast.makeText(requireContext(), "Korisnik nije ulogovan", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
-        allNotifications.add(new AppNotification(
-                "Promena na rang listi",
-                "Pomeri/la si se na #12 mesto na rang listi.",
-                "Rangiranje",
-                "pre 2 min",
-                false,
-                false,
-                "ranking"
-        ));
+        String uid = FirebaseAuth.getInstance().getCurrentUser().getUid();
 
-        allNotifications.add(new AppNotification(
-                "Nova nagrada",
-                "Osvojio/la si bonus poene za današnju aktivnost.",
-                "Nagrade",
-                "pre 10 min",
-                false,
-                false,
-                "reward"
-        ));
+        listenerRegistration = db.collection("users")
+                .document(uid)
+                .collection("notifications")
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .addSnapshotListener((snapshots, error) -> {
+                    if (error != null) {
+                        Toast.makeText(requireContext(), "Greška pri učitavanju notifikacija", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
 
-        allNotifications.add(new AppNotification(
-                "Zahtev za prijatelja",
-                "Mila želi da te doda za prijatelja.",
-                "Ostalo",
-                "pre 1 h",
-                true,
-                true,
-                "friend"
-        ));
+                    if (snapshots == null) return;
 
-        allNotifications.add(new AppNotification(
-                "Prelazak u ligu",
-                "Prešao/la si u višu ligu. Pogledaj novu poziciju.",
-                "Rangiranje",
-                "juče",
-                true,
-                false,
-                "league"
-        ));
+                    allNotifications.clear();
+
+                    for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                        AppNotification notification = doc.toObject(AppNotification.class);
+
+                        if (notification != null) {
+                            notification.setId(doc.getId());
+                            allNotifications.add(notification);
+                        }
+                    }
+
+                    applyFilter();
+                });
     }
 
     private void applyFilter() {
-
         List<AppNotification> filtered = new ArrayList<>();
 
         for (AppNotification notification : allNotifications) {
@@ -189,10 +205,41 @@ public class NotificationFragment extends Fragment {
         adapter.setNotifications(filtered);
     }
 
-    private void selectFilter(TextView selected,
-                              TextView firstOther,
-                              TextView secondOther) {
+    private void handleNotificationAction(AppNotification notification, boolean accepted) {
+        if ("friend_game_invite".equals(notification.getType())) {
+            if (notification.getDataId() != null) {
+                db.collection("gameRequests")
+                        .document(notification.getDataId())
+                        .update("status", accepted ? "accepted" : "rejected");
+            }
 
+            repository.markAsHandled(notification.getId());
+
+            Toast.makeText(
+                    requireContext(),
+                    accepted ? "Prihvatila si poziv za partiju" : "Odbila si poziv za partiju",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        if ("friend_request".equals(notification.getType())) {
+            repository.markAsHandled(notification.getId());
+
+            Toast.makeText(
+                    requireContext(),
+                    accepted ? "Prihvatila si zahtev za prijatelja" : "Odbila si zahtev za prijatelja",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        repository.markAsRead(notification.getId());
+    }
+
+    private void selectFilter(TextView selected, TextView firstOther, TextView secondOther) {
         selected.setBackgroundResource(R.drawable.filter_selected_bg);
         selected.setTextColor(requireContext().getColor(R.color.white));
 
@@ -204,13 +251,21 @@ public class NotificationFragment extends Fragment {
     }
 
     private void selectChannel(TextView selected, TextView... others) {
-
         selected.setBackgroundResource(R.drawable.filter_selected_bg);
         selected.setTextColor(requireContext().getColor(R.color.white));
 
         for (TextView other : others) {
             other.setBackgroundResource(R.drawable.channel_chip_bg);
             other.setTextColor(requireContext().getColor(R.color.dark_blue));
+        }
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+
+        if (listenerRegistration != null) {
+            listenerRegistration.remove();
         }
     }
 }
