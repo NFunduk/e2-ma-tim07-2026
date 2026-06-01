@@ -7,11 +7,10 @@
     android:layout_height="match_parent"
     android:background="@color/lace">
 
-
     <ScrollView
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="12dp"
+        android:fillViewport="true"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -21,20 +20,20 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:padding="3dp">
 
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="18dp"
-                app:cardElevation="4dp"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="3dp"
                 app:cardBackgroundColor="@color/dark_blue">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="5dp">
 
                     <TextView
                         android:id="@+id/tvRound"
@@ -42,37 +41,34 @@
                         android:layout_height="wrap_content"
                         android:text="Runda 1/2"
                         android:textColor="@color/white"
-                        android:textSize="20sp"
+                        android:textSize="12sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/tvPlayer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
                         android:text="Na potezu: igrač 1"
                         android:textColor="@color/lavender"
-                        android:textSize="14sp"
+                        android:textSize="12sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/tvTimer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
                         android:text="02:00"
                         android:textColor="@color/petal"
-                        android:textSize="26sp"
+                        android:textSize="15sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/tvScore"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
                         android:text="Igrač 1: 0 | Igrač 2: 0"
                         android:textColor="@color/white"
-                        android:textSize="14sp" />
+                        android:textSize="12sp" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
@@ -80,259 +76,264 @@
                 android:id="@+id/tvInfo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="2dp"
                 android:background="@drawable/channel_chip_bg"
-                android:padding="12dp"
+                android:padding="4dp"
                 android:text="Otvori polje ili pogodi rešenje."
                 android:textColor="@color/dark_blue"
-                android:textSize="14sp"
+                android:textSize="12sp"
                 android:textStyle="bold" />
 
+            <!-- A i B -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:orientation="vertical">
+                android:layout_marginTop="3dp"
+                android:orientation="horizontal">
 
-                <!-- GORNJI DEO: A i B -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <Button android:id="@+id/a1" style="@style/AssociationFieldButton" android:text="A1" />
+                    <Button android:id="@+id/a2" style="@style/AssociationFieldButton" android:text="A2" />
+                    <Button android:id="@+id/a3" style="@style/AssociationFieldButton" android:text="A3" />
+                    <Button android:id="@+id/a4" style="@style/AssociationFieldButton" android:text="A4" />
+
+                    <TextView
+                        android:id="@+id/solutionA"
+                        android:layout_width="match_parent"
+                        android:layout_height="29dp"
+                        android:gravity="center"
+                        android:text="A"
+                        android:textColor="@color/white"
+                        android:textStyle="bold"
+                        android:textSize="12sp"
+                        android:background="@color/blue" />
+                    <EditText
+                        android:id="@+id/inputA"
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:hint="Rešenje A"
+                        android:textSize="12sp"
+                        android:padding="3dp" />
+
+                    <Button
+                        android:id="@+id/btnGuessA"
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:text="Pogodi A"
+                        android:textSize="12sp"
+                        android:backgroundTint="@color/dark_blue"
+                        android:textColor="@color/white" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <Button android:id="@+id/b1" style="@style/AssociationFieldButton" android:text="B1" />
+                    <Button android:id="@+id/b2" style="@style/AssociationFieldButton" android:text="B2" />
+                    <Button android:id="@+id/b3" style="@style/AssociationFieldButton" android:text="B3" />
+                    <Button android:id="@+id/b4" style="@style/AssociationFieldButton" android:text="B4" />
+
+                    <TextView
+                        android:id="@+id/solutionB"
+                        android:layout_width="match_parent"
+                        android:layout_height="29dp"
+                        android:gravity="center"
+                        android:text="B"
+                        android:textColor="@color/white"
+                        android:textStyle="bold"
+                        android:textSize="12sp"
+                        android:background="@color/blue" />
+
+                    <EditText
+                        android:id="@+id/inputB"
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:hint="Rešenje B"
+                        android:textSize="12sp"
+                        android:padding="3dp" />
+
+                    <Button
+                        android:id="@+id/btnGuessB"
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:text="Pogodi B"
+                        android:textSize="12sp"
+                        android:backgroundTint="@color/dark_blue"
+                        android:textColor="@color/white" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Konačno rešenje -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/petal">
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:orientation="vertical"
+                    android:padding="4dp">
 
-                    <!-- A -->
-                    <LinearLayout
-                        android:layout_width="0dp"
+                    <TextView
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
+                        android:text="Konačno rešenje"
+                        android:textColor="@color/dark_blue"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:gravity="center" />
 
-                        <Button android:id="@+id/a1" style="@style/AssociationFieldButton" android:text="A1" />
-                        <Button android:id="@+id/a2" style="@style/AssociationFieldButton" android:text="A2" />
-                        <Button android:id="@+id/a3" style="@style/AssociationFieldButton" android:text="A3" />
-                        <Button android:id="@+id/a4" style="@style/AssociationFieldButton" android:text="A4" />
-
-                        <TextView
-                            android:id="@+id/solutionA"
-                            android:layout_width="match_parent"
-                            android:layout_height="42dp"
-                            android:gravity="center"
-                            android:text="A"
-                            android:textColor="@color/white"
-                            android:textStyle="bold"
-                            android:background="@color/blue" />
-
-                        <EditText
-                            android:id="@+id/inputA"
-                            android:layout_width="match_parent"
-                            android:layout_height="48dp"
-                            android:hint="Rešenje A"
-                            android:textSize="13sp"
-                            android:padding="8dp" />
-
-                        <Button
-                            android:id="@+id/btnGuessA"
-                            android:layout_width="match_parent"
-                            android:layout_height="44dp"
-                            android:text="Pogodi A"
-                            android:textSize="12sp"
-                            android:backgroundTint="@color/dark_blue"
-                            android:textColor="@color/white" />
-                    </LinearLayout>
-
-                    <!-- B -->
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <Button android:id="@+id/b1" style="@style/AssociationFieldButton" android:text="B1" />
-                        <Button android:id="@+id/b2" style="@style/AssociationFieldButton" android:text="B2" />
-                        <Button android:id="@+id/b3" style="@style/AssociationFieldButton" android:text="B3" />
-                        <Button android:id="@+id/b4" style="@style/AssociationFieldButton" android:text="B4" />
-
-                        <TextView
-                            android:id="@+id/solutionB"
-                            android:layout_width="match_parent"
-                            android:layout_height="42dp"
-                            android:gravity="center"
-                            android:text="B"
-                            android:textColor="@color/white"
-                            android:textStyle="bold"
-                            android:background="@color/blue" />
-
-                        <EditText
-                            android:id="@+id/inputB"
-                            android:layout_width="match_parent"
-                            android:layout_height="48dp"
-                            android:hint="Rešenje B"
-                            android:textSize="13sp"
-                            android:padding="8dp" />
-
-                        <Button
-                            android:id="@+id/btnGuessB"
-                            android:layout_width="match_parent"
-                            android:layout_height="44dp"
-                            android:text="Pogodi B"
-                            android:textSize="12sp"
-                            android:backgroundTint="@color/dark_blue"
-                            android:textColor="@color/white" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <androidx.cardview.widget.CardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    app:cardCornerRadius="24dp"
-                    app:cardElevation="6dp"
-                    app:cardBackgroundColor="@color/petal">
+                    <EditText
+                        android:id="@+id/inputFinal"
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:layout_marginTop="2dp"
+                        android:hint="Unesi rešenje"
+                        android:gravity="center"
+                        android:textSize="12sp"
+                        android:background="@drawable/filter_unselected_bg"
+                        android:padding="3dp" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="14dp">
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Konačno rešenje"
-                            android:textColor="@color/dark_blue"
-                            android:textSize="16sp"
-                            android:textStyle="bold"
-                            android:gravity="center" />
-
-                        <EditText
-                            android:id="@+id/inputFinal"
-                            android:layout_width="match_parent"
-                            android:layout_height="50dp"
-                            android:layout_marginTop="6dp"
-                            android:hint="Unesi resenje"
-                            android:gravity="center"
-                            android:textSize="18sp"
-                            android:background="@drawable/filter_unselected_bg"
-                            android:padding="8dp" />
+                        android:layout_marginTop="2dp"
+                        android:orientation="horizontal">
 
                         <Button
                             android:id="@+id/btnGuessFinal"
-                            android:layout_width="match_parent"
-                            android:layout_height="46dp"
-                            android:layout_marginTop="6dp"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="2dp"
                             android:text="Pogodi"
-                            android:backgroundTint="@color/blue"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:backgroundTint="@color/action_button"
                             android:textColor="@color/white"
-                            android:textStyle="bold" />
+                            />
 
                         <Button
-                            android:id="@+id/btnNextRound"
-                            android:layout_width="match_parent"
-                            android:layout_height="46dp"
-                            android:layout_marginTop="6dp"
-                            android:text="Sledeća runda"
-                            android:backgroundTint="@color/dark_blue"
-                            android:textColor="@color/white"
-                            android:visibility="gone" />
-                    </LinearLayout>
-                </androidx.cardview.widget.CardView>
+                            android:id="@+id/btnPassTurn"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_weight="1"
+                            android:layout_marginStart="2dp"
+                            android:text="Dalje"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:backgroundTint="@color/action_button"
+                            android:textColor="@color/white" />
 
-                <!-- DONJI DEO: C i D -->
+                    </LinearLayout>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- C i D -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:orientation="horizontal">
+
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:orientation="horizontal">
+                    android:layout_weight="1"
+                    android:orientation="vertical">
 
-                    <!-- C -->
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
+                    <EditText
+                        android:id="@+id/inputC"
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:hint="Rešenje C"
+                        android:textSize="12sp"
+                        android:padding="3dp" />
 
-                        <EditText
-                            android:id="@+id/inputC"
-                            android:layout_width="match_parent"
-                            android:layout_height="48dp"
-                            android:hint="Rešenje C"
-                            android:textSize="13sp"
-                            android:padding="8dp" />
+                    <Button
+                        android:id="@+id/btnGuessC"
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:text="Pogodi C"
+                        android:textSize="12sp"
+                        android:backgroundTint="@color/dark_blue"
+                        android:textColor="@color/white" />
 
-                        <Button
-                            android:id="@+id/btnGuessC"
-                            android:layout_width="match_parent"
-                            android:layout_height="44dp"
-                            android:text="Pogodi C"
-                            android:textSize="12sp"
-                            android:backgroundTint="@color/dark_blue"
-                            android:textColor="@color/white" />
+                    <TextView
+                        android:id="@+id/solutionC"
+                        android:layout_width="match_parent"
+                        android:layout_height="29dp"
+                        android:layout_marginTop="2dp"
+                        android:gravity="center"
+                        android:text="C"
+                        android:textColor="@color/white"
+                        android:textStyle="bold"
+                        android:textSize="12sp"
+                        android:background="@color/blue" />
 
-                        <TextView
-                            android:id="@+id/solutionC"
-                            android:layout_width="match_parent"
-                            android:layout_height="42dp"
-                            android:layout_marginTop="6dp"
-                            android:gravity="center"
-                            android:text="C"
-                            android:textColor="@color/white"
-                            android:textStyle="bold"
-                            android:background="@color/blue" />
+                    <Button android:id="@+id/c4" style="@style/AssociationFieldButton" android:text="C4" />
+                    <Button android:id="@+id/c3" style="@style/AssociationFieldButton" android:text="C3" />
+                    <Button android:id="@+id/c2" style="@style/AssociationFieldButton" android:text="C2" />
+                    <Button android:id="@+id/c1" style="@style/AssociationFieldButton" android:text="C1" />
+                </LinearLayout>
 
-                        <Button android:id="@+id/c4" style="@style/AssociationFieldButton" android:text="C4" />
-                        <Button android:id="@+id/c3" style="@style/AssociationFieldButton" android:text="C3" />
-                        <Button android:id="@+id/c2" style="@style/AssociationFieldButton" android:text="C2" />
-                        <Button android:id="@+id/c1" style="@style/AssociationFieldButton" android:text="C1" />
-                    </LinearLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
 
-                    <!-- D -->
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
+                    <EditText
+                        android:id="@+id/inputD"
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:hint="Rešenje D"
+                        android:textSize="12sp"
+                        android:padding="3dp" />
 
-                        <EditText
-                            android:id="@+id/inputD"
-                            android:layout_width="match_parent"
-                            android:layout_height="48dp"
-                            android:hint="Rešenje D"
-                            android:textSize="13sp"
-                            android:padding="8dp" />
+                    <Button
+                        android:id="@+id/btnGuessD"
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:text="Pogodi D"
+                        android:textSize="12sp"
+                        android:backgroundTint="@color/dark_blue"
+                        android:textColor="@color/white" />
 
-                        <Button
-                            android:id="@+id/btnGuessD"
-                            android:layout_width="match_parent"
-                            android:layout_height="44dp"
-                            android:text="Pogodi D"
-                            android:textSize="12sp"
-                            android:backgroundTint="@color/dark_blue"
-                            android:textColor="@color/white" />
+                    <TextView
+                        android:id="@+id/solutionD"
+                        android:layout_width="match_parent"
+                        android:layout_height="29dp"
+                        android:layout_marginTop="2dp"
+                        android:gravity="center"
+                        android:text="D"
+                        android:textColor="@color/white"
+                        android:textStyle="bold"
+                        android:textSize="12sp"
+                        android:background="@color/blue" />
 
-                        <TextView
-                            android:id="@+id/solutionD"
-                            android:layout_width="match_parent"
-                            android:layout_height="42dp"
-                            android:layout_marginTop="6dp"
-                            android:gravity="center"
-                            android:text="D"
-                            android:textColor="@color/white"
-                            android:textStyle="bold"
-                            android:background="@color/blue" />
-
-                        <Button android:id="@+id/d4" style="@style/AssociationFieldButton" android:text="D4" />
-                        <Button android:id="@+id/d3" style="@style/AssociationFieldButton" android:text="D3" />
-                        <Button android:id="@+id/d2" style="@style/AssociationFieldButton" android:text="D2" />
-                        <Button android:id="@+id/d1" style="@style/AssociationFieldButton" android:text="D1" />
-                    </LinearLayout>
+                    <Button android:id="@+id/d4" style="@style/AssociationFieldButton" android:text="D4" />
+                    <Button android:id="@+id/d3" style="@style/AssociationFieldButton" android:text="D3" />
+                    <Button android:id="@+id/d2" style="@style/AssociationFieldButton" android:text="D2" />
+                    <Button android:id="@+id/d1" style="@style/AssociationFieldButton" android:text="D1" />
                 </LinearLayout>
             </LinearLayout>
 
-
         </LinearLayout>
     </ScrollView>
-
 
 </androidx.constraintlayout.widget.ConstraintLayout>

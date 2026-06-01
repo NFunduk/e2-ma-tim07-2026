@@ -23,6 +23,12 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.HashMap;
+import java.util.Map;
+
 import java.util.Arrays;
 import java.util.Random;
 
@@ -293,7 +299,7 @@ public class SkockoFragment extends Fragment {
             Drawable drawable = ContextCompat.getDrawable(requireContext(), getIconForSymbol(guess[i]));
 
             if (drawable != null) {
-                drawable.setBounds(0, 0, 78, 78);
+                drawable.setBounds(0, 0, 58, 58);
 
                 spannable.setSpan(
                         new ImageSpan(drawable, ImageSpan.ALIGN_BOTTOM),
@@ -398,7 +404,7 @@ public class SkockoFragment extends Fragment {
             Drawable drawable = ContextCompat.getDrawable(requireContext(), getIconForSymbol(secret[i]));
 
             if (drawable != null) {
-                drawable.setBounds(0, 0, 64, 64);
+                drawable.setBounds(0, 0, 58, 58);
 
                 spannable.setSpan(
                         new ImageSpan(drawable, ImageSpan.ALIGN_BOTTOM),
@@ -477,6 +483,7 @@ public class SkockoFragment extends Fragment {
 
         Toast.makeText(requireContext(), winner + " Sledi Korak po korak!", Toast.LENGTH_LONG).show();
 
+        saveSkockoResult();
         NavHostFragment.findNavController(this)
                 .navigate(R.id.action_skocko_to_korak);
     }
@@ -524,7 +531,7 @@ public class SkockoFragment extends Fragment {
             Drawable drawable = ContextCompat.getDrawable(requireContext(), getIconForSymbol(values[i]));
 
             if (drawable != null) {
-                drawable.setBounds(0, 0, 62, 62);
+                drawable.setBounds(0, 0, 60, 60);
 
                 spannable.setSpan(
                         new ImageSpan(drawable, ImageSpan.ALIGN_BOTTOM),
@@ -536,5 +543,17 @@ public class SkockoFragment extends Fragment {
         }
 
         return spannable;
+    }
+
+    private void saveSkockoResult() {
+        Map<String, Object> result = new HashMap<>();
+        result.put("game", "skocko");
+        result.put("player1Score", player1Score);
+        result.put("player2Score", player2Score);
+        result.put("createdAt", FieldValue.serverTimestamp());
+
+        FirebaseFirestore.getInstance()
+                .collection("gameResults")
+                .add(result);
     }
 }

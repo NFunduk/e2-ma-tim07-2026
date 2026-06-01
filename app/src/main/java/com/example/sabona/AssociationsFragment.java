@@ -15,6 +15,17 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.model.AssociationGame;
+import com.example.sabona.repository.AssociationRepository;
+
+import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import java.util.List;
+
 public class AssociationsFragment extends Fragment {
 
     private TextView tvRound, tvPlayer, tvTimer, tvScore, tvInfo;
@@ -23,7 +34,7 @@ public class AssociationsFragment extends Fragment {
     private EditText[] columnInputs = new EditText[4];
     private Button[] guessColumnButtons = new Button[4];
     private EditText finalInput;
-    private Button btnGuessFinal;
+    private Button btnGuessFinal, btnPassTurn;
 
     private int round = 1;
     private int currentPlayer = 1;
@@ -38,30 +49,7 @@ public class AssociationsFragment extends Fragment {
 
     private CountDownTimer timer;
 
-    private final String[][][] fields = {
-            {
-                    {"Lav", "Tigar", "Vuk", "Medved"},
-                    {"Jabuka", "Kruška", "Šljiva", "Breskva"},
-                    {"Ruža", "Lala", "Hrast", "Bor"},
-                    {"Sava", "Dunav", "Tisa", "Morava"}
-            },
-            {
-                    {"Fudbal", "Tenis", "Košarka", "Odbojka"},
-                    {"Zlato", "Srebro", "Bronza", "Pehar"},
-                    {"Golman", "Kapiten", "Rezerva", "Igrač"},
-                    {"Sudija", "Pravila", "Faul", "Zapisnik"}
-            }
-    };
-
-    private final String[][] columnAnswers = {
-            {"Zivotinje", "Voce", "Biljke", "Reke"},
-            {"Sportovi", "Nagrade", "Tim", "Sudjenje"}
-    };
-
-    private final String[] finalAnswers = {
-            "Priroda",
-            "Takmicenje"
-    };
+    private List<AssociationGame> games;
 
     @Nullable
     @Override
@@ -77,7 +65,36 @@ public class AssociationsFragment extends Fragment {
 
         connectViews(view);
         setupClicks();
-        startRound();
+
+        new AssociationRepository().getAssociations(
+                new AssociationRepository.Callback() {
+
+                    @Override
+                    public void onSuccess(List<AssociationGame> loadedGames) {
+
+                        if (loadedGames == null || loadedGames.size() < 2) {
+                            Toast.makeText(
+                                    requireContext(),
+                                    "U bazi moraju postojati bar 2 asocijacije.",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                            return;
+                        }
+
+                        games = loadedGames;
+                        startRound();
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        Toast.makeText(
+                                requireContext(),
+                                "Greška pri učitavanju asocijacija",
+                                Toast.LENGTH_LONG
+                        ).show();
+                    }
+                }
+        );
     }
 
     @Override
@@ -130,6 +147,8 @@ public class AssociationsFragment extends Fragment {
 
         finalInput = view.findViewById(R.id.inputFinal);
         btnGuessFinal = view.findViewById(R.id.btnGuessFinal);
+
+        btnPassTurn = view.findViewById(R.id.btnPassTurn);
     }
 
     private void setupClicks() {
@@ -147,6 +166,15 @@ public class AssociationsFragment extends Fragment {
         }
 
         btnGuessFinal.setOnClickListener(v -> guessFinal());
+
+        btnPassTurn.setOnClickListener(v -> {
+            if (!fieldOpenedThisTurn) {
+                Toast.makeText(requireContext(), "Prvo otvori jedno polje.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            passTurn();
+        });
     }
 
     private void startRound() {
@@ -173,6 +201,7 @@ public class AssociationsFragment extends Fragment {
         finalInput.setText("");
         finalInput.setEnabled(true);
         btnGuessFinal.setEnabled(true);
+        btnPassTurn.setEnabled(true);
 
         tvInfo.setText("Otvori jedno polje, pa pogodi kolonu ili konačno rešenje.");
         updateHeader();
@@ -187,7 +216,7 @@ public class AssociationsFragment extends Fragment {
         opened[col][row] = true;
         fieldOpenedThisTurn = true;
 
-        fieldButtons[col][row].setText(fields[round - 1][col][row]);
+        fieldButtons[col][row].setText(games.get(round - 1).columns.get(col).fields.get(row));
         disableFieldOpening();
 
         tvInfo.setText("Otvoreno polje. Sada možeš da pogađaš.");
@@ -211,14 +240,14 @@ public class AssociationsFragment extends Fragment {
         }
 
         String guess = columnInputs[col].getText().toString().trim();
-        String answer = columnAnswers[round - 1][col];
+        String answer = games.get(round - 1).columns.get(col).answer;
 
         if (guess.isEmpty()) {
             Toast.makeText(requireContext(), "Unesi rešenje kolone", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        if (guess.equalsIgnoreCase(answer)) {
+        if (normalize(guess).equals(normalize(answer))) {
             int points = calculateColumnPoints(col);
             addPoints(points);
             revealColumn(col);
@@ -241,14 +270,14 @@ public class AssociationsFragment extends Fragment {
         }
 
         String guess = finalInput.getText().toString().trim();
-        String answer = finalAnswers[round - 1];
+        String answer =games.get(round - 1).finalAnswer;
 
         if (guess.isEmpty()) {
             Toast.makeText(requireContext(), "Unesi konačno rešenje", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        if (guess.equalsIgnoreCase(answer)) {
+        if (normalize(guess).equals(normalize(answer))) {
             int points = calculateFinalPoints();
             addPoints(points);
 
@@ -288,31 +317,32 @@ public class AssociationsFragment extends Fragment {
 
     private void revealColumn(int col) {
         columnSolved[col] = true;
-        columnSolutions[col].setText(columnAnswers[round - 1][col]);
+        columnSolutions[col].setText(games.get(round - 1).columns.get(col).answer);
         guessColumnButtons[col].setEnabled(false);
         columnInputs[col].setEnabled(false);
 
         for (int row = 0; row < 4; row++) {
-            fieldButtons[col][row].setText(fields[round - 1][col][row]);
+            fieldButtons[col][row].setText(games.get(round - 1).columns.get(col).fields.get(row));
             fieldButtons[col][row].setEnabled(false);
         }
     }
 
     private void revealAllAnswers() {
         for (int col = 0; col < 4; col++) {
-            columnSolutions[col].setText(columnAnswers[round - 1][col]);
+            columnSolutions[col].setText(games.get(round - 1).columns.get(col).answer);
             guessColumnButtons[col].setEnabled(false);
             columnInputs[col].setEnabled(false);
 
             for (int row = 0; row < 4; row++) {
-                fieldButtons[col][row].setText(fields[round - 1][col][row]);
+                fieldButtons[col][row].setText(games.get(round - 1).columns.get(col).fields.get(row));
                 fieldButtons[col][row].setEnabled(false);
             }
         }
 
-        finalInput.setText(finalAnswers[round - 1]);
+        finalInput.setText(games.get(round - 1).finalAnswer);
         finalInput.setEnabled(false);
         btnGuessFinal.setEnabled(false);
+        btnPassTurn.setEnabled(false);
     }
 
     private int calculateColumnPoints(int col) {
@@ -397,6 +427,7 @@ public class AssociationsFragment extends Fragment {
 
         finalInput.setEnabled(false);
         btnGuessFinal.setEnabled(false);
+        btnPassTurn.setEnabled(false);
 
         new CountDownTimer(3000, 1000) {
             @Override
@@ -431,7 +462,9 @@ public class AssociationsFragment extends Fragment {
             winner = "Asocijacije su nerešene!";
         }
 
-        Toast.makeText(requireContext(), winner + " Sledi igra Korak po korak.", Toast.LENGTH_LONG).show();
+        Toast.makeText(requireContext(), winner + " Sledi igra Skocko.", Toast.LENGTH_LONG).show();
+
+        saveAssociationsResult();
 
         NavHostFragment.findNavController(this)
                 .navigate(R.id.action_associations_to_skocko);
@@ -458,5 +491,27 @@ public class AssociationsFragment extends Fragment {
 
     private boolean canGuessNow() {
         return fieldOpenedThisTurn || !hasOpenableField();
+    }
+
+    private String normalize(String text) {
+        return text.trim()
+                .toLowerCase()
+                .replace("č", "c")
+                .replace("ć", "c")
+                .replace("š", "s")
+                .replace("đ", "dj")
+                .replace("ž", "z");
+    }
+
+    private void saveAssociationsResult() {
+        Map<String, Object> result = new HashMap<>();
+        result.put("game", "associations");
+        result.put("player1Score", player1Score);
+        result.put("player2Score", player2Score);
+        result.put("createdAt", FieldValue.serverTimestamp());
+
+        FirebaseFirestore.getInstance()
+                .collection("gameResults")
+                .add(result);
     }
 }
