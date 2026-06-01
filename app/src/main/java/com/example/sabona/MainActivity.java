@@ -1,5 +1,6 @@
 package com.example.sabona;
 
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageView;
@@ -15,6 +16,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.utils.NotificationHelper;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import java.util.Arrays;
@@ -122,5 +124,15 @@ public class MainActivity extends AppCompatActivity {
                 navController.navigate(R.id.notificationsFragment);
             }
         });
+
+        NotificationHelper.createChannels(this);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestPermissions(
+                    new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                    101
+            );
+        }
+
     }
 }
