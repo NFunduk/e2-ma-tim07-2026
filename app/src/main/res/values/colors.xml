@@ -5,6 +5,9 @@
 
     <color name="dark_blue">#0B1957</color> //toolbar, header
     <color name="blue">#426BC2</color>  //dugmad, aktivni elementi
+
+    <color name="action_button">#8FB3FF</color>
+
     <color name="petal">#E8D9ED</color>  // kartice, sekcije
     <color name="lace">#F7F4ED</color>  //glavna pozadina
     <color name="lavender">#D2B3DB</color>  //kartice, sekcije

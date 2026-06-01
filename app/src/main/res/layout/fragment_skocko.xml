@@ -20,7 +20,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:padding="4dp">
 
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
@@ -33,7 +33,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="6dp">
 
                     <TextView
                         android:id="@+id/tvSkockoRound"
@@ -41,7 +41,7 @@
                         android:layout_height="wrap_content"
                         android:text="Runda 1/2"
                         android:textColor="@color/white"
-                        android:textSize="20sp"
+                        android:textSize="13sp"
                         android:textStyle="bold" />
 
                     <TextView
@@ -59,7 +59,7 @@
                         android:layout_height="wrap_content"
                         android:text="00:30"
                         android:textColor="@color/petal"
-                        android:textSize="26sp"
+                        android:textSize="18sp"
                         android:textStyle="bold" />
 
                     <TextView
@@ -76,9 +76,9 @@
                 android:id="@+id/tvSkockoInfo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="4dp"
                 android:background="@drawable/channel_chip_bg"
-                android:padding="12dp"
+                android:padding="6dp"
                 android:text="Izaberi 4 znaka i proveri kombinaciju."
                 android:textColor="@color/dark_blue"
                 android:textStyle="bold" />
@@ -87,7 +87,7 @@
                 android:id="@+id/attemptsContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="4dp"
                 android:orientation="vertical">
 
                 <TextView android:id="@+id/row1" style="@style/SkockoRowText" />
@@ -101,12 +101,12 @@
             <TextView
                 android:id="@+id/currentGuess"
                 android:layout_width="match_parent"
-                android:layout_height="78dp"
-                android:layout_marginTop="14dp"
+                android:layout_height="54dp"
+                android:layout_marginTop="4dp"
                 android:gravity="center"
                 android:text="_  _  _  _"
                 android:textColor="@color/dark_blue"
-                android:textSize="34sp"
+                android:textSize="22sp"
                 android:textStyle="bold"
                 android:background="@drawable/filter_unselected_bg" />
 
@@ -151,7 +151,7 @@
             <Button
                 android:id="@+id/btnCheck"
                 android:layout_width="match_parent"
-                android:layout_height="50dp"
+                android:layout_height="36dp"
                 android:layout_marginTop="12dp"
                 android:text="Proveri"
                 android:textColor="@color/white"
@@ -161,7 +161,7 @@
             <Button
                 android:id="@+id/btnClear"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
+                android:layout_height="36dp"
                 android:layout_marginTop="8dp"
                 android:text="Obriši unos"
                 android:textColor="@color/white"
@@ -171,7 +171,7 @@
             <Button
                 android:id="@+id/btnNextSkocko"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
+                android:layout_height="36dp"
                 android:layout_marginTop="8dp"
                 android:text="Sledeća runda"
                 android:textColor="@color/white"
