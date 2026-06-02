@@ -15,6 +15,9 @@ public class AuthViewModel extends ViewModel {
     private final MutableLiveData<Boolean> verifiedSuccess = new MutableLiveData<>();
     private final MutableLiveData<Boolean> emailResent     = new MutableLiveData<>();
 
+    private final MutableLiveData<Boolean> passwordChanged = new MutableLiveData<>();
+    public LiveData<Boolean> getPasswordChanged() { return passwordChanged; }
+
     public LiveData<Boolean> getLoading()        { return loading; }
     public LiveData<String>  getError()          { return error; }
     public LiveData<Boolean> getRegisterSuccess(){ return registerSuccess; }
@@ -91,5 +94,27 @@ public class AuthViewModel extends ViewModel {
 
     public void logout() {
         repo.logout();
+    }
+
+    public void changePassword(String oldPassword, String newPassword) {
+        loading.setValue(true);
+        error.setValue(null);
+
+        repo.changePassword(oldPassword, newPassword, new AuthRepository.Callback() {
+            @Override
+            public void onSuccess() {
+                loading.postValue(false);
+                passwordChanged.postValue(true);
+            }
+            @Override
+            public void onError(String message) {
+                loading.postValue(false);
+                error.postValue(message);
+            }
+        });
+    }
+
+    public void resetPasswordChanged() {
+        passwordChanged.setValue(null);
     }
 }
