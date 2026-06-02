@@ -86,6 +86,13 @@
         android:textSize="14sp"
         android:textStyle="bold" />
 
+    <ProgressBar
+        android:id="@+id/progressBarKorak"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone" />
+
     <!-- 7 koraka kao kompaktan grid -->
     <LinearLayout
         android:layout_width="match_parent"
