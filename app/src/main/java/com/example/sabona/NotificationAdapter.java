@@ -7,10 +7,11 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.sabona.model.AppNotification;
 
 import java.util.List;
 
@@ -18,10 +19,14 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
 
     private final Context context;
     private List<AppNotification> notifications;
+    private final NotificationActionListener listener;
 
-    public NotificationAdapter(Context context, List<AppNotification> notifications) {
+    public NotificationAdapter(Context context,
+                               List<AppNotification> notifications,
+                               NotificationActionListener listener) {
         this.context = context;
         this.notifications = notifications;
+        this.listener = listener;
     }
 
     public void setNotifications(List<AppNotification> notifications) {
@@ -44,7 +49,7 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
         holder.message.setText(notification.getMessage());
 
         String status = notification.isRead() ? "Pročitano" : "Nepročitano";
-        holder.status.setText(notification.getChannel() + " · " + status + " · " + notification.getTime());
+        holder.status.setText(notification.getChannel() + " · " + status + " · " + notification.getTimeText());
 
         if (notification.isRead()) {
             holder.card.setBackgroundResource(R.drawable.notification_read_bg);
@@ -67,32 +72,17 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
 
         holder.card.setOnClickListener(v -> {
             if (!notification.isRead()) {
-                notification.setRead(true);
-                Toast.makeText(context, "Notifikacija je označena kao pročitana", Toast.LENGTH_SHORT).show();
-                notifyItemChanged(position);
-            } else {
-                Toast.makeText(context, "Notifikacija je već pročitana", Toast.LENGTH_SHORT).show();
+                listener.onMarkAsRead(notification);
             }
         });
 
-        holder.btnAccept.setOnClickListener(v -> {
-            notification.setRead(true);
-            notification.setHandled(true);
-            Toast.makeText(context, "Prihvatio/la si zahtev", Toast.LENGTH_SHORT).show();
-            notifyItemChanged(position);
-        });
-
-        holder.btnReject.setOnClickListener(v -> {
-            notification.setRead(true);
-            notification.setHandled(true);
-            Toast.makeText(context, "Odbio/la si zahtev", Toast.LENGTH_SHORT).show();
-            notifyItemChanged(position);
-        });
+        holder.btnAccept.setOnClickListener(v -> listener.onAccept(notification));
+        holder.btnReject.setOnClickListener(v -> listener.onReject(notification));
     }
 
     @Override
     public int getItemCount() {
-        return notifications.size();
+        return notifications == null ? 0 : notifications.size();
     }
 
     static class NotificationViewHolder extends RecyclerView.ViewHolder {
@@ -113,5 +103,11 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
             btnAccept = itemView.findViewById(R.id.btnAccept);
             btnReject = itemView.findViewById(R.id.btnReject);
         }
+    }
+
+    public interface NotificationActionListener {
+        void onMarkAsRead(AppNotification notification);
+        void onAccept(AppNotification notification);
+        void onReject(AppNotification notification);
     }
 }
