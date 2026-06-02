@@ -68,14 +68,16 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="14dp"
                         android:hint="Email ili korisničko ime"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                        app:hintTextColor="@color/input_hint"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etLoginIdentifier"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="textEmailAddress"
-                            android:textColor="@color/dark_blue" />
+                            android:textColor="@color/dark_blue"
+                            android:textColorHint="@color/input_hint" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Lozinka -->
@@ -84,17 +86,18 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="20dp"
                         android:hint="Lozinka"
+                        app:hintTextColor="@color/input_hint"
                         app:passwordToggleEnabled="true"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etLoginPassword"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="textPassword"
-                            android:textColor="@color/dark_blue" />
+                            android:textColor="@color/dark_blue"
+                            android:textColorHint="@color/input_hint" />
                     </com.google.android.material.textfield.TextInputLayout>
-
                     <!-- Dugme logovanje -->
                     <Button
                         android:id="@+id/btnLogin"

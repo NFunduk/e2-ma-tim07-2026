@@ -23,7 +23,7 @@
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="78dp"
+        android:layout_height="96dp"
         android:background="@drawable/top_bar_bg"
         android:elevation="10dp"
         android:paddingStart="16dp"
@@ -34,13 +34,16 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
+        <!-- ZAMENI unutrašnji LinearLayout toolbara sa ovim: -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
+            <!-- === NORMALNI MOD (sakrij tokom igre) === -->
             <LinearLayout
+                android:id="@+id/layoutToolbarNormal"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -56,16 +59,188 @@
                     android:textColor="@color/white"
                     android:textSize="22sp"
                     android:textStyle="bold" />
+            </LinearLayout>
 
+            <!-- === GAME MOD (prikaži tokom igre) === -->
+            <LinearLayout
+                android:id="@+id/layoutToolbarGame"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <!-- Ime igre sitno -->
                 <TextView
+                    android:id="@+id/tvGameName"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:text="Ko zna zna"
                     android:textColor="@color/lavender"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.1"
+                    android:textAllCaps="true" />
+
+                <!-- Igrači i bodovi -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="2dp">
+
+                    <!-- Igrač 1 -->
+                    <ImageView
+                        android:id="@+id/ivPlayer1Avatar"
+                        android:layout_width="46dp"
+                        android:layout_height="46dp"
+                        android:src="@drawable/outline_account_circle_24"
+                        android:background="@drawable/profile_circle_bg"
+                        android:padding="2dp" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginStart="5dp">
+
+                        <TextView
+                            android:id="@+id/tvPlayer1Name"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Igrač 1"
+                            android:textColor="@color/white"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:maxLines="1"
+                            android:maxWidth="70dp"
+                            android:ellipsize="end" />
+
+                        <TextView
+                            android:id="@+id/tvPlayer1Score"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0 bod"
+                            android:textColor="@color/petal"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvMatchScore"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0 : 0"
+                            android:textColor="@color/white"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:id="@+id/layoutMiniStats"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center">
+
+                            <ImageView
+                                android:layout_width="12dp"
+                                android:layout_height="12dp"
+                                android:src="@drawable/star"
+                                app:tint="@color/petal"/>
+
+                            <TextView
+                                android:id="@+id/tvStars"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="120"
+                                android:textSize="9sp"
+                                android:textColor="@color/lavender"/>
+
+                            <ImageView
+                                android:layout_width="12dp"
+                                android:layout_height="12dp"
+                                android:layout_marginStart="8dp"
+                                android:src="@drawable/outline_capture_24"
+                                app:tint="@color/petal"/>
+
+                            <TextView
+                                android:id="@+id/tvTokens"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="5"
+                                android:textSize="9sp"
+                                android:textColor="@color/lavender"/>
+
+                            <ImageView
+                                android:layout_width="12dp"
+                                android:layout_height="12dp"
+                                android:layout_marginStart="8dp"
+                                android:src="@drawable/outline_atr_24"
+                                app:tint="@color/petal"/>
+
+                            <TextView
+                                android:id="@+id/tvLeague"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Liga 3"
+                                android:textSize="9sp"
+                                android:textColor="@color/lavender"/>
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                    <!-- Igrač 2 -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:gravity="end"
+                        android:layout_marginEnd="5dp">
+
+                        <TextView
+                            android:id="@+id/tvPlayer2Name"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Igrač 2"
+                            android:textColor="@color/white"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:maxLines="1"
+                            android:maxWidth="70dp"
+                            android:ellipsize="end" />
+
+                        <TextView
+                            android:id="@+id/tvPlayer2Score"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0 bod"
+                            android:textColor="@color/petal"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:id="@+id/ivPlayer2Avatar"
+                        android:layout_width="46dp"
+                        android:layout_height="46dp"
+                        android:src="@drawable/outline_account_circle_24"
+                        android:background="@drawable/profile_circle_bg"
+                        android:padding="2dp" />
+
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/layoutStatsChip"
                 android:layout_width="wrap_content"
                 android:layout_height="40dp"
                 android:background="@drawable/stats_chip_bg"
@@ -81,6 +256,7 @@
                     app:tint="@color/petal" />
 
                 <TextView
+                    android:id="@+id/tvStarsChip"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="5dp"
@@ -97,6 +273,7 @@
                     app:tint="@color/petal" />
 
                 <TextView
+                    android:id="@+id/tvTokensChip"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="5dp"
@@ -113,6 +290,7 @@
                     app:tint="@color/petal" />
 
                 <TextView
+                    android:id="@+id/tvLeagueChip"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="5dp"
@@ -120,7 +298,9 @@
                     android:textColor="@color/white"
                     android:textSize="13sp"
                     android:textStyle="bold" />
+
             </LinearLayout>
+
 
             <ImageView
                 android:id="@+id/btnNotifications"
@@ -131,7 +311,6 @@
                 android:padding="7dp"
                 android:src="@drawable/outline_notifications_24"
                 app:tint="@color/dark_blue" />
-
 
         </LinearLayout>
     </androidx.appcompat.widget.Toolbar>

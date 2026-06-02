@@ -9,4 +9,8 @@
     <color name="lace">#F7F4ED</color>  //glavna pozadina
     <color name="lavender">#D2B3DB</color>  //kartice, sekcije
     <color name="bridal_blue">#E9F3FF</color>  //selekcija
+
+    <color name="input_bg">#E3E7F2</color>
+    <color name="input_stroke">#7E8BB8</color>
+    <color name="input_hint">#5D6B99</color>
 </resources>

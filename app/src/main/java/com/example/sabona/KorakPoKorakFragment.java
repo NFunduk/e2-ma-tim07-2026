@@ -17,7 +17,7 @@ import androidx.navigation.fragment.NavHostFragment;
 
 public class KorakPoKorakFragment extends Fragment {
 
-    private TextView tvKorakRound, tvKorakPlayer, tvKorakTimer, tvKorakScore;
+    private TextView tvKorakRound, tvKorakTimer;
     private TextView tvKorakInfo, tvCurrentPoints;
     private TextView tvStep1, tvStep2, tvStep3, tvStep4, tvStep5, tvStep6, tvStep7;
     private EditText etKorakAnswer;
@@ -68,9 +68,9 @@ public class KorakPoKorakFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         tvKorakRound    = view.findViewById(R.id.tvKorakRound);
-        tvKorakPlayer   = view.findViewById(R.id.tvKorakPlayer);
+        //tvKorakPlayer   = view.findViewById(R.id.tvKorakPlayer);
         tvKorakTimer    = view.findViewById(R.id.tvKorakTimer);
-        tvKorakScore    = view.findViewById(R.id.tvKorakScore);
+        //tvKorakScore    = view.findViewById(R.id.tvKorakScore);
         tvKorakInfo     = view.findViewById(R.id.tvKorakInfo);
         tvCurrentPoints = view.findViewById(R.id.tvCurrentPoints);
         tvStep1         = view.findViewById(R.id.tvStep1);
@@ -104,7 +104,7 @@ public class KorakPoKorakFragment extends Fragment {
         resetStepFields();
         etKorakAnswer.setText("");
         tvKorakInfo.setText("Čekaj — otvara se novi korak svakih 10 sekundi.");
-        updateHeader();
+
         updatePoints();
         openNextStep();
         startStepTimer();
@@ -170,7 +170,7 @@ public class KorakPoKorakFragment extends Fragment {
         } else {
             Toast.makeText(requireContext(), "Netačno, pokušaj ponovo.", Toast.LENGTH_SHORT).show();
         }
-        updateHeader();
+
     }
 
     private void updatePoints() {
@@ -207,13 +207,6 @@ public class KorakPoKorakFragment extends Fragment {
             }
         }.start();
 
-        updateHeader();
-    }
-
-    private void updateHeader() {
-        tvKorakRound.setText("Runda " + round + "/2");
-        tvKorakPlayer.setText("Na potezu: igrač " + currentPlayer);
-        tvKorakScore.setText("Igrač 1: " + player1Score + "  |  Igrač 2: " + player2Score);
     }
 
     private void showEndGame() {

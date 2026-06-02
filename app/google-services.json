@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "524586187959",
+    "project_id": "sabona-a9c20",
+    "storage_bucket": "sabona-a9c20.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:524586187959:android:51e41c7470b2d46fa46132",
+        "android_client_info": {
+          "package_name": "com.example.sabona"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB66QyG11qT1ogTHDxswqWfnqDhqOV6TTE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
