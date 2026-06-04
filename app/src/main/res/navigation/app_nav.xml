@@ -6,7 +6,7 @@
 
     <fragment
         android:id="@+id/loginFragment"
-        android:name="com.example.sabona.LoginFragment"
+        android:name="com.example.sabona.auth.LoginFragment"
         android:label="Login" >
         <action android:id="@+id/action_login_to_home"
             app:destination="@id/homeFragment"
@@ -18,7 +18,7 @@
 
     <fragment
         android:id="@+id/registerFragment"
-        android:name="com.example.sabona.RegisterFragment"
+        android:name="com.example.sabona.auth.RegisterFragment"
         android:label="Register">
         <action android:id="@+id/action_register_to_verify"
             app:destination="@id/verifyEmailFragment"/>
@@ -30,7 +30,7 @@
 
     <fragment
         android:id="@+id/verifyEmailFragment"
-        android:name="com.example.sabona.VerifyEmailFragment"
+        android:name="com.example.sabona.auth.VerifyEmailFragment"
         android:label="VerifyEmail">
         <action android:id="@+id/action_verify_to_login"
             app:destination="@id/loginFragment"
@@ -40,7 +40,7 @@
 
     <fragment
         android:id="@+id/homeFragment"
-        android:name="com.example.sabona.HomeFragment"
+        android:name="com.example.sabona.home.HomeFragment"
         android:label="Home"/>
 
     <fragment
@@ -117,7 +117,7 @@
         <action
             android:id="@+id/action_profile_to_login"
             app:destination="@id/loginFragment"
-            app:popUpTo="@id/loginFragment"
+            app:popUpTo="@id/app_nav"
             app:popUpToInclusive="true" />
     </fragment>
 

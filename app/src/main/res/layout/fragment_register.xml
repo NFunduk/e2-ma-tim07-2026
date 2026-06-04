@@ -58,13 +58,14 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="14dp"
                         android:hint="Email adresa"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etEmail"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textEmailAddress" />
+                            android:inputType="textEmailAddress"
+                            android:textColor="@color/dark_blue" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Korisnicko ime -->
@@ -73,31 +74,34 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="14dp"
                         android:hint="Korisničko ime"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etUsername"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="text" />
+                            android:inputType="text"
+                            android:textColor="@color/dark_blue" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Region (spinner) -->
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Region"
-                        android:textColor="@color/dark_blue"
-                        android:textSize="13sp"
-                        android:layout_marginBottom="6dp" />
-
-                    <Spinner
-                        android:id="@+id/spinnerRegion"
+                    <com.google.android.material.textfield.TextInputLayout
                         android:layout_width="match_parent"
-                        android:layout_height="52dp"
+                        android:layout_height="wrap_content"
                         android:layout_marginBottom="14dp"
-                        android:background="@drawable/filter_unselected_bg"
-                        android:padding="10dp" />
+                        android:hint="Region"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+
+                        <Spinner
+                            android:id="@+id/spinnerRegion"
+                            android:layout_width="match_parent"
+                            android:layout_height="56dp"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:background="@drawable/spinner_bg"
+                            android:popupBackground="@color/white"
+                            android:theme="@style/SpinnerTheme"/>
+                    </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Lozinka -->
                     <com.google.android.material.textfield.TextInputLayout
@@ -106,13 +110,14 @@
                         android:layout_marginBottom="14dp"
                         android:hint="Lozinka"
                         app:passwordToggleEnabled="true"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etPassword"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textPassword" />
+                            android:inputType="textPassword"
+                            android:textColor="@color/dark_blue" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Potvrda lozinke -->
@@ -122,13 +127,14 @@
                         android:layout_marginBottom="20dp"
                         android:hint="Potvrdi lozinku"
                         app:passwordToggleEnabled="true"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etPasswordConfirm"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textPassword" />
+                            android:inputType="textPassword"
+                            android:textColor="@color/dark_blue" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Dugme registracija -->

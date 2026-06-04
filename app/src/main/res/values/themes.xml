@@ -96,4 +96,8 @@
         <item name="backgroundTint">@color/white</item>
     </style>
 
+    <style name="SpinnerTheme" parent="ThemeOverlay.AppCompat.Light">
+        <item name="android:textColor">@color/dark_blue</item>
+    </style>
+
 </resources>

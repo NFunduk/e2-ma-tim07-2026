@@ -6,17 +6,21 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
+
+import com.example.sabona.auth.AuthViewModel;
 import com.google.android.material.textfield.TextInputEditText;
 
 public class ProfileSettingsTabFragment extends Fragment {
 
-    private TextInputEditText etOldPassword;
-    private TextInputEditText etNewPassword;
-    private TextInputEditText etConfirmPassword;
+    private TextInputEditText etOldPassword, etNewPassword, etConfirmPassword;
+    private Button btnSavePassword;
+    private AuthViewModel viewModel;
 
     @Nullable
     @Override
@@ -29,25 +33,52 @@ public class ProfileSettingsTabFragment extends Fragment {
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        // requireActivity() → isti ViewModel kao u auth fragmentima
+        viewModel = new ViewModelProvider(requireActivity()).get(AuthViewModel.class);
+
         etOldPassword     = view.findViewById(R.id.etOldPassword);
         etNewPassword     = view.findViewById(R.id.etNewPassword);
         etConfirmPassword = view.findViewById(R.id.etConfirmPassword);
-        Button btnSavePassword = view.findViewById(R.id.btnSavePassword);
-        Button btnLogout       = view.findViewById(R.id.btnLogout);
+        btnSavePassword   = view.findViewById(R.id.btnSavePassword);
+        Button btnLogout  = view.findViewById(R.id.btnLogout);
+
+        // ── Observeri ────────────────────────────────────────────────
+
+        viewModel.getLoading().observe(getViewLifecycleOwner(), isLoading ->
+                btnSavePassword.setEnabled(!isLoading));
+
+        viewModel.getError().observe(getViewLifecycleOwner(), errorMsg -> {
+            if (errorMsg != null && !errorMsg.isEmpty())
+                Toast.makeText(requireContext(), errorMsg, Toast.LENGTH_LONG).show();
+        });
+
+        viewModel.getPasswordChanged().observe(getViewLifecycleOwner(), success -> {
+            if (Boolean.TRUE.equals(success)) {
+                Toast.makeText(requireContext(),
+                        "Lozinka uspešno promenjena!", Toast.LENGTH_SHORT).show();
+                // Očisti polja
+                etOldPassword.setText("");
+                etNewPassword.setText("");
+                etConfirmPassword.setText("");
+                viewModel.resetPasswordChanged();
+            }
+        });
+
+        // ── Click listeneri ──────────────────────────────────────────
 
         btnSavePassword.setOnClickListener(v -> handlePasswordChange());
 
         btnLogout.setOnClickListener(v -> {
-            Toast.makeText(requireContext(), "Odjavljeni ste!", Toast.LENGTH_SHORT).show();
+            viewModel.logout();
             NavHostFragment.findNavController(this)
                     .navigate(R.id.action_profile_to_login);
         });
     }
 
     private void handlePasswordChange() {
-        String oldPass     = etOldPassword.getText()     != null ? etOldPassword.getText().toString().trim()     : "";
-        String newPass     = etNewPassword.getText()     != null ? etNewPassword.getText().toString().trim()     : "";
-        String confirmPass = etConfirmPassword.getText() != null ? etConfirmPassword.getText().toString().trim() : "";
+        String oldPass     = getText(etOldPassword);
+        String newPass     = getText(etNewPassword);
+        String confirmPass = getText(etConfirmPassword);
 
         if (oldPass.isEmpty() || newPass.isEmpty() || confirmPass.isEmpty()) {
             Toast.makeText(requireContext(), "Popuni sva polja!", Toast.LENGTH_SHORT).show();
@@ -58,15 +89,18 @@ public class ProfileSettingsTabFragment extends Fragment {
             return;
         }
         if (newPass.length() < 6) {
-            Toast.makeText(requireContext(), "Lozinka je prekratka!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Lozinka mora imati najmanje 6 znakova!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (oldPass.equals(newPass)) {
+            Toast.makeText(requireContext(), "Nova lozinka mora biti različita od stare!", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // TODO: Pozvati logiku za promjenu lozinke
-        Toast.makeText(requireContext(), "Lozinka promijenjena!", Toast.LENGTH_SHORT).show();
+        viewModel.changePassword(oldPass, newPass);
+    }
 
-        etOldPassword.setText("");
-        etNewPassword.setText("");
-        etConfirmPassword.setText("");
+    private String getText(TextInputEditText field) {
+        return field.getText() != null ? field.getText().toString().trim() : "";
     }
 }
