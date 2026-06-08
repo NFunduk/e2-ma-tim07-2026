@@ -18,6 +18,7 @@ import androidx.navigation.fragment.NavHostFragment;
 import com.example.sabona.model.AssociationGame;
 import com.example.sabona.repository.AssociationRepository;
 
+import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 
@@ -504,14 +505,17 @@ public class AssociationsFragment extends Fragment {
     }
 
     private void saveAssociationsResult() {
+        // Snimi u gameResults kao i pre (tuđi kod)
         Map<String, Object> result = new HashMap<>();
         result.put("game", "associations");
         result.put("player1Score", player1Score);
         result.put("player2Score", player2Score);
         result.put("createdAt", FieldValue.serverTimestamp());
-
         FirebaseFirestore.getInstance()
                 .collection("gameResults")
                 .add(result);
+
+        // snima statistiku za igrača 1
+        new StatsRepository().saveAsocijacijeResult(player1Score, finalSolved);
     }
 }

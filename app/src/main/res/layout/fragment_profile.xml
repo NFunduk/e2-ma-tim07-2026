@@ -12,203 +12,240 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- ===== STICKY HEADER: avatar + ime + email ===== -->
-        <androidx.cardview.widget.CardView
+        <!-- ===== LOGGED IN UI ===== -->
+        <LinearLayout
+            android:id="@+id/layoutLoggedIn"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="16dp"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="4dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="@color/dark_blue">
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
 
-            <LinearLayout
+            <!-- STICKY HEADER -->
+            <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="16dp"
-                android:gravity="center_vertical">
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="4dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="4dp"
+                app:cardBackgroundColor="@color/dark_blue">
 
-                <!-- Avatar -->
-                <FrameLayout
-                    android:layout_width="64dp"
-                    android:layout_height="64dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="16dp"
+                    android:gravity="center_vertical">
 
-                    <ImageView
-                        android:id="@+id/imgAvatarBorder"
+                    <!-- Avatar -->
+                    <FrameLayout
                         android:layout_width="64dp"
-                        android:layout_height="64dp"
-                        android:src="@drawable/profile_circle_bg"
-                        android:contentDescription="@string/avatar_border" />
+                        android:layout_height="64dp">
 
-                    <ImageView
-                        android:id="@+id/imgAvatar"
-                        android:layout_width="56dp"
-                        android:layout_height="56dp"
-                        android:layout_gravity="center"
-                        android:src="@android:drawable/ic_menu_gallery"
-                        android:background="@drawable/profile_circle_bg"
-                        android:contentDescription="@string/avatar"
-                        android:scaleType="centerCrop" />
-                </FrameLayout>
+                        <ImageView
+                            android:id="@+id/imgAvatarBorder"
+                            android:layout_width="64dp"
+                            android:layout_height="64dp"
+                            android:src="@drawable/avatar_border"
+                            android:contentDescription="@string/avatar_border" />
 
-                <!-- Ime + email -->
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:layout_marginStart="12dp">
+                        <ImageView
+                            android:id="@+id/imgAvatar"
+                            android:layout_width="54dp"
+                            android:layout_height="54dp"
+                            android:layout_gravity="center"
+                            android:src="@android:drawable/ic_menu_gallery"
+                            android:background="@drawable/avatar_bg_circle"
+                            android:contentDescription="@string/avatar"
+                            android:scaleType="centerCrop"
+                            android:clipToOutline="true" />
+                    </FrameLayout>
 
-                    <TextView
-                        android:id="@+id/tvUsername"
+                    <!-- Ime + email -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginStart="12dp">
+
+                        <TextView
+                            android:id="@+id/tvUsername"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/placeholder_username"
+                            android:textColor="@color/white"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvEmail"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/placeholder_email"
+                            android:textColor="@color/lavender"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/tvRegion"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/placeholder_region"
+                            android:textColor="@color/lavender"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <!-- Tokeni + Zvezde + Liga -->
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/placeholder_username"
-                        android:textColor="@color/white"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                        android:orientation="vertical"
+                        android:gravity="center">
 
-                    <TextView
-                        android:id="@+id/tvEmail"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/placeholder_email"
-                        android:textColor="@color/lavender"
-                        android:textSize="12sp" />
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
 
-                    <TextView
-                        android:id="@+id/tvRegion"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/placeholder_region"
-                        android:textColor="@color/lavender"
-                        android:textSize="12sp" />
+                            <ImageView
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
+                                android:src="@drawable/outline_atr_24"
+                                app:tint="@color/lavender" />
+
+                            <TextView
+                                android:id="@+id/tvTokens"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="4dp"
+                                android:text="@string/placeholder_tokens"
+                                android:textColor="@color/white"
+                                android:textSize="13sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="4dp">
+
+                            <ImageView
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
+                                android:src="@drawable/star"
+                                app:tint="@color/lavender" />
+
+                            <TextView
+                                android:id="@+id/tvStars"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="4dp"
+                                android:text="@string/placeholder_stars"
+                                android:textColor="@color/white"
+                                android:textSize="13sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="4dp">
+
+                            <ImageView
+                                android:id="@+id/imgLeagueIcon"
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
+                                android:src="@drawable/outline_atr_24"
+                                app:tint="@color/lavender" />
+
+                            <TextView
+                                android:id="@+id/tvLeague"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="4dp"
+                                android:text="@string/placeholder_league"
+                                android:textColor="@color/white"
+                                android:textSize="13sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
                 </LinearLayout>
+            </androidx.cardview.widget.CardView>
 
-                <!-- Tokeni + Zvezde (kompaktno) -->
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center">
+            <!-- TAB BAR -->
+            <com.google.android.material.tabs.TabLayout
+                android:id="@+id/tabLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="4dp"
+                app:tabBackground="@color/lace"
+                app:tabSelectedTextColor="@color/dark_blue"
+                app:tabIndicatorColor="@color/blue"
+                app:tabIndicatorHeight="3dp"
+                app:tabTextAppearance="@style/TextAppearance.MaterialComponents.Body2"
+                app:tabMode="fixed"
+                app:tabGravity="fill" />
 
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
+            <!-- VIEW PAGER -->
+            <androidx.viewpager2.widget.ViewPager2
+                android:id="@+id/viewPager"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
 
-                        <ImageView
-                            android:layout_width="14dp"
-                            android:layout_height="14dp"
-                            android:src="@drawable/outline_atr_24"
-                            app:tint="@color/lavender" />
+        </LinearLayout>
 
-                        <TextView
-                            android:id="@+id/tvTokens"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="4dp"
-                            android:text="@string/placeholder_tokens"
-                            android:textColor="@color/white"
-                            android:textSize="13sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:layout_marginTop="4dp">
-
-                        <ImageView
-                            android:layout_width="14dp"
-                            android:layout_height="14dp"
-                            android:src="@drawable/star"
-                            app:tint="@color/lavender" />
-
-                        <TextView
-                            android:id="@+id/tvStars"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="4dp"
-                            android:text="@string/placeholder_stars"
-                            android:textColor="@color/white"
-                            android:textSize="13sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:layout_marginTop="4dp">
-
-                        <ImageView
-                            android:id="@+id/imgLeagueIcon"
-                            android:layout_width="14dp"
-                            android:layout_height="14dp"
-                            android:src="@drawable/outline_atr_24"
-                            app:tint="@color/lavender" />
-
-                        <TextView
-                            android:id="@+id/tvLeague"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="4dp"
-                            android:text="@string/placeholder_league"
-                            android:textColor="@color/white"
-                            android:textSize="13sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </LinearLayout>
-
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- ===== TAB BAR ===== -->
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/tabLayout"
+        <!-- ===== GUEST UI ===== -->
+        <LinearLayout
+            android:id="@+id/layoutGuest"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="16dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="4dp"
-            app:tabBackground="@color/lace"
-            app:tabSelectedTextColor="@color/dark_blue"
-            app:tabIndicatorColor="@color/blue"
-            app:tabIndicatorHeight="3dp"
-            app:tabTextAppearance="@style/TextAppearance.MaterialComponents.Body2"
-            app:tabMode="fixed"
-            app:tabGravity="fill">
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="32dp"
+            android:visibility="gone">
 
-            <com.google.android.material.tabs.TabItem
+            <ImageView
+                android:layout_width="96dp"
+                android:layout_height="96dp"
+                android:src="@android:drawable/ic_menu_myplaces"
+                android:layout_marginBottom="24dp" />
+
+            <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Profil" />
+                android:text="Igraš kao Gost"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:textColor="@color/dark_blue"
+                android:layout_marginBottom="8dp" />
 
-            <com.google.android.material.tabs.TabItem
+            <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Statistika" />
+                android:text="Registruj se da bi imao profil, statistiku, prijatelje i rang listu."
+                android:textSize="14sp"
+                android:textColor="@color/dark_blue"
+                android:gravity="center"
+                android:layout_marginBottom="32dp" />
 
-            <com.google.android.material.tabs.TabItem
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnGuestLogin"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Podešavanja" />
+                android:text="Prijavi se / Registruj se"
+                android:paddingHorizontal="32dp" />
 
-        </com.google.android.material.tabs.TabLayout>
-
-        <!-- ===== VIEW PAGER ===== -->
-        <androidx.viewpager2.widget.ViewPager2
-            android:id="@+id/viewPager"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+        </LinearLayout>
 
     </LinearLayout>
 

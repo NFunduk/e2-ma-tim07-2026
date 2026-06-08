@@ -6,45 +6,69 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
+
 import com.example.sabona.repository.KoZnaZnaRepository;
+import com.example.sabona.repository.StatsRepository;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class KoZnaZnaFragment extends Fragment {
 
-    // Views
+    // ── Views ──────────────────────────────────────────────────────────────
     private TextView tvQuestionNum, tvTimer, tvScore, tvInfo, tvQuestion;
     private TextView tvPlayer1Status, tvPlayer2Status, tvScore1, tvScore2;
     private Button[] answerButtons = new Button[4];
-    private Button btnNext;
     private ProgressBar progressBar;
-    private View layoutGame;
+    private View layoutGame, layoutWaiting;
+    private TextView tvWaitingMsg;
 
-    // Timer
-    private CountDownTimer timer;
+    // ── Firebase ───────────────────────────────────────────────────────────
+    private FirebaseFirestore db = FirebaseFirestore.getInstance();
+    private FirebaseAuth auth = FirebaseAuth.getInstance();
+    private ListenerRegistration sessionListener;
+    private DocumentReference sessionRef;
 
-    // ---- Stanje igre ----
+    // ── Session state ──────────────────────────────────────────────────────
+    private String myUid;
+    private String sessionId;
+    private boolean isHost;
+    private String myRole;
+    private boolean soloMode = false;
+
+    // ── Game state ─────────────────────────────────────────────────────────
     private int currentQuestion = 0;
     private int player1Score = 0;
     private int player2Score = 0;
-    private boolean player1Answered = false;
-    private boolean player2Answered = false;
-    private int activePlayer = 1;
+    private String phase = "p1_turn";
     private boolean questionFinished = false;
+    private boolean myTurn = false;
+    private int myCorrectCount = 0;
+    private int myWrongCount = 0;
 
-    // Pitanja iz Firestorea
+    // ── Pitanja ────────────────────────────────────────────────────────────
     private List<KoZnaZnaRepository.Question> questions;
     private final KoZnaZnaRepository repository = new KoZnaZnaRepository();
+
+    // ── Timer ──────────────────────────────────────────────────────────────
+    private CountDownTimer timer;
 
     @Nullable
     @Override
@@ -66,39 +90,36 @@ public class KoZnaZnaFragment extends Fragment {
         tvPlayer2Status = view.findViewById(R.id.tvPlayer2Status);
         tvScore1        = view.findViewById(R.id.tvScore1);
         tvScore2        = view.findViewById(R.id.tvScore2);
-        btnNext         = view.findViewById(R.id.btnNext);
         progressBar     = view.findViewById(R.id.progressBar);
         layoutGame      = view.findViewById(R.id.layoutGame);
-
-        // Sakrij igru dok se pitanja učitavaju
-        layoutGame.setVisibility(View.GONE);
-        progressBar.setVisibility(View.VISIBLE);
+        layoutWaiting   = view.findViewById(R.id.layoutWaiting);
+        tvWaitingMsg    = view.findViewById(R.id.tvWaitingMsg);
 
         answerButtons[0] = view.findViewById(R.id.btnAnswer1);
         answerButtons[1] = view.findViewById(R.id.btnAnswer2);
         answerButtons[2] = view.findViewById(R.id.btnAnswer3);
         answerButtons[3] = view.findViewById(R.id.btnAnswer4);
 
-        loadQuestionsFromFirestore();
+        myUid = auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : "unknown";
+
+        layoutGame.setVisibility(View.GONE);
+        if (layoutWaiting != null) layoutWaiting.setVisibility(View.GONE);
+        progressBar.setVisibility(View.VISIBLE);
+
+        loadQuestions();
     }
 
-    private void loadQuestionsFromFirestore() {
+    // ── Učitaj pitanja iz Firestore ────────────────────────────────────────
+    private void loadQuestions() {
         repository.fetchQuestions(new KoZnaZnaRepository.QuestionsCallback() {
             @Override
             public void onSuccess(List<KoZnaZnaRepository.Question> loaded) {
                 if (!isAdded()) return;
-
-                Collections.shuffle(loaded); // Miješaj redoslijed pitanja
-                // Uzmi max 5 pitanja
+                Collections.shuffle(loaded);
                 questions = loaded.size() > 5 ? loaded.subList(0, 5) : loaded;
-
                 progressBar.setVisibility(View.GONE);
-                layoutGame.setVisibility(View.VISIBLE);
-
-                setupClicks();
-                loadQuestion();
+                showJoinDialog();
             }
-
             @Override
             public void onError(Exception e) {
                 if (!isAdded()) return;
@@ -110,234 +131,406 @@ public class KoZnaZnaFragment extends Fragment {
         });
     }
 
-    @Override
-    public void onDestroyView() {
-        super.onDestroyView();
-        if (timer != null) timer.cancel();
+    // ── Dialog za odabir moda ─────────────────────────────────────────────
+    private void showJoinDialog() {
+        String suggested = myUid.length() >= 6
+                ? myUid.substring(0, 6).toUpperCase() : "TEST01";
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
+        builder.setTitle("Ko zna zna");
+        builder.setMessage("Odaberi način igranja.\nKod sesije za 2 uređaja: " + suggested);
+
+        final EditText input = new EditText(requireContext());
+        input.setHint("Kod sesije");
+        input.setText(suggested);
+        builder.setView(input);
+
+        // Igrač 1 – kreira sesiju (2 uređaja)
+        builder.setPositiveButton("Kreiraj (Igrač 1)", (d, w) -> {
+            sessionId = input.getText().toString().trim().toUpperCase();
+            isHost = true;
+            myRole = "p1";
+            soloMode = false;
+            createSession();
+        });
+
+        // Igrač 2 – pridružuje se (2 uređaja)
+        builder.setNegativeButton("Pridruži se (Igrač 2)", (d, w) -> {
+            sessionId = input.getText().toString().trim().toUpperCase();
+            isHost = false;
+            myRole = "p2";
+            soloMode = false;
+            joinSession();
+        });
+
+        // Solo test – jedan uređaj, oba igrača naizmjenično
+        builder.setNeutralButton("Solo test (1 uređaj)", (d, w) -> {
+            soloMode = true;
+            isHost = true;
+            myRole = "p1";
+            startSoloGame();
+        });
+
+        builder.setCancelable(false);
+        builder.show();
     }
 
-    private void setupClicks() {
-        for (int i = 0; i < 4; i++) {
-            int answerIndex = i;
-            answerButtons[i].setOnClickListener(v -> onAnswerClick(answerIndex));
-        }
+    // ── Realtime: Host kreira sesiju ───────────────────────────────────────
+    private void createSession() {
+        sessionRef = db.collection("gameSessions")
+                .document(sessionId)
+                .collection("games")
+                .document("kzz");
 
-        btnNext.setOnClickListener(v -> {
-            currentQuestion++;
-            if (currentQuestion < questions.size()) {
-                loadQuestion();
-            } else {
+        Map<String, Object> data = new HashMap<>();
+        data.put("questionIndex", 0);
+        data.put("phase", "waiting_p2");
+        data.put("p1Score", 0);
+        data.put("p2Score", 0);
+        data.put("p1Uid", myUid);
+        data.put("p2Uid", "");
+        data.put("p1Answer", -1);
+        data.put("p2Answer", -1);
+        data.put("questionFinished", false);
+
+        sessionRef.set(data)
+                .addOnSuccessListener(v -> {
+                    showWaiting("Čekam Igrača 2...\nKod sesije: " + sessionId);
+                    startListening();
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(requireContext(),
+                                "Greška kreiranja sesije: " + e.getMessage(),
+                                Toast.LENGTH_LONG).show());
+    }
+
+    // ── Realtime: Gost se pridružuje ───────────────────────────────────────
+    private void joinSession() {
+        sessionRef = db.collection("gameSessions")
+                .document(sessionId)
+                .collection("games")
+                .document("kzz");
+
+        sessionRef.update("p2Uid", myUid, "phase", "p1_turn")
+                .addOnSuccessListener(v -> {
+                    showWaiting("Pridružen! Čekam start...");
+                    startListening();
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(requireContext(),
+                                "Sesija nije pronađena. Provjeri kod!",
+                                Toast.LENGTH_LONG).show());
+    }
+
+    // ── Realtime listener ──────────────────────────────────────────────────
+    private void startListening() {
+        sessionListener = sessionRef.addSnapshotListener((snapshot, error) -> {
+            if (!isAdded() || snapshot == null || !snapshot.exists()) return;
+
+            String newPhase = snapshot.getString("phase");
+            long qIndex = getLong(snapshot, "questionIndex");
+            player1Score = (int) getLong(snapshot, "p1Score");
+            player2Score = (int) getLong(snapshot, "p2Score");
+
+            if ("waiting_p2".equals(newPhase)) {
+                showWaiting("Čekam Igrača 2...");
+                return;
+            }
+
+            hideWaiting();
+
+            if ("p1_turn".equals(newPhase) || "p2_turn".equals(newPhase)) {
+                if ((int) qIndex != currentQuestion || !newPhase.equals(phase)) {
+                    currentQuestion = (int) qIndex;
+                    phase = newPhase;
+                    renderQuestion(newPhase);
+                } else {
+                    updateScoreViews();
+                }
+            } else if ("finished".equals(newPhase)) {
                 showEndGame();
             }
         });
     }
 
-    private void loadQuestion() {
-        if (timer != null) timer.cancel();
+    // ── Solo mod ───────────────────────────────────────────────────────────
+    private void startSoloGame() {
+        currentQuestion = 0;
+        player1Score = 0;
+        player2Score = 0;
+        phase = "p1_turn";
+        hideWaiting();
+        renderQuestion(phase);
+    }
 
-        player1Answered = false;
-        player2Answered = false;
+    // ── Prikaži pitanje ────────────────────────────────────────────────────
+    private void renderQuestion(String currentPhase) {
+        if (timer != null) timer.cancel();
         questionFinished = false;
-        activePlayer = 1;
-        btnNext.setVisibility(View.GONE);
+
+        myTurn = soloMode
+                || (isHost && "p1_turn".equals(currentPhase))
+                || (!isHost && "p2_turn".equals(currentPhase));
+
+        if (currentQuestion >= questions.size()) {
+            if (soloMode) showEndGame();
+            else endGameInFirestore();
+            return;
+        }
 
         KoZnaZnaRepository.Question q = questions.get(currentQuestion);
         tvQuestion.setText(q.question);
         for (int i = 0; i < 4; i++) {
             answerButtons[i].setText(q.answers.get(i));
-        }
-
-        for (Button btn : answerButtons) {
-            btn.setEnabled(true);
-            btn.setBackgroundTintList(
+            answerButtons[i].setEnabled(myTurn);
+            answerButtons[i].setBackgroundTintList(
                     ContextCompat.getColorStateList(requireContext(), R.color.white));
-            btn.setTextColor(
+            answerButtons[i].setTextColor(
                     ContextCompat.getColor(requireContext(), R.color.dark_blue));
         }
 
-        tvPlayer1Status.setText("⏳ čeka");
-        tvPlayer2Status.setText("⏳ čeka");
-        tvPlayer1Status.setTextColor(
-                ContextCompat.getColor(requireContext(), R.color.dark_blue));
-        tvPlayer2Status.setTextColor(
-                ContextCompat.getColor(requireContext(), R.color.dark_blue));
-
+        tvPlayer1Status.setText("p1_turn".equals(currentPhase) ? "▶ Igrač 1" : "Igrač 1");
+        tvPlayer2Status.setText("p2_turn".equals(currentPhase) ? "▶ Igrač 2" : "Igrač 2");
         tvQuestionNum.setText("Pitanje " + (currentQuestion + 1) + "/" + questions.size());
-        tvInfo.setText("Na potezu: Igrač " + activePlayer + " - odaberi odgovor!");
+
+        if (soloMode) {
+            String ko = "p1_turn".equals(currentPhase) ? "Igrač 1" : "Igrač 2";
+            tvInfo.setText("🎯 " + ko + " bira odgovor!");
+        } else {
+            tvInfo.setText(myTurn ? "🎯 Tvoj red!" : "⏳ Čekam protivnika...");
+        }
 
         updateScoreViews();
         startTimer();
     }
 
+    // ── Klik na odgovor ────────────────────────────────────────────────────
     private void onAnswerClick(int answerIndex) {
         if (questionFinished) return;
+        if (!soloMode && !myTurn) return;
 
-        int correctIndex = questions.get(currentQuestion).correctIndex;
-        boolean isCorrect = (answerIndex == correctIndex);
+        for (Button btn : answerButtons) btn.setEnabled(false);
+        questionFinished = true;
+        if (timer != null) timer.cancel();
 
-        if (activePlayer == 1) {
-            player1Answered = true;
-            if (isCorrect) {
+        KoZnaZnaRepository.Question q = questions.get(currentQuestion);
+        boolean correct = (answerIndex == q.correctIndex);
+
+        // Statistika – bilježi samo za ulogovanog igrača (P1 u solo ili pravi igrač u realtime)
+        if (isHost && "p1_turn".equals(phase)) {
+            if (correct) myCorrectCount++; else myWrongCount++;
+        }
+
+        if (soloMode) {
+            handleSoloAnswer(answerIndex, correct, q);
+        } else {
+            handleRealtimeAnswer(answerIndex, correct, q);
+        }
+    }
+
+    private void handleRealtimeAnswer(int answerIndex, boolean correct,
+                                      KoZnaZnaRepository.Question q) {
+        Map<String, Object> update = new HashMap<>();
+        if (correct) {
+            int nextQ = currentQuestion + 1;
+            String nextPhase = nextQ < questions.size() ? "p1_turn" : "finished";
+            if (isHost) update.put("p1Score", player1Score + 10);
+            else        update.put("p2Score", player2Score + 10);
+            update.put("questionIndex", nextQ);
+            update.put("phase", nextPhase);
+            markCorrectAnswer(q.correctIndex);
+        } else {
+            answerButtons[answerIndex].setBackgroundTintList(
+                    ContextCompat.getColorStateList(requireContext(), android.R.color.holo_red_light));
+            if (isHost) {
+                update.put("p1Score", player1Score - 5);
+                update.put("phase", "p2_turn");
+            } else {
+                update.put("p2Score", player2Score - 5);
+                int nextQ = currentQuestion + 1;
+                String nextPhase = nextQ < questions.size() ? "p1_turn" : "finished";
+                update.put("questionIndex", nextQ);
+                update.put("phase", nextPhase);
+            }
+        }
+        sessionRef.update(update);
+    }
+
+    private void handleSoloAnswer(int answerIndex, boolean correct,
+                                  KoZnaZnaRepository.Question q) {
+        if ("p1_turn".equals(phase)) {
+            if (correct) {
                 player1Score += 10;
-                tvPlayer1Status.setText("✅ tačno!");
+                tvPlayer1Status.setText("✅ tačno +10");
                 tvPlayer1Status.setTextColor(
                         ContextCompat.getColor(requireContext(), android.R.color.holo_green_dark));
-                tvInfo.setText("Igrač 1 tačno odgovorio! +10 bodova");
-                markCorrectAnswer(correctIndex);
-                finishQuestion();
+                markCorrectAnswer(q.correctIndex);
+                updateScoreViews();
+                nextQuestionDelayed();
             } else {
                 player1Score -= 5;
-                tvPlayer1Status.setText("❌ netačno");
+                tvPlayer1Status.setText("❌ netačno -5");
                 tvPlayer1Status.setTextColor(
                         ContextCompat.getColor(requireContext(), android.R.color.holo_red_dark));
                 answerButtons[answerIndex].setBackgroundTintList(
                         ContextCompat.getColorStateList(requireContext(), android.R.color.holo_red_light));
-                activePlayer = 2;
-                tvInfo.setText("Igrač 1 netačno! Na potezu: Igrač 2");
+                // Daj šansu Igraču 2 – reaktiviraj preostale dugmiće
+                phase = "p2_turn";
+                questionFinished = false;
+                for (int i = 0; i < 4; i++) {
+                    if (i != answerIndex) answerButtons[i].setEnabled(true);
+                }
+                tvInfo.setText("🎯 Igrač 2 bira odgovor!");
                 updateScoreViews();
             }
-        } else {
-            player2Answered = true;
-            if (isCorrect) {
+        } else { // p2_turn
+            if (correct) {
                 player2Score += 10;
-                tvPlayer2Status.setText("✅ tačno!");
+                tvPlayer2Status.setText("✅ tačno +10");
                 tvPlayer2Status.setTextColor(
                         ContextCompat.getColor(requireContext(), android.R.color.holo_green_dark));
-                tvInfo.setText("Igrač 2 tačno odgovorio! +10 bodova");
-                markCorrectAnswer(correctIndex);
-                finishQuestion();
             } else {
                 player2Score -= 5;
-                tvPlayer2Status.setText("❌ netačno");
+                tvPlayer2Status.setText("❌ netačno -5");
                 tvPlayer2Status.setTextColor(
                         ContextCompat.getColor(requireContext(), android.R.color.holo_red_dark));
                 answerButtons[answerIndex].setBackgroundTintList(
                         ContextCompat.getColorStateList(requireContext(), android.R.color.holo_red_light));
-                tvInfo.setText("Oba igrača su odgovorila netačno.");
-                markCorrectAnswer(correctIndex);
-                finishQuestion();
             }
+            markCorrectAnswer(q.correctIndex);
+            updateScoreViews();
+            nextQuestionDelayed();
         }
-
-        updateScoreViews();
     }
 
-    private void markCorrectAnswer(int correctIndex) {
-        answerButtons[correctIndex].setBackgroundTintList(
-                ContextCompat.getColorStateList(requireContext(), android.R.color.holo_green_dark));
-        answerButtons[correctIndex].setTextColor(
-                ContextCompat.getColor(requireContext(), R.color.white));
-    }
-
-    private void markCorrectAnswerTimeout(int correctIndex) {
-        answerButtons[correctIndex].setBackgroundTintList(
-                ContextCompat.getColorStateList(requireContext(), R.color.lavender));
-        answerButtons[correctIndex].setTextColor(
-                ContextCompat.getColor(requireContext(), R.color.dark_blue));
-    }
-
-    private void finishQuestion() {
-        if (timer != null) timer.cancel();
+    private void nextQuestionDelayed() {
         questionFinished = true;
-
-        for (Button btn : answerButtons) {
-            btn.setEnabled(false);
-        }
-
-        new CountDownTimer(2000, 1000) {
-            @Override public void onTick(long millisUntilFinished) {}
-            @Override
-            public void onFinish() {
+        new CountDownTimer(1500, 1500) {
+            @Override public void onTick(long ms) {}
+            @Override public void onFinish() {
                 if (!isAdded()) return;
                 currentQuestion++;
+                phase = "p1_turn";
                 if (currentQuestion < questions.size()) {
-                    loadQuestion();
+                    renderQuestion(phase);
                 } else {
                     showEndGame();
                 }
             }
         }.start();
-
-        updateScoreViews();
     }
 
+    // ── Timer ──────────────────────────────────────────────────────────────
     private void startTimer() {
         tvTimer.setTextColor(ContextCompat.getColor(requireContext(), R.color.petal));
-
         timer = new CountDownTimer(5000, 1000) {
-            @Override
-            public void onTick(long millisUntilFinished) {
-                long seconds = millisUntilFinished / 1000;
-                tvTimer.setText(String.valueOf(seconds));
-                if (seconds <= 2) {
+            @Override public void onTick(long ms) {
+                long s = ms / 1000;
+                tvTimer.setText(String.valueOf(s));
+                if (s <= 2)
                     tvTimer.setTextColor(
                             ContextCompat.getColor(requireContext(), android.R.color.holo_red_light));
-                }
             }
-
-            @Override
-            public void onFinish() {
-                if (!isAdded()) return;
+            @Override public void onFinish() {
+                if (!isAdded() || questionFinished) return;
                 tvTimer.setText("0");
-                tvInfo.setText("Vreme je isteklo!");
-                if (!questionFinished) {
-                    int correctIndex = questions.get(currentQuestion).correctIndex;
-                    markCorrectAnswerTimeout(correctIndex);
-                    finishQuestion();
+                tvInfo.setText("Vreme isteklo!");
+                questionFinished = true;
+                for (Button btn : answerButtons) btn.setEnabled(false);
+
+                if (soloMode) {
+                    // U solo modu prelaz na sljedeće pitanje
+                    nextQuestionDelayed();
+                } else if (myTurn) {
+                    Map<String, Object> update = new HashMap<>();
+                    if (isHost) {
+                        update.put("phase", "p2_turn");
+                    } else {
+                        int nextQ = currentQuestion + 1;
+                        String nextPhase = nextQ < questions.size() ? "p1_turn" : "finished";
+                        update.put("questionIndex", nextQ);
+                        update.put("phase", nextPhase);
+                    }
+                    sessionRef.update(update);
                 }
             }
-        };
-        timer.start();
+        }.start();
+    }
+
+    // ── Kraj igre ──────────────────────────────────────────────────────────
+    private void endGameInFirestore() {
+        if (isHost && sessionRef != null) {
+            sessionRef.update("phase", "finished");
+        }
     }
 
     private void showEndGame() {
-        // Sačuvaj rezultate u Firestore
-        saveResults();
+        if (timer != null) timer.cancel();
+        if (!isAdded()) return;
+
+        // Sačuvaj statistiku
+        int myScore = isHost ? player1Score : player2Score;
+        new StatsRepository().saveKoZnaZnaResult(myScore, myCorrectCount, myWrongCount);
 
         String winner;
-        if (player1Score > player2Score) {
-            winner = "Pobjednik Ko zna zna: Igrač 1! (" + player1Score + " : " + player2Score + ")";
-        } else if (player2Score > player1Score) {
-            winner = "Pobjednik Ko zna zna: Igrač 2! (" + player1Score + " : " + player2Score + ")";
-        } else {
-            winner = "Ko zna zna je nerješeno! (" + player1Score + " : " + player2Score + ")";
-        }
+        if (player1Score > player2Score)
+            winner = "Pobjednik: Igrač 1! (" + player1Score + " : " + player2Score + ")";
+        else if (player2Score > player1Score)
+            winner = "Pobjednik: Igrač 2! (" + player1Score + " : " + player2Score + ")";
+        else
+            winner = "Nerješeno! (" + player1Score + " : " + player2Score + ")";
 
         Toast.makeText(requireContext(), winner, Toast.LENGTH_LONG).show();
-
         NavHostFragment.findNavController(this)
                 .navigate(R.id.action_kozna_to_spojnice);
     }
 
-    private void saveResults() {
-        // TODO: Zamijeniti "mockPlayer1" i "mockPlayer2" sa pravim
-        // FirebaseAuth.getInstance().getCurrentUser().getUid() kad student 1 završi Auth
-        String player1Id = "mockPlayer1";
-        String player2Id = "mockPlayer2";
+    // ── Helpers ────────────────────────────────────────────────────────────
+    private void showWaiting(String msg) {
+        if (layoutWaiting != null) {
+            layoutWaiting.setVisibility(View.VISIBLE);
+            if (tvWaitingMsg != null) tvWaitingMsg.setText(msg);
+        }
+        layoutGame.setVisibility(View.GONE);
+    }
 
-        com.google.firebase.firestore.FirebaseFirestore db =
-                com.google.firebase.firestore.FirebaseFirestore.getInstance();
+    private void hideWaiting() {
+        if (layoutWaiting != null) layoutWaiting.setVisibility(View.GONE);
+        layoutGame.setVisibility(View.VISIBLE);
+        setupButtonClicks();
+    }
 
-        java.util.Map<String, Object> result = new java.util.HashMap<>();
-        result.put("player1Score", player1Score);
-        result.put("player2Score", player2Score);
-        result.put("player1Id", player1Id);
-        result.put("player2Id", player2Id);
-        result.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+    private void setupButtonClicks() {
+        for (int i = 0; i < 4; i++) {
+            int idx = i;
+            answerButtons[i].setOnClickListener(v -> onAnswerClick(idx));
+        }
+    }
 
-        db.collection("game_results_ko_zna_zna")
-                .add(result)
-                .addOnSuccessListener(ref -> {
-                    // Rezultat sačuvan
-                })
-                .addOnFailureListener(e -> {
-                    // Tiha greška, ne prekidamo tok igre
-                });
+    private void markCorrectAnswer(int idx) {
+        answerButtons[idx].setBackgroundTintList(
+                ContextCompat.getColorStateList(requireContext(), android.R.color.holo_green_dark));
+        answerButtons[idx].setTextColor(
+                ContextCompat.getColor(requireContext(), R.color.white));
     }
 
     private void updateScoreViews() {
         tvScore.setText("Igrač 1: " + player1Score + "  |  Igrač 2: " + player2Score);
         tvScore1.setText(player1Score + " bod.");
         tvScore2.setText(player2Score + " bod.");
+    }
+
+    private long getLong(com.google.firebase.firestore.DocumentSnapshot snap, String key) {
+        Object v = snap.get(key);
+        if (v instanceof Long)    return (Long) v;
+        if (v instanceof Integer) return ((Integer) v).longValue();
+        return 0L;
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (timer != null) timer.cancel();
+        if (sessionListener != null) sessionListener.remove();
     }
 }

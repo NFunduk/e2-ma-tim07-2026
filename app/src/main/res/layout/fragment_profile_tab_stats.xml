@@ -496,13 +496,11 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:orientation="vertical">
 
                     <TextView
-                        android:layout_width="0dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
                         android:text="% po koraku (1–7)"
                         android:textColor="@color/dark_blue"
                         android:textSize="13sp"
@@ -510,12 +508,13 @@
 
                     <TextView
                         android:id="@+id/tvStatsKorakPercent"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="40% k.1 / 30% k.2"
                         android:textColor="@color/blue"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:layout_marginTop="2dp" />
                 </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>

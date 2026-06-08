@@ -15,6 +15,8 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.repository.StatsRepository;
+
 import java.util.Random;
 
 public class MojBrojFragment extends Fragment {
@@ -39,6 +41,7 @@ public class MojBrojFragment extends Fragment {
     private boolean numbersRevealed = false;
     private boolean roundFinished = false;
 
+    private boolean player1FoundExact = false; // postaviti na true kad evaluacija bude gotova
     private CountDownTimer timer;
     private final Random random = new Random();
 
@@ -241,11 +244,24 @@ public class MojBrojFragment extends Fragment {
 
     private void showEndGame() {
         String winner;
-        if (player1Score > player2Score) winner = "Pobedio igrač 1!";
-        else if (player2Score > player1Score) winner = "Pobedio igrač 2!";
-        else winner = "Nerešeno!";
+        boolean player1Won;
+        if (player1Score > player2Score) {
+            winner = "Pobedio igrač 1!";
+            player1Won = true;
+        } else if (player2Score > player1Score) {
+            winner = "Pobedio igrač 2!";
+            player1Won = false;
+        } else {
+            winner = "Nerešeno!";
+            player1Won = false;
+        }
+
+        // Snimi statistiku za igrača 1
+        new StatsRepository().saveMojBrojResult(player1Score, player1FoundExact);
+
         Bundle args = new Bundle();
         args.putString("winner", winner);
+        args.putBoolean("player1Won", player1Won);
         NavHostFragment.findNavController(this)
                 .navigate(R.id.action_mojbroj_to_gameover, args);
     }

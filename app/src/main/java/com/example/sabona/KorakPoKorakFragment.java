@@ -17,6 +17,7 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.repository.StatsRepository;
 import com.example.sabona.viewModel.KorakViewModel;
 
 public class KorakPoKorakFragment extends Fragment {
@@ -141,6 +142,12 @@ public class KorakPoKorakFragment extends Fragment {
 
         viewModel.getFinalScores().observe(getViewLifecycleOwner(), scores -> {
             if (scores == null) return;
+
+            // Snimi statistiku za igrača 1
+            int myScore = scores[0];
+            int myStep = viewModel.getPlayer1GuessedAtStep();
+            new StatsRepository().saveKorakResult(myScore, myStep);
+
             Bundle args = new Bundle();
             args.putInt("player1Score", scores[0]);
             args.putInt("player2Score", scores[1]);

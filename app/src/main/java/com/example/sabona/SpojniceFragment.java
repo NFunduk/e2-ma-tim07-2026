@@ -442,6 +442,10 @@ public class SpojniceFragment extends Fragment {
     // ---- Kraj igre ----
 
     private void showEndGame() {
+        // Sačuvaj statistiku u Firestore
+        new com.example.sabona.repository.StatsRepository()
+                .saveSpojniceResult(player1Score / 2, 10, player1Score);
+
         String result;
         if (player1Score > player2Score) {
             result = "Pobjednik spojnica: Igrač 1! (" + player1Score + " vs " + player2Score + ")";
@@ -464,8 +468,8 @@ public class SpojniceFragment extends Fragment {
         String phaseLabel = (phase == PHASE_PLAYER_A)
                 ? "Na potezu: Igrač " + activePlayer + " (1. faza)"
                 : (phase == PHASE_PLAYER_B)
-                ? "Na potezu: Igrač " + activePlayer + " (preostali)"
-                : "Runda završena";
+                  ? "Na potezu: Igrač " + activePlayer + " (preostali)"
+                  : "Runda završena";
         tvPlayer.setText(phaseLabel);
         tvScore.setText("Igrač 1: " + player1Score + "  |  Igrač 2: " + player2Score);
     }

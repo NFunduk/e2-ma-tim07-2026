@@ -27,6 +27,7 @@ public class KorakViewModel extends ViewModel {
     private int player2Score  = 0;
     private int stepsShown    = 0;   // 0–7
     private boolean answered  = false;
+    private int player1GuessedAtStep = 0; // 0 = nije pogodio, 1-7 = koji korak
 
     private final KorakRepository repo = new KorakRepository();
 
@@ -41,6 +42,7 @@ public class KorakViewModel extends ViewModel {
     public int  getRound()         { return round + 1; }  // 1-based za UI
     public KorakGame currentGame() { return games.get(round); }
 
+    public int getPlayer1GuessedAtStep() { return player1GuessedAtStep; }
     public void loadGames() {
         phase.setValue(Phase.LOADING);
         repo.getGames(new KorakRepository.Callback() {
@@ -90,6 +92,9 @@ public class KorakViewModel extends ViewModel {
             // Aktivan igrač pogodio
             int pts = calculateMainPoints();
             addPoints(activePlayer, pts);
+            if (activePlayer == 1) {
+                player1GuessedAtStep = stepsShown; // stepsShown = koji korak je bio otvoren
+            }
             infoText.postValue("Tačno! Igrač " + activePlayer + " osvaja " + pts + " bodova.");
         } else {
             // Protivnik pogodio u bonus fazi — uvek 5 bodova
