@@ -10,7 +10,11 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
+import android.widget.TextView;
+import com.google.firebase.firestore.FirebaseFirestore;
+
 import com.example.sabona.model.AppNotification;
+import com.example.sabona.repository.NotificationFactory;
 import com.example.sabona.repository.NotificationRepository;
 import com.google.firebase.auth.FirebaseAuth;
 import com.example.sabona.R;
@@ -31,6 +35,27 @@ public class HomeFragment extends Fragment {
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        TextView tvHomeUsername = view.findViewById(R.id.tvHomeUsername);
+
+        String currentUid = FirebaseAuth.getInstance()
+                .getCurrentUser()
+                .getUid();
+
+        FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(currentUid)
+                .get()
+                .addOnSuccessListener(document -> {
+
+                    String username = document.getString("username");
+
+                    if (username != null) {
+                        tvHomeUsername.setText(username);
+                    }
+                });
+
+
+
         view.findViewById(R.id.btnHomePlay).setOnClickListener(v -> {
 
             String uid = FirebaseAuth.getInstance()
@@ -39,21 +64,38 @@ public class HomeFragment extends Fragment {
 
             NotificationRepository repo = new NotificationRepository();
 
-            Toast.makeText(requireContext(), "Kliknuto Play", Toast.LENGTH_SHORT).show();
+            // TEST notifikacije
+            repo.createNotification(
+                    uid,
+                    NotificationFactory.reward("Dobila si 3 tokena kao nagradu.")
+            );
 
             repo.createNotification(
                     uid,
-                    new AppNotification(
-                            "Test notifikacija",
-                            "Ovo je test sistemske notifikacije",
-                            "Nagrade",
-                            "reward",
-                            null,
-                            false,
-                            false
-                    )
+                    NotificationFactory.rankingChanged(2)
             );
 
+            repo.createNotification(
+                    uid,
+                    NotificationFactory.leagueChanged("Srebrna liga")
+            );
+
+            repo.createNotification(
+                    uid,
+                    NotificationFactory.chatMessage("Marko")
+            );
+
+            repo.createNotification(
+                    uid,
+                    NotificationFactory.friendRequest("friend_request_1", "Ana")
+            );
+
+            repo.createNotification(
+                    uid,
+                    NotificationFactory.gameInvite("game_request_1", "Nikola")
+            );
+
+            // Pokretanje igre
             BottomNavigationView bottomNav = requireActivity().findViewById(R.id.bottomNav);
             bottomNav.setSelectedItemId(R.id.play);
         });

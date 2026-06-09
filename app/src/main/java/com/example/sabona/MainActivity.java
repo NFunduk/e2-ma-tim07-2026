@@ -87,7 +87,10 @@ public class MainActivity extends AppCompatActivity {
 
         if (getIntent() != null &&
                 getIntent().getBooleanExtra("open_notifications", false)) {
-            navController.navigate(R.id.notificationsFragment);
+            if (navController.getCurrentDestination() != null &&
+                    navController.getCurrentDestination().getId() != R.id.notificationsFragment) {
+                navController.navigate(R.id.notificationsFragment);
+            }
         }
 
         navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
@@ -163,7 +166,10 @@ public class MainActivity extends AppCompatActivity {
                                 navController.navigate(R.id.homeFragment))
                         .show();
             } else {
-                navController.navigate(R.id.notificationsFragment);
+                if (navController.getCurrentDestination() != null &&
+                        navController.getCurrentDestination().getId() != R.id.notificationsFragment) {
+                    navController.navigate(R.id.notificationsFragment);
+                }
             }
         });
 
@@ -244,7 +250,10 @@ public class MainActivity extends AppCompatActivity {
 
         if (intent.getBooleanExtra("open_notifications", false)
                 && navController != null) {
-            navController.navigate(R.id.notificationsFragment);
+            if (navController.getCurrentDestination() != null &&
+                    navController.getCurrentDestination().getId() != R.id.notificationsFragment) {
+                navController.navigate(R.id.notificationsFragment);
+            }
         }
     }
 }

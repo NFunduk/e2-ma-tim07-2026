@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -40,6 +41,7 @@ public class NotificationFragment extends Fragment {
     private FirebaseFirestore db;
     private ListenerRegistration listenerRegistration;
     private NotificationRepository repository;
+    private Button btnMarkAllRead;
 
     @Nullable
     @Override
@@ -52,6 +54,7 @@ public class NotificationFragment extends Fragment {
         filterAll = view.findViewById(R.id.filterAll);
         filterUnread = view.findViewById(R.id.filterUnread);
         filterRead = view.findViewById(R.id.filterRead);
+        btnMarkAllRead = view.findViewById(R.id.btnMarkAllRead);
 
         channelChat = view.findViewById(R.id.channelChat);
         channelRanking = view.findViewById(R.id.channelRanking);
@@ -89,6 +92,12 @@ public class NotificationFragment extends Fragment {
         notificationsRecycler.setAdapter(adapter);
 
         setupFilters();
+
+        btnMarkAllRead.setOnClickListener(v -> {
+            repository.markAllAsRead();
+            Toast.makeText(requireContext(), "Sve notifikacije su označene kao pročitane", Toast.LENGTH_SHORT).show();
+        });
+
         selectFilter(filterAll, filterUnread, filterRead);
         selectChannel(channelAll, channelChat, channelRanking, channelRewards, channelOther);
 
