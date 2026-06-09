@@ -4,53 +4,93 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
+import com.example.sabona.game.GameSessionManager;
+import com.example.sabona.game.GameSessionRepository;
+import com.example.sabona.game.KorakGameState;
 import com.example.sabona.model.KorakGame;
 import com.example.sabona.repository.KorakRepository;
+import com.google.firebase.firestore.ListenerRegistration;
 
+import java.util.Collections;
 import java.util.List;
 
 public class KorakViewModel extends ViewModel {
 
-    public enum Phase { LOADING, MAIN, BONUS, ROUND_END, GAME_OVER }
+    public enum Phase { LOADING, WAITING, MAIN, BONUS, ROUND_END, GAME_OVER }
 
-    private final MutableLiveData<Phase>   phase          = new MutableLiveData<>();
-    private final MutableLiveData<String>  infoText       = new MutableLiveData<>();
-    private final MutableLiveData<Integer> currentPoints  = new MutableLiveData<>();
-    private final MutableLiveData<Integer> stepsRevealed  = new MutableLiveData<>(0);
-    private final MutableLiveData<Boolean> error          = new MutableLiveData<>();
-    private final MutableLiveData<int[]>   finalScores    = new MutableLiveData<>();
+    // ── LiveData za Fragment ──────────────────────────────────────────
+    private final MutableLiveData<Phase>   phase         = new MutableLiveData<>(Phase.LOADING);
+    private final MutableLiveData<String>  infoText      = new MutableLiveData<>();
+    private final MutableLiveData<Integer> currentPoints = new MutableLiveData<>(20);
+    private final MutableLiveData<Integer> stepsRevealed = new MutableLiveData<>(0);
+    private final MutableLiveData<Boolean> error         = new MutableLiveData<>();
+    private final MutableLiveData<int[]>   finalScores   = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> isMyTurn      = new MutableLiveData<>(false);
+    private final MutableLiveData<String>  answerFeedback = new MutableLiveData<>();
 
+    // ── Lokalno stanje ────────────────────────────────────────────────
     private List<KorakGame> games;
-    private int round         = 0;   // indeks u listi (0, 1)
-    private int activePlayer  = 1;   // ko igra ovu rundu
-    private int player1Score  = 0;
-    private int player2Score  = 0;
-    private int stepsShown    = 0;   // 0–7
-    private boolean answered  = false;
+    private KorakGameState  remoteState = new KorakGameState();
+    private boolean         iAmPlayer1;
+    private boolean         gameInitialized = false;
 
-    private final KorakRepository repo = new KorakRepository();
+    private final KorakRepository     korakRepo = new KorakRepository();
+    private final GameSessionRepository sessionRepo = new GameSessionRepository();
+    private final GameSessionManager  sessionMgr  = GameSessionManager.get();
 
-    public LiveData<Phase>   getPhase()         { return phase; }
-    public LiveData<String>  getInfoText()       { return infoText; }
-    public LiveData<Integer> getCurrentPoints()  { return currentPoints; }
-    public LiveData<Integer> getStepsRevealed()  { return stepsRevealed; }
-    public LiveData<Boolean> getError()          { return error; }
-    public LiveData<int[]>   getFinalScores()    { return finalScores; }
+    private ListenerRegistration firestoreListener;
 
-    public int  getActivePlayer()  { return activePlayer; }
-    public int  getRound()         { return round + 1; }  // 1-based za UI
-    public KorakGame currentGame() { return games.get(round); }
+    // ── Getteri ───────────────────────────────────────────────────────
+    public LiveData<Phase>   getPhase()          { return phase; }
+    public LiveData<String>  getInfoText()        { return infoText; }
+    public LiveData<Integer> getCurrentPoints()   { return currentPoints; }
+    public LiveData<Integer> getStepsRevealed()   { return stepsRevealed; }
+    public LiveData<Boolean> getError()           { return error; }
+    public LiveData<int[]>   getFinalScores()     { return finalScores; }
+    public LiveData<Boolean> getIsMyTurn()        { return isMyTurn; }
+    public LiveData<String>  getAnswerFeedback()  { return answerFeedback; }
 
-    public void loadGames() {
+    public KorakGame currentGame() {
+        if (games == null || remoteState.gameIndex >= games.size()) return null;
+        return games.get(remoteState.gameIndex);
+    }
+
+    public int getActivePlayerNumber() {
+        return remoteState.activePlayerUid.equals(GameSessionManager.UID_PLAYER1) ? 1 : 2;
+    }
+
+    public int getRound() { return remoteState.round; }
+
+    // ── Init ──────────────────────────────────────────────────────────
+
+    public void init() {
+        iAmPlayer1 = sessionMgr.isPlayer1();
         phase.setValue(Phase.LOADING);
-        repo.getGames(new KorakRepository.Callback() {
+
+        korakRepo.getGames(new KorakRepository.Callback() {
             @Override
             public void onSuccess(List<KorakGame> result) {
-                // Uzmi samo 2 random igre
-                java.util.Collections.shuffle(result);
+                Collections.shuffle(result);
                 games = result.subList(0, Math.min(2, result.size()));
-                startRound();
+
+                // Player1 inicijalizuje stanje, player2 samo sluša
+                if (iAmPlayer1 && !gameInitialized) {
+                    gameInitialized = true;
+                    KorakGameState initState = new KorakGameState();
+                    initState.status       = "playing";
+                    initState.round        = 1;
+                    initState.activePlayerUid = GameSessionManager.UID_PLAYER1;
+                    initState.phase        = "MAIN";
+                    initState.stepsRevealed = 1;
+                    initState.gameIndex    = 0;
+                    initState.player1Score = 0;
+                    initState.player2Score = 0;
+                    sessionRepo.initKorakState(initState);
+                }
+
+                startListening();
             }
+
             @Override
             public void onError(Exception e) {
                 error.postValue(true);
@@ -58,95 +98,206 @@ public class KorakViewModel extends ViewModel {
         });
     }
 
-    public void startRound() {
-        stepsShown = 1;
-        answered   = false;
-        phase.setValue(Phase.MAIN);
-        stepsRevealed.setValue(1);
-        infoText.setValue(
-                "Igrač " + activePlayer + " igra rundu " + (round + 1) + "/2"
-        );
-        updatePointsDisplay();
+    private void startListening() {
+        firestoreListener = sessionRepo.listenKorak((snapshot, e) -> {
+            if (e != null || snapshot == null || !snapshot.exists()) return;
+
+            KorakGameState state = snapshot.toObject(KorakGameState.class);
+            if (state == null) return;
+
+            remoteState = state;
+            applyRemoteState(state);
+        });
     }
 
-    /** Poziva Fragment svakih 10s iz tajmera */
-    public void revealNextStep() {
-        if (stepsShown >= 7 || answered) return;
-        stepsShown++;
-        stepsRevealed.postValue(stepsShown);
-        updatePointsDisplay();
+    private void applyRemoteState(KorakGameState state) {
+        boolean myTurn = state.activePlayerUid.equals(sessionMgr.getMyUid());
+        isMyTurn.postValue(myTurn);
+
+        int activePlayer = state.activePlayerUid.equals(GameSessionManager.UID_PLAYER1) ? 1 : 2;
+
+        stepsRevealed.postValue(state.stepsRevealed);
+
+        int pts = Math.max(20 - (state.stepsRevealed - 1) * 2, 0);
+        currentPoints.postValue("BONUS".equals(state.phase) ? 5 : pts);
+
+        switch (state.phase) {
+            case "MAIN":
+                phase.postValue(Phase.MAIN);
+                if (myTurn) {
+                    infoText.postValue("Tvoj red! Runda " + state.round + "/2 — pogodi pojam.");
+                } else {
+                    infoText.postValue("Igrač " + activePlayer + " igra. Čekaj...");
+                }
+                break;
+
+            case "BONUS":
+                phase.postValue(Phase.BONUS);
+                int opponentNum = activePlayer == 1 ? 2 : 1;
+                boolean iAmOpponent = sessionMgr.getMyPlayerNumber() == opponentNum;
+                if (iAmOpponent) {
+                    infoText.postValue("Protivnik nije pogodio! Tvoj bonus — 5 bodova ako pogodis!");
+                } else {
+                    infoText.postValue("Nisi pogodio. Protivnik pokušava bonus...");
+                }
+                break;
+
+            case "ROUND_END":
+                phase.postValue(Phase.ROUND_END);
+                if (state.lastAnswerResult != null) {
+                    String feedback = buildFeedback(state);
+                    answerFeedback.postValue(feedback);
+                    infoText.postValue(feedback);
+                }
+                break;
+
+            case "GAME_OVER":
+                phase.postValue(Phase.GAME_OVER);
+                finalScores.postValue(new int[]{state.player1Score, state.player2Score});
+                break;
+        }
     }
+
+    private String buildFeedback(KorakGameState state) {
+        if ("correct".equals(state.lastAnswerResult)) {
+            return "Igrač " + state.lastAnswerPlayer + " tačno! +" + state.lastPointsAwarded + " bod.";
+        } else {
+            return "Niko nije pogodio. Rešenje: " +
+                    (currentGame() != null ? currentGame().answer : "");
+        }
+    }
+
+    // ── Akcije igrača ─────────────────────────────────────────────────
 
     /**
-     * @return true ako je odgovor tačan
+     * Pokušaj odgovora. Samo aktivni igrač (ili protivnik u BONUS fazi) sme da pozove.
      */
     public boolean submitAnswer(String guess) {
-        if (answered) return false;
+        if (games == null || currentGame() == null) return false;
         if (!guess.equalsIgnoreCase(currentGame().answer)) return false;
 
-        answered = true;
+        KorakGameState newState = copyState(remoteState);
 
-        if (phase.getValue() == Phase.MAIN) {
+        boolean inBonus = "BONUS".equals(remoteState.phase);
+
+        if (!inBonus) {
             // Aktivan igrač pogodio
-            int pts = calculateMainPoints();
-            addPoints(activePlayer, pts);
-            infoText.postValue("Tačno! Igrač " + activePlayer + " osvaja " + pts + " bodova.");
+            int pts = Math.max(20 - (remoteState.stepsRevealed - 1) * 2, 0);
+            if (remoteState.activePlayerUid.equals(GameSessionManager.UID_PLAYER1)) {
+                newState.player1Score += pts;
+            } else {
+                newState.player2Score += pts;
+            }
+            newState.lastPointsAwarded = pts;
+            newState.lastAnswerPlayer  = getActivePlayerNumber();
         } else {
-            // Protivnik pogodio u bonus fazi — uvek 5 bodova
-            int opponent = (activePlayer == 1) ? 2 : 1;
-            addPoints(opponent, 5);
-            infoText.postValue("Bonus! Igrač " + opponent + " osvaja 5 bodova.");
+            // Protivnik pogodio u bonus fazi — dobija 5 bodova
+            // Protivnik = suprotno od activePlayer
+            boolean activeIsP1 = remoteState.activePlayerUid.equals(GameSessionManager.UID_PLAYER1);
+            if (activeIsP1) {
+                newState.player2Score += 5;
+            } else {
+                newState.player1Score += 5;
+            }
+            newState.lastPointsAwarded = 5;
+            newState.lastAnswerPlayer  = sessionMgr.getMyPlayerNumber();
         }
 
-        phase.postValue(Phase.ROUND_END);
+        newState.lastAnswerResult = "correct";
+        newState.phase = "ROUND_END";
+        sessionRepo.updateKorakState(newState);
         return true;
     }
 
-    /** Poziva Fragment kad istekne glavnih 70s — prelaz na bonus */
+    /** Tajmer za glavnih 70s istekao — poziva Fragment */
     public void onMainTimerFinished() {
-        if (answered) return;
-        int opponent = (activePlayer == 1) ? 2 : 1;
-        infoText.postValue("Igrač " + activePlayer + " nije pogodio! "
-                + "Igrač " + opponent + " ima 10s za bonus (5 bodova).");
-        currentPoints.postValue(5);
-        phase.postValue(Phase.BONUS);
+        if (!"MAIN".equals(remoteState.phase)) return;
+        // Samo aktivni igrač šalje update (jer je samo on imao tajmer)
+        if (!remoteState.activePlayerUid.equals(sessionMgr.getMyUid())) return;
+
+        KorakGameState newState = copyState(remoteState);
+        newState.phase = "BONUS";
+        sessionRepo.updateKorakState(newState);
     }
 
-    /** Poziva Fragment kad istekne bonus 10s bez tačnog odgovora */
+    /** Tajmer za bonus 10s istekao */
     public void onBonusTimerFinished() {
-        if (answered) return;
-        infoText.postValue("Niko nije pogodio! Rešenje: " + currentGame().answer);
-        phase.postValue(Phase.ROUND_END);
+        if (!"BONUS".equals(remoteState.phase)) return;
+        // Protivnik ima tajmer — ko je suprotno od activePlayer
+        boolean activeIsP1 = remoteState.activePlayerUid.equals(GameSessionManager.UID_PLAYER1);
+        boolean iAmOpponent = iAmPlayer1 != activeIsP1;
+        if (!iAmOpponent) return;
+
+        KorakGameState newState = copyState(remoteState);
+        newState.lastAnswerResult = "wrong";
+        newState.lastAnswerPlayer = 0;
+        newState.lastPointsAwarded = 0;
+        newState.phase = "ROUND_END";
+        sessionRepo.updateKorakState(newState);
     }
 
-    /** Poziva Fragment posle 3s pauze na kraju runde */
+    /** Fragment poziva posle 3s pauze na kraju runde */
     public void onRoundEndCountdownFinished() {
-        if (round < games.size() - 1) {
-            round++;
-            activePlayer = 2;
-            startRound();
+        if (!"ROUND_END".equals(remoteState.phase)) return;
+        // Samo player1 pokreće sledeću rundu (da ne bi oba pisala)
+        if (!iAmPlayer1) return;
+
+        if (remoteState.round == 1) {
+            KorakGameState newState = copyState(remoteState);
+            newState.round = 2;
+            newState.activePlayerUid = GameSessionManager.UID_PLAYER2;
+            newState.phase = "MAIN";
+            newState.stepsRevealed = 1;
+            newState.gameIndex = 1;
+            newState.lastAnswerResult = null;
+            newState.player1Answer = null;
+            newState.player2Answer = null;
+            sessionRepo.updateKorakState(newState);
         } else {
-            finalScores.postValue(new int[]{player1Score, player2Score});
-            phase.postValue(Phase.GAME_OVER);
+            KorakGameState newState = copyState(remoteState);
+            newState.phase = "GAME_OVER";
+            newState.status = "finished";
+            sessionRepo.updateKorakState(newState);
         }
     }
 
-    private int calculateMainPoints() {
-        // Korak 1 = 20 bodova, svaki sledeći -2, min 0
-        return Math.max(20 - (stepsShown - 1) * 2, 0);
+    /** Svaki telefon lokalno otkriva korake prema tajmeru */
+    public void revealNextStep() {
+        // Ovo je samo lokalni prikaz — pravi update šalje samo aktivni igrač
+        if (!remoteState.activePlayerUid.equals(sessionMgr.getMyUid())) return;
+        if (remoteState.stepsRevealed >= 7) return;
+        if (!"MAIN".equals(remoteState.phase)) return;
+
+        KorakGameState newState = copyState(remoteState);
+        newState.stepsRevealed = remoteState.stepsRevealed + 1;
+        sessionRepo.updateKorakState(newState);
     }
 
-    private void updatePointsDisplay() {
-        if (phase.getValue() == Phase.BONUS) {
-            currentPoints.postValue(5);
-        } else {
-            // stepsShown=1 -> 20 bodova, stepsShown=2 -> 18, itd.
-            currentPoints.postValue(Math.max(20 - (stepsShown - 1) * 2, 0));
-        }
+    // ── Cleanup ───────────────────────────────────────────────────────
+
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        if (firestoreListener != null) firestoreListener.remove();
     }
 
-    private void addPoints(int player, int points) {
-        if (player == 1) player1Score += points;
-        else             player2Score += points;
+    // ── Helper ────────────────────────────────────────────────────────
+
+    private KorakGameState copyState(KorakGameState src) {
+        KorakGameState copy = new KorakGameState();
+        copy.status           = src.status;
+        copy.round            = src.round;
+        copy.activePlayerUid  = src.activePlayerUid;
+        copy.phase            = src.phase;
+        copy.stepsRevealed    = src.stepsRevealed;
+        copy.gameIndex        = src.gameIndex;
+        copy.player1Score     = src.player1Score;
+        copy.player2Score     = src.player2Score;
+        copy.player1Answer    = src.player1Answer;
+        copy.player2Answer    = src.player2Answer;
+        copy.lastAnswerResult = src.lastAnswerResult;
+        copy.lastAnswerPlayer = src.lastAnswerPlayer;
+        copy.lastPointsAwarded = src.lastPointsAwarded;
+        return copy;
     }
 }

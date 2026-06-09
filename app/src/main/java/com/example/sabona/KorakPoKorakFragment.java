@@ -40,7 +40,6 @@ public class KorakPoKorakFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-
         bindViews(view);
 
         viewModel = new ViewModelProvider(this).get(KorakViewModel.class);
@@ -56,13 +55,10 @@ public class KorakPoKorakFragment extends Fragment {
             if (!correct) {
                 Toast.makeText(requireContext(), "Netačno, pokušaj ponovo.", Toast.LENGTH_SHORT).show();
             }
+            etKorakAnswer.setText("");
         });
 
-        // Učitaj pitanja samo prvi put
-        if (viewModel.getPhase().getValue() == null
-                || viewModel.getPhase().getValue() == KorakViewModel.Phase.LOADING) {
-            viewModel.loadGames();
-        }
+        viewModel.init();
     }
 
     @Override
@@ -70,8 +66,6 @@ public class KorakPoKorakFragment extends Fragment {
         super.onDestroyView();
         cancelTimer();
     }
-
-    // ── Observeri ────────────────────────────────────────────────────
 
     private void observeViewModel() {
 
@@ -83,14 +77,19 @@ public class KorakPoKorakFragment extends Fragment {
                     btnKorakGuess.setEnabled(false);
                     break;
 
+                case WAITING:
+                    progressBar.setVisibility(View.GONE);
+                    tvKorakInfo.setText("Čekanje na protivnika...");
+                    btnKorakGuess.setEnabled(false);
+                    break;
+
                 case MAIN:
                     progressBar.setVisibility(View.GONE);
                     etKorakAnswer.setText("");
-                    etKorakAnswer.setEnabled(true);
-                    btnKorakGuess.setEnabled(true);
                     tvKorakRound.setText("Runda " + viewModel.getRound()
-                            + "/2  —  Igrač " + viewModel.getActivePlayer());
+                            + "/2  —  Igrač " + viewModel.getActivePlayerNumber());
                     cancelTimer();
+                    // Tajmer pokreću OBA telefona lokalno — sinhronizacija je preko Firestorea
                     startMainTimer();
                     break;
 
@@ -108,8 +107,21 @@ public class KorakPoKorakFragment extends Fragment {
                     break;
 
                 case GAME_OVER:
-                    // finalScores observer će navigirati
+                    cancelTimer();
                     break;
+            }
+        });
+
+        // Omogući/onemogući input zavisno od toga čiji je red
+        viewModel.getIsMyTurn().observe(getViewLifecycleOwner(), myTurn -> {
+            KorakViewModel.Phase currentPhase = viewModel.getPhase().getValue();
+            if (currentPhase == KorakViewModel.Phase.MAIN) {
+                etKorakAnswer.setEnabled(myTurn);
+                btnKorakGuess.setEnabled(myTurn);
+            } else if (currentPhase == KorakViewModel.Phase.BONUS) {
+                // U bonus fazi, suprotni igrač odgovara
+                etKorakAnswer.setEnabled(!myTurn);
+                btnKorakGuess.setEnabled(!myTurn);
             }
         });
 
@@ -120,11 +132,9 @@ public class KorakPoKorakFragment extends Fragment {
                 pts -> tvCurrentPoints.setText(String.valueOf(pts)));
 
         viewModel.getStepsRevealed().observe(getViewLifecycleOwner(), count -> {
-            if (viewModel.getPhase().getValue() != KorakViewModel.Phase.MAIN) return;
-
-
+            if (viewModel.currentGame() == null) return;
             for (int i = 0; i < 7; i++) {
-                if (i < count) {
+                if (i < count && i < viewModel.currentGame().steps.size()) {
                     tvSteps[i].setText(viewModel.currentGame().steps.get(i));
                 } else {
                     tvSteps[i].setText("???");
@@ -135,7 +145,7 @@ public class KorakPoKorakFragment extends Fragment {
         viewModel.getError().observe(getViewLifecycleOwner(), hasError -> {
             if (Boolean.TRUE.equals(hasError)) {
                 Toast.makeText(requireContext(),
-                        "Greška pri učitavanju pitanja!", Toast.LENGTH_LONG).show();
+                        "Greška pri učitavanju!", Toast.LENGTH_LONG).show();
             }
         });
 
@@ -149,21 +159,16 @@ public class KorakPoKorakFragment extends Fragment {
         });
     }
 
-    // ── Tajmeri (samo UI, logika u VM) ───────────────────────────────
+    // ── Tajmeri ───────────────────────────────────────────────────────
 
     private void startMainTimer() {
         activeTimer = new CountDownTimer(70_000, 1_000) {
-
             @Override
             public void onTick(long ms) {
-                long secondsLeft    = ms / 1000;
-                //long secondsElapsed = 70 - secondsLeft;
-
+                long secondsLeft = ms / 1000;
                 tvKorakTimer.setText(String.format("00:%02d", secondsLeft));
-
-                // Korak 1 je već otvoren odmah u startRound()
-                // Tajmer otvara korake 2-7, svaki na tačnih 10s, 20s, 30s...
-                if (secondsLeft % 10 == 0 && secondsLeft != 70) {
+                // Korak se otkriva svakih 10s — samo aktivni igrač piše u Firestore
+                if (secondsLeft % 10 == 0 && secondsLeft != 70 && secondsLeft > 0) {
                     viewModel.revealNextStep();
                 }
             }
@@ -202,6 +207,9 @@ public class KorakPoKorakFragment extends Fragment {
 
             @Override
             public void onFinish() {
+                // Samo player1 radi update u VM, ali oba pokreću countdown lokalno
+                etKorakAnswer.setEnabled(true);
+                btnKorakGuess.setEnabled(true);
                 viewModel.onRoundEndCountdownFinished();
             }
         };
@@ -214,8 +222,6 @@ public class KorakPoKorakFragment extends Fragment {
             activeTimer = null;
         }
     }
-
-    // ── Pomoćne ──────────────────────────────────────────────────────
 
     private void bindViews(View view) {
         tvKorakRound    = view.findViewById(R.id.tvKorakRound);
@@ -234,9 +240,5 @@ public class KorakPoKorakFragment extends Fragment {
 
         etKorakAnswer = view.findViewById(R.id.etKorakAnswer);
         btnKorakGuess = view.findViewById(R.id.btnKorakGuess);
-    }
-
-    private void resetStepFields() {
-        for (TextView tv : tvSteps) tv.setText("???");
     }
 }
