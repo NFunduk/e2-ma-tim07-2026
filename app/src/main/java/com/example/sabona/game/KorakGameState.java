@@ -10,6 +10,8 @@ public class KorakGameState {
     // 1 = runda 1 (igra player1), 2 = runda 2 (igra player2)
     public int round = 1;
 
+    public int player1GuessedAtStep = 0; // na kom koraku je player1 pogodio (0 = nije)
+
     // uid igrača čija je runda
     public String activePlayerUid = GameSessionManager.UID_PLAYER1;
 

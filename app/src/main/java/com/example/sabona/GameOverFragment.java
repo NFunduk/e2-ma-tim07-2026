@@ -11,6 +11,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
+import com.example.sabona.repository.StatsRepository;
 
 public class GameOverFragment extends Fragment {
 
@@ -30,7 +31,14 @@ public class GameOverFragment extends Fragment {
         Button btnHome      = view.findViewById(R.id.btnGameOverHome);
 
         if (getArguments() != null) {
-            tvWinner.setText(getArguments().getString("winner", ""));
+            String winnerText = getArguments().getString("winner", "");
+            tvWinner.setText(winnerText);
+
+            // Snimi ukupnu statistiku partije (pobjeda/poraz) za ulogovanog igrača
+            // Igrač 1 = ulogovani korisnik (dogovor za sve igre)
+            boolean player1Won = getArguments().getBoolean("player1Won", false);
+            new com.example.sabona.repository.StatsRepository()
+                    .incrementGamesPlayed(player1Won);
         }
 
         btnPlayAgain.setOnClickListener(v ->

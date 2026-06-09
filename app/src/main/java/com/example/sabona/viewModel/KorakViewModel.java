@@ -50,6 +50,9 @@ public class KorakViewModel extends ViewModel {
     public LiveData<Boolean> getIsMyTurn()        { return isMyTurn; }
     public LiveData<String>  getAnswerFeedback()  { return answerFeedback; }
 
+    // ── Getter za statistiku (Student 2) ──────────────────────────────
+    public int getPlayer1GuessedAtStep() { return remoteState.player1GuessedAtStep; }
+
     public KorakGame currentGame() {
         if (games == null || remoteState.gameIndex >= games.size()) return null;
         return games.get(remoteState.gameIndex);
@@ -85,6 +88,7 @@ public class KorakViewModel extends ViewModel {
                     initState.gameIndex    = 0;
                     initState.player1Score = 0;
                     initState.player2Score = 0;
+                    initState.player1GuessedAtStep = 0;
                     sessionRepo.initKorakState(initState);
                 }
 
@@ -185,6 +189,8 @@ public class KorakViewModel extends ViewModel {
             int pts = Math.max(20 - (remoteState.stepsRevealed - 1) * 2, 0);
             if (remoteState.activePlayerUid.equals(GameSessionManager.UID_PLAYER1)) {
                 newState.player1Score += pts;
+                // Statistika: pamtimo na kom koraku je player1 pogodio (Student 2)
+                newState.player1GuessedAtStep = remoteState.stepsRevealed;
             } else {
                 newState.player2Score += pts;
             }
@@ -192,7 +198,6 @@ public class KorakViewModel extends ViewModel {
             newState.lastAnswerPlayer  = getActivePlayerNumber();
         } else {
             // Protivnik pogodio u bonus fazi — dobija 5 bodova
-            // Protivnik = suprotno od activePlayer
             boolean activeIsP1 = remoteState.activePlayerUid.equals(GameSessionManager.UID_PLAYER1);
             if (activeIsP1) {
                 newState.player2Score += 5;
@@ -298,6 +303,7 @@ public class KorakViewModel extends ViewModel {
         copy.lastAnswerResult = src.lastAnswerResult;
         copy.lastAnswerPlayer = src.lastAnswerPlayer;
         copy.lastPointsAwarded = src.lastPointsAwarded;
+        copy.player1GuessedAtStep = src.player1GuessedAtStep;
         return copy;
     }
 }

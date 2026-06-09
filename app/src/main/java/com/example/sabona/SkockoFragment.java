@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 
@@ -49,6 +50,7 @@ public class SkockoFragment extends Fragment {
     private int currentPlayer = 1;
     private int player1Score = 0;
     private int player2Score = 0;
+    private int player1AttemptGroup = 0; // 1=pokušaj 1-2, 2=pokušaj 3-4, 3=pokušaj 5-6, 0=nije pogodio
 
     private boolean opponentChance = false;
     private boolean roundFinished = false;
@@ -214,6 +216,13 @@ public class SkockoFragment extends Fragment {
 
         if (correctPlace == 4) {
             int points = calculatePoints(attempt + 1);
+            // Zapamti u kom pokušaju je igrač 1 pogodio (za statistiku)
+            if (currentPlayer == 1) {
+                int att = attempt + 1;
+                if (att <= 2) player1AttemptGroup = 1;
+                else if (att <= 4) player1AttemptGroup = 2;
+                else player1AttemptGroup = 3;
+            }
             addPoints(points);
             tvInfo.setText("Tačno! Igrač " + currentPlayer + " osvaja " + points + " bodova.");
             finishRound();
@@ -472,7 +481,6 @@ public class SkockoFragment extends Fragment {
 
     private void showEndGame() {
         String winner;
-
         if (player1Score > player2Score) {
             winner = "Pobednik igre Skočko je igrač 1!";
         } else if (player2Score > player1Score) {
@@ -480,10 +488,11 @@ public class SkockoFragment extends Fragment {
         } else {
             winner = "Skočko je nerešen!";
         }
-
         Toast.makeText(requireContext(), winner + " Sledi Korak po korak!", Toast.LENGTH_LONG).show();
 
-        saveSkockoResult();
+        // Snimi statistiku za igrača 1 (player1Score i koji pokušaj)
+        new StatsRepository().saveSkockoResult(player1Score, player1AttemptGroup);
+
         NavHostFragment.findNavController(this)
                 .navigate(R.id.action_skocko_to_korak);
     }

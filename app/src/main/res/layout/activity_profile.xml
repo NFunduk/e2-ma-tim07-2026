@@ -77,18 +77,19 @@
                             android:id="@+id/imgAvatarBorder"
                             android:layout_width="100dp"
                             android:layout_height="100dp"
-                            android:src="@drawable/profile_circle_bg"
+                            android:src="@drawable/avatar_border"
                             android:contentDescription="@string/avatar_border" />
 
                         <ImageView
                             android:id="@+id/imgAvatar"
-                            android:layout_width="88dp"
-                            android:layout_height="88dp"
+                            android:layout_width="86dp"
+                            android:layout_height="86dp"
                             android:layout_gravity="center"
                             android:src="@android:drawable/ic_menu_gallery"
-                            android:background="@drawable/profile_circle_bg"
+                            android:background="@drawable/avatar_bg_circle"
                             android:contentDescription="@string/avatar"
-                            android:scaleType="centerCrop" />
+                            android:scaleType="centerCrop"
+                            android:clipToOutline="true" />
                     </FrameLayout>
 
                     <!-- Dugme za izmjenu avatara -->

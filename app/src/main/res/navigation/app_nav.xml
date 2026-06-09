@@ -55,6 +55,10 @@
         android:id="@+id/spojniceFragment"
         android:name="com.example.sabona.SpojniceFragment"
         android:label="Spojnice">
+        <argument android:name="sessionId"
+            app:argType="string" android:defaultValue=""/>
+        <argument android:name="isHost"
+            app:argType="boolean" android:defaultValue="true"/>
         <action
             android:id="@+id/action_spojnice_to_associations"
             app:destination="@id/associationsFragment"/>

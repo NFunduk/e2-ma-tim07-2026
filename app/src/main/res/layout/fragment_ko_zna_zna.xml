@@ -17,6 +17,34 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:visibility="gone" />
 
+    <!-- Waiting overlay – prikazuje se dok čekamo drugog igrača -->
+    <LinearLayout
+        android:id="@+id/layoutWaiting"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ProgressBar
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:id="@+id/tvWaitingMsg"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Čekam..."
+            android:textSize="18sp"
+            android:gravity="center"
+            android:padding="16dp" />
+    </LinearLayout>
+
     <!-- SCROLL CONTENT -->
     <ScrollView
         android:layout_width="0dp"

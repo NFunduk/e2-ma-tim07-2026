@@ -2,84 +2,130 @@ package com.example.sabona;
 
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
 import com.example.sabona.repository.SpojniceRepository;
 import com.example.sabona.repository.SpojniceRepository.SpojniceQuestion;
+import com.example.sabona.repository.StatsRepository;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+/**
+ * Spojnice — 2 runde, 30s po fazi.
+ *
+ * BUGOVI KOJI SU ISPRAVLJENI:
+ * 1. Različita tema — host upisuje "question0Id" i "question1Id" u Firestore,
+ *    guest čita isti ID i mapira na svoja lokalno-učitana pitanja.
+ *
+ * 2. Crash pri spajanju para — Firestore NE podržava dot-notation za Array
+ *    elemente ("connected.0"). Fix: uvijek piši CJELU listu kao niz.
+ *    Primjer:  update.put("connected", Arrays.asList(true, false, ...))
+ *              UMJESTO: update.put("connected.0", true)
+ *
+ * 3. Izlaz iz aplikacije (crash) — moguće NPE ili navigation exception,
+ *    dodati try-catch oko navigate().
+ *
+ * Firestore: gameSessions/{sessionId}/games/spojnice
+ * Polja:
+ *   phase         : "waiting_p2" | "r1_phA" | "r1_phB" | "r2_phA" | "r2_phB" | "finished"
+ *   p1Score       : int
+ *   p2Score       : int
+ *   connected     : List<Boolean> [5]  — svih 5 parova su li spojeni
+ *   connectedBy   : List<Long> [5]     — 0=niko, 1=p1, 2=p2
+ *   connectedCount: int
+ *   round1Order   : List<Long> [5]     — shuffled indeksi desne kolone za rundu 1
+ *   round2Order   : List<Long> [5]     — shuffled indeksi desne kolone za rundu 2
+ *   question0Id   : String             — docId za rundu 1
+ *   question1Id   : String             — docId za rundu 2
+ *   hostUid       : String
+ */
 public class SpojniceFragment extends Fragment {
 
-    // ---- Views ----
+    // ── Views ──────────────────────────────────────────────────────────────
     private TextView tvRound, tvPlayer, tvTimer, tvScore, tvInfo, tvCriteria;
     private TextView tvRoundScore1, tvRoundScore2, tvConnected;
     private Button[] leftButtons  = new Button[5];
     private Button[] rightButtons = new Button[5];
     private TextView[] arrows     = new TextView[5];
-    // btnNextRound uklonjen — prelaz je automatski
 
-    // ---- Repository ----
+    // ── Firebase ───────────────────────────────────────────────────────────
+    private final FirebaseFirestore db   = FirebaseFirestore.getInstance();
+    private final FirebaseAuth      auth = FirebaseAuth.getInstance();
+    private DocumentReference   sessionRef;
+    private ListenerRegistration sessionListener;
+
+    // ── Repository ──────────────────────────────────────────────────────────
     private final SpojniceRepository repository = new SpojniceRepository();
 
-    // ---- Pitanja učitana iz Firestorea (2 pitanja = 2 runde) ----
+    // ── Pitanja — SVI učitani, pa mapiramo po docId ────────────────────────
+    private List<SpojniceQuestion> allQuestions = new ArrayList<>();
+    // Finalna 2 pitanja u ispravnom redosledu (isti na oba telefona)
     private List<SpojniceQuestion> questions = new ArrayList<>();
 
-    // ---- Redoslijed desnih dugmadi (shuffled prikaz) ----
-    // rightDisplayOrder[i] = koji originalni rightItems index je prikazan na poziciji i
+    // ── Session state ──────────────────────────────────────────────────────
+    private String  myUid;
+    private String  sessionId;
+    private boolean isHost;
+    private boolean soloMode  = false;
+    private boolean gameEnded = false;
+
+    // ── Redoslijed desnih dugmadi (shuffled, isti za oba telefona) ──────────
     private int[] rightDisplayOrder = new int[5];
+    private int[] savedRound2Order  = new int[5]; // samo za solo mod
 
-    // ---- Stanje igre ----
-    private int round = 1;           // 1 ili 2
+    // ── Faze ──────────────────────────────────────────────────────────────
+    private static final String PHASE_WAIT = "waiting_p2";
+    private static final String PHASE_R1_A = "r1_phA";
+    private static final String PHASE_R1_B = "r1_phB";
+    private static final String PHASE_R2_A = "r2_phA";
+    private static final String PHASE_R2_B = "r2_phB";
+    private static final String PHASE_DONE = "finished";
 
-    /*
-     * Faze unutar jedne runde (po specifikaciji):
-     *   PHASE_PLAYER_A  – prvi igrač runde igra (30s)
-     *   PHASE_PLAYER_B  – drugi igrač dobija preostale pojmove (30s)
-     *   PHASE_DONE      – runda završena, pauza prije sljedeće
-     */
-    private static final int PHASE_PLAYER_A = 0;
-    private static final int PHASE_PLAYER_B = 1;
-    private static final int PHASE_DONE     = 2;
-    private int phase = PHASE_PLAYER_A;
+    // ── Stanje igre ────────────────────────────────────────────────────────
+    private int round        = 1;
+    private int activePlayer = 1;
+    private boolean myTurn   = false;
 
-    // Ko je "igrač A" u rundama: runda 1 → igrač 1 počinje; runda 2 → igrač 2 počinje
-    private int roundStarterPlayer; // 1 ili 2
-    private int activePlayer;       // trenutno ko igra
-
-    // Ukupni bodovi (zbir kroz obje runde)
     private int player1Score = 0;
     private int player2Score = 0;
+    private int roundScore1  = 0;
+    private int roundScore2  = 0;
 
-    // Bodovi unutar trenutne runde (za prikaz u donjoj kartici)
-    private int roundScore1 = 0;
-    private int roundScore2 = 0;
-
-    // Stanje pojmova u trenutnoj rundi
-    private boolean[] connected    = new boolean[5];   // da li je par i spojen
-    private int[]     connectedBy  = new int[5];       // koji igrač je spojio par i
+    private boolean[] connected   = new boolean[5];
+    private int[]     connectedBy = new int[5];
     private int       connectedCount = 0;
 
-    // Trenutno odabrani lijevi pojam (-1 = ništa)
-    private int selectedLeft = -1;
-
-    private CountDownTimer timer;
+    private int     selectedLeft  = -1;
     private boolean roundFinished = false;
 
-    // ---- Lifecycle ----
+    private CountDownTimer timer;
+    private String currentPhaseStr = "";
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Lifecycle
+    // ─────────────────────────────────────────────────────────────────────
 
     @Nullable
     @Override
@@ -91,19 +137,41 @@ public class SpojniceFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        myUid = auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : "unknown";
         bindViews(view);
         setupClicks();
-        showLoading();
-        loadQuestionsFromFirestore();
+        tvInfo.setText("Učitavanje pitanja...");
+        setAllButtonsEnabled(false);
+
+        // Čitaj sessionId i isHost prosleđene od KoZnaZnaFragment
+        Bundle passedArgs = getArguments();
+        if (passedArgs != null) {
+            String passedSessionId = passedArgs.getString("sessionId", "");
+            boolean passedIsHost   = passedArgs.getBoolean("isHost", true);
+            if (!passedSessionId.isEmpty()) {
+                // Sesija je već kreirana u KoZnaZna — preskoči dialog
+                sessionId = passedSessionId;
+                isHost    = passedIsHost;
+                soloMode  = false;
+                loadQuestionsAndJoinExistingSession();
+                return;
+            }
+        }
+
+        // Nema prosleđene sesije — pokaži dialog (solo ili direktan start)
+        loadQuestions();
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
         if (timer != null) timer.cancel();
+        if (sessionListener != null) sessionListener.remove();
     }
 
-    // ---- Inicijalizacija ----
+    // ─────────────────────────────────────────────────────────────────────
+    // Bind & clicks
+    // ─────────────────────────────────────────────────────────────────────
 
     private void bindViews(View view) {
         tvRound       = view.findViewById(R.id.tvRound);
@@ -137,289 +205,602 @@ public class SpojniceFragment extends Fragment {
 
     private void setupClicks() {
         for (int i = 0; i < 5; i++) {
-            int index = i;
-            leftButtons[i].setOnClickListener(v  -> onLeftClick(index));
-            rightButtons[i].setOnClickListener(v -> onRightClick(index));
+            int idx = i;
+            leftButtons[i].setOnClickListener(v  -> onLeftClick(idx));
+            rightButtons[i].setOnClickListener(v -> onRightClick(idx));
         }
     }
 
-    private void showLoading() {
-        tvInfo.setText("Učitavanje pitanja...");
-        setAllButtonsEnabled(false);
-    }
+    // ─────────────────────────────────────────────────────────────────────
+    // Učitaj SVA pitanja sa docId
+    // ─────────────────────────────────────────────────────────────────────
 
-    // ---- Firestore ----
-
-    private void loadQuestionsFromFirestore() {
-        repository.fetchQuestions(new SpojniceRepository.SpojniceCallback() {
+    private void loadQuestions() {
+        repository.fetchQuestionsWithIds(new SpojniceRepository.SpojniceWithIdsCallback() {
             @Override
             public void onSuccess(List<SpojniceQuestion> result) {
                 if (!isAdded()) return;
                 if (result.size() < 2) {
-                    tvInfo.setText("Nema dovoljno pitanja u bazi (potrebno min. 2).");
+                    tvInfo.setText("Nema dovoljno pitanja (min. 2).");
                     return;
                 }
-                // Uzmi nasumično 2 pitanja
-                Collections.shuffle(result);
-                questions.add(result.get(0));
-                questions.add(result.get(1));
-
-                round  = 1;
-                player1Score = 0;
-                player2Score = 0;
-                startRound();
+                allQuestions = result;
+                showJoinDialog();
             }
-
             @Override
             public void onError(Exception e) {
                 if (!isAdded()) return;
-                tvInfo.setText("Greška pri učitavanju: " + e.getMessage());
+                tvInfo.setText("Greška: " + e.getMessage());
             }
         });
     }
 
-    // ---- Logika runde (po specifikaciji) ----
+    /**
+     * Koristi se kada je sesija već kreirana u KoZnaZna.
+     * Učitava pitanja, pa se odmah spaja na postojeću sesiju bez dijaloga.
+     * Host već čeka u Firestore (waiting_p2) — guest samo učitava pitanja i mijenja fazu.
+     * Host takđer samo učitava pitanja i počinje slušanje (ne treba ništa mijenjati u Firestore).
+     */
+    private void loadQuestionsAndJoinExistingSession() {
+        repository.fetchQuestionsWithIds(new SpojniceRepository.SpojniceWithIdsCallback() {
+            @Override
+            public void onSuccess(List<SpojniceQuestion> result) {
+                if (!isAdded()) return;
+                if (result.size() < 2) {
+                    tvInfo.setText("Nema dovoljno pitanja (min. 2).");
+                    return;
+                }
+                allQuestions = result;
+
+                // Spoji se na sesiju koja je već kreirana
+                sessionRef = db.collection("gameSessions")
+                        .document(sessionId)
+                        .collection("games")
+                        .document("spojnice");
+
+                if (isHost) {
+                    // Host: sesija za spojnice još ne postoji — kreira je
+                    // (KoZnaZna je koristila kolekciju "kzz", Spojnice trebaju svoju)
+                    createSessionSilent();
+                } else {
+                    // Guest: čeka da host kreira spojnice sesiju, pa se pridružuje
+                    tvInfo.setText("Čekam host da kreira Spojnice...");
+                    waitForSessionThenJoin();
+                }
+            }
+            @Override
+            public void onError(Exception e) {
+                if (!isAdded()) return;
+                tvInfo.setText("Greška: " + e.getMessage());
+            }
+        });
+    }
+
+    /** Kreira sesiju za Spojnice bez dijaloga (host, automatski). */
+    private void createSessionSilent() {
+        java.util.List<SpojniceQuestion> shuffled = new java.util.ArrayList<>(allQuestions);
+        java.util.Collections.shuffle(shuffled);
+        SpojniceQuestion q0 = shuffled.get(0);
+        SpojniceQuestion q1 = shuffled.get(1);
+        questions.clear();
+        questions.add(q0);
+        questions.add(q1);
+
+        java.util.List<Integer> order1 = shuffledOrder();
+        java.util.List<Integer> order2 = shuffledOrder();
+
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        data.put("phase",         PHASE_WAIT);
+        data.put("p1Score",       0);
+        data.put("p2Score",       0);
+        data.put("connected",     buildFalseBoolList());
+        data.put("connectedBy",   buildZeroIntList());
+        data.put("connectedCount", 0);
+        data.put("round1Order",   order1);
+        data.put("round2Order",   order2);
+        data.put("question0Id",   q0.docId != null ? q0.docId : "");
+        data.put("question1Id",   q1.docId != null ? q1.docId : "");
+        data.put("hostUid",       myUid);
+
+        sessionRef.set(data)
+                .addOnSuccessListener(v -> {
+                    tvInfo.setText("Čekam Igrača 2... (Spojnice)");
+                    startListening();
+                })
+                .addOnFailureListener(e -> tvInfo.setText("Greška: " + e.getMessage()));
+    }
 
     /**
-     * Pokretanje runde.
-     * Runda 1: Igrač 1 je starter (Phase A), pa ako ostane nešto → Igrač 2 (Phase B).
-     * Runda 2: Igrač 2 je starter (Phase A), pa ako ostane nešto → Igrač 1 (Phase B).
+     * Guest čeka da se Spojnice sesija pojavi u Firestore (host je možda malo sporiji),
+     * pa se automatski pridružuje.
      */
-    private void startRound() {
+    private void waitForSessionThenJoin() {
+        sessionRef.get().addOnSuccessListener(snap -> {
+            if (!isAdded()) return;
+            if (snap.exists()) {
+                // Sesija postoji — pridruži se
+                doJoinSession(snap);
+            } else {
+                // Još ne postoji — pokušaj ponovo za 1 sekundu
+                tvInfo.setText("Čekam host... (pokušaj ponovo)");
+                new android.os.Handler(android.os.Looper.getMainLooper())
+                        .postDelayed(this::waitForSessionThenJoin, 1000);
+            }
+        }).addOnFailureListener(e -> {
+            if (isAdded()) tvInfo.setText("Greška spajanja: " + e.getMessage());
+        });
+    }
+
+    /** Zajednička logika pridruživanja guesta sesiji (koristi i joinSession i waitForSessionThenJoin). */
+    private void doJoinSession(com.google.firebase.firestore.DocumentSnapshot snap) {
+        String q0Id = snap.getString("question0Id");
+        String q1Id = snap.getString("question1Id");
+        SpojniceQuestion q0 = findById(q0Id);
+        SpojniceQuestion q1 = findById(q1Id);
+        if (q0 == null || q1 == null) {
+            tvInfo.setText("Greška: pitanja nisu nađena lokalno.");
+            return;
+        }
+        questions.clear();
+        questions.add(q0);
+        questions.add(q1);
+        sessionRef.update("phase", PHASE_R1_A, "guestUid", myUid)
+                .addOnSuccessListener(v -> {
+                    tvInfo.setText("Pridružen! Počinjemo...");
+                    startListening();
+                })
+                .addOnFailureListener(e -> tvInfo.setText("Greška: " + e.getMessage()));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Dialog
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void showJoinDialog() {
+        String suggested = myUid.length() >= 6
+                ? myUid.substring(0, 6).toUpperCase() : "SPJ01";
+
+        AlertDialog.Builder b = new AlertDialog.Builder(requireContext());
+        b.setTitle("Spojnice");
+        b.setMessage("Odaberi način igranja.\nKod sesije: " + suggested);
+
+        EditText input = new EditText(requireContext());
+        input.setHint("Kod sesije");
+        input.setText(suggested);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        b.setView(input);
+
+        b.setPositiveButton("Kreiraj (Igrač 1)", (d, w) -> {
+            sessionId = input.getText().toString().trim().toUpperCase();
+            isHost = true;
+            soloMode = false;
+            createSession();
+        });
+        b.setNegativeButton("Pridruži se (Igrač 2)", (d, w) -> {
+            sessionId = input.getText().toString().trim().toUpperCase();
+            isHost = false;
+            soloMode = false;
+            joinSession();
+        });
+        b.setNeutralButton("Solo (1 uređaj)", (d, w) -> {
+            soloMode = true;
+            isHost = true;
+            startSoloGame();
+        });
+        b.setCancelable(false);
+        b.show();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Firestore session
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void createSession() {
+        sessionRef = db.collection("gameSessions")
+                .document(sessionId)
+                .collection("games")
+                .document("spojnice");
+
+        // Host bira 2 pitanja i upisuje njihove docId-ove
+        List<SpojniceQuestion> shuffled = new ArrayList<>(allQuestions);
+        Collections.shuffle(shuffled);
+        SpojniceQuestion q0 = shuffled.get(0);
+        SpojniceQuestion q1 = shuffled.get(1);
+
+        // Postavi lokalna questions za hosta
+        questions.clear();
+        questions.add(q0);
+        questions.add(q1);
+
+        // Generiši shuffle redosled za prikaz desne kolone
+        List<Integer> order1 = shuffledOrder();
+        List<Integer> order2 = shuffledOrder();
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("phase",         PHASE_WAIT);
+        data.put("p1Score",       0);
+        data.put("p2Score",       0);
+        // Piši kao listu (Array) — NE dot-notation!
+        data.put("connected",     buildFalseBoolList());
+        data.put("connectedBy",   buildZeroIntList());
+        data.put("connectedCount", 0);
+        data.put("round1Order",   order1);
+        data.put("round2Order",   order2);
+        // Ključ za sinhronizaciju tema
+        data.put("question0Id",   q0.docId != null ? q0.docId : "");
+        data.put("question1Id",   q1.docId != null ? q1.docId : "");
+        data.put("hostUid",       myUid);
+
+        sessionRef.set(data)
+                .addOnSuccessListener(v -> {
+                    tvInfo.setText("Čekam Igrača 2...\nKod: " + sessionId);
+                    startListening();
+                })
+                .addOnFailureListener(e -> tvInfo.setText("Greška: " + e.getMessage()));
+    }
+
+    private void joinSession() {
+        sessionRef = db.collection("gameSessions")
+                .document(sessionId)
+                .collection("games")
+                .document("spojnice");
+
+        // Guest čita sesiju da dobije questionIds i orders
+        sessionRef.get().addOnSuccessListener(snap -> {
+            if (!isAdded()) return;
+            if (!snap.exists()) {
+                tvInfo.setText("Sesija nije nađena. Provjeri kod!");
+                return;
+            }
+            doJoinSession(snap);
+        }).addOnFailureListener(e -> tvInfo.setText("Sesija nije nađena. Provjeri kod!"));
+    }
+
+    private SpojniceQuestion findById(String docId) {
+        if (docId == null) return null;
+        for (SpojniceQuestion q : allQuestions) {
+            if (docId.equals(q.docId)) return q;
+        }
+        return null;
+    }
+
+    private List<Integer> shuffledOrder() {
+        List<Integer> list = new ArrayList<>();
+        for (int i = 0; i < 5; i++) list.add(i);
+        Collections.shuffle(list);
+        return list;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Realtime listener
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void startListening() {
+        sessionListener = sessionRef.addSnapshotListener((snap, err) -> {
+            if (!isAdded() || snap == null || !snap.exists()) return;
+
+            String newPhase = snap.getString("phase");
+            if (newPhase == null) return;
+
+            player1Score = toInt(snap.get("p1Score"));
+            player2Score = toInt(snap.get("p2Score"));
+
+            if (PHASE_WAIT.equals(newPhase)) {
+                tvInfo.setText("Čekam Igrača 2...\nKod: " + sessionId);
+                setAllButtonsEnabled(false);
+                return;
+            }
+
+            if (PHASE_DONE.equals(newPhase)) {
+                showEndGame();
+                return;
+            }
+
+            // Učitaj connected state iz Firestore (uvijek, nije samo pri promjeni faze)
+            List<?> connList = (List<?>) snap.get("connected");
+            List<?> byList   = (List<?>) snap.get("connectedBy");
+            int     cCount   = toInt(snap.get("connectedCount"));
+
+            boolean[] newConnected   = new boolean[5];
+            int[]     newConnectedBy = new int[5];
+
+            if (connList != null && connList.size() == 5
+                    && byList != null && byList.size() == 5) {
+                for (int i = 0; i < 5; i++) {
+                    newConnected[i]   = Boolean.TRUE.equals(connList.get(i));
+                    newConnectedBy[i] = toInt(byList.get(i));
+                }
+            }
+
+            if (!newPhase.equals(currentPhaseStr)) {
+                // Nova faza
+                currentPhaseStr = newPhase;
+                connectedCount  = cCount;
+                connected       = newConnected;
+                connectedBy     = newConnectedBy;
+
+                // Učitaj rightDisplayOrder za ovu rundu
+                String orderKey = newPhase.startsWith("r1") ? "round1Order" : "round2Order";
+                List<?> orderList = (List<?>) snap.get(orderKey);
+                if (orderList != null && orderList.size() == 5) {
+                    for (int i = 0; i < 5; i++) rightDisplayOrder[i] = toInt(orderList.get(i));
+                }
+
+                applyPhase(newPhase);
+            } else {
+                // Ista faza — provjeri jesu li se nova spajanja desila
+                boolean changed = false;
+                for (int i = 0; i < 5; i++) {
+                    if (!connected[i] && newConnected[i]) {
+                        // Netko je upravo spojio par i
+                        connected[i]   = true;
+                        connectedBy[i] = newConnectedBy[i];
+                        renderConnectedPair(i, newConnectedBy[i]);
+                        if (newConnectedBy[i] == 1) roundScore1 += 2;
+                        else if (newConnectedBy[i] == 2) roundScore2 += 2;
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    connectedCount = cCount;
+                    updateScoreViews();
+                    // Ako su svi parovi spojeni, odmah predje na sledecu fazu
+                    // Ovo rjesava slucaj kada guest spoji posljednji par:
+                    // host prima ovaj snapshot i on poziva advancePhase
+                    if (connectedCount == 5 && !roundFinished) {
+                        if (soloMode || isHost) {
+                            advancePhase(true);
+                        }
+                    }
+                }
+                updateHeader();
+                updateScoreViews();
+            }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Primijeni fazu
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void applyPhase(String ph) {
         if (timer != null) timer.cancel();
-
-        phase         = PHASE_PLAYER_A;
-        roundStarterPlayer = (round == 1) ? 1 : 2;
-        activePlayer  = roundStarterPlayer;
-
+        roundFinished = false;
         selectedLeft  = -1;
-        connectedCount = 0;
-        roundFinished  = false;
-        roundScore1    = 0;
-        roundScore2    = 0;
 
-        for (int i = 0; i < 5; i++) {
-            connected[i]   = false;
-            connectedBy[i] = 0;
+        round = ph.startsWith("r1") ? 1 : 2;
+
+        if (PHASE_R1_A.equals(ph) || PHASE_R2_B.equals(ph)) {
+            activePlayer = 1;
+        } else {
+            activePlayer = 2;
         }
 
-        setupRoundButtons();
+        myTurn = soloMode
+                || (isHost  && activePlayer == 1)
+                || (!isHost && activePlayer == 2);
+
+        // Resetuj round score samo pri početku runde (Phase A)
+        if (PHASE_R1_A.equals(ph) || PHASE_R2_A.equals(ph)) {
+            roundScore1    = 0;
+            roundScore2    = 0;
+            connectedCount = 0;
+            for (int i = 0; i < 5; i++) { connected[i] = false; connectedBy[i] = 0; }
+        } else {
+            // Phase B — rekonstruiši roundScore iz connected stanja
+            roundScore1 = 0;
+            roundScore2 = 0;
+            for (int i = 0; i < 5; i++) {
+                if (connected[i]) {
+                    if (connectedBy[i] == 1) roundScore1 += 2;
+                    else if (connectedBy[i] == 2) roundScore2 += 2;
+                }
+            }
+        }
+
+        setupRoundUI();
         updateHeader();
         updateScoreViews();
-
         startTimer(30);
     }
 
-    /**
-     * Postavi tekst na dugmadima i shuffluj desnu kolonu.
-     * rightDisplayOrder[displayPos] = originalIndex u rightItems
-     */
-    private void setupRoundButtons() {
+    private void setupRoundUI() {
+        if (questions.isEmpty() || questions.size() < round) return;
         SpojniceQuestion q = questions.get(round - 1);
         tvCriteria.setText(q.criteria);
-        tvInfo.setText("Igrač " + activePlayer + " povezuje pojmove. Klikni lijevo, pa desno.");
 
-        // Postavi lijevu kolonu
+        // Lijeva kolona
         for (int i = 0; i < 5; i++) {
             leftButtons[i].setText(q.leftItems.get(i));
-            leftButtons[i].setEnabled(true);
-            leftButtons[i].setBackgroundTintList(
-                    ContextCompat.getColorStateList(requireContext(), R.color.white));
         }
 
-        // Shuffle desna kolona
-        List<Integer> indices = new ArrayList<>();
-        for (int i = 0; i < 5; i++) indices.add(i);
-        Collections.shuffle(indices);
+        // Desna kolona — prema rightDisplayOrder (isti na oba telefona)
         for (int pos = 0; pos < 5; pos++) {
-            rightDisplayOrder[pos] = indices.get(pos);
             rightButtons[pos].setText(q.rightItems.get(rightDisplayOrder[pos]));
-            rightButtons[pos].setEnabled(true);
-            rightButtons[pos].setBackgroundTintList(
-                    ContextCompat.getColorStateList(requireContext(), R.color.petal));
         }
 
-        for (int i = 0; i < 5; i++) {
-            arrows[i].setText("→");
-            arrows[i].setTextColor(ContextCompat.getColor(requireContext(), R.color.dark_blue));
-        }
-    }
-
-    /**
-     * Prelaz na Phase B: drugi igrač dobija samo nepovezane pojmove.
-     * Lijeva dugmad koja su već spojena — disable; ostala ostaju aktivna.
-     */
-    private void startPhaseB() {
-        if (timer != null) timer.cancel();
-
-        phase        = PHASE_PLAYER_B;
-        activePlayer = (roundStarterPlayer == 1) ? 2 : 1;
-        selectedLeft = -1;
-
-        // Provjeri ima li uopšte nepovezanih
-        int remaining = 0;
-        for (boolean c : connected) if (!c) remaining++;
-
-        updateHeader();
-
-        if (remaining == 0) {
-            // Sve je spojeno u Phase A — preskoči Phase B
-            finishRound();
-            return;
-        }
-
-        // Aktivan samo ono što nije spojeno
+        // Obnovi vizuelno stanje
         for (int i = 0; i < 5; i++) {
             if (connected[i]) {
-                leftButtons[i].setEnabled(false);
+                renderConnectedPair(i, connectedBy[i]);
             } else {
-                leftButtons[i].setEnabled(true);
                 leftButtons[i].setBackgroundTintList(
                         ContextCompat.getColorStateList(requireContext(), R.color.white));
+                leftButtons[i].setEnabled(myTurn);
+                arrows[i].setText("→");
+                arrows[i].setTextColor(ContextCompat.getColor(requireContext(), R.color.dark_blue));
             }
         }
-        // Desna dugmad: disable ona koja su već spojena
+
+        // Desna dugmad
         for (int pos = 0; pos < 5; pos++) {
-            boolean alreadyUsed = false;
+            boolean used = false;
             for (int i = 0; i < 5; i++) {
-                if (connected[i] && questions.get(round - 1).correctPairs[i] == rightDisplayOrder[pos]) {
-                    alreadyUsed = true;
+                if (connected[i] && q.correctPairs[i] == rightDisplayOrder[pos]) {
+                    used = true;
                     break;
                 }
             }
-            rightButtons[pos].setEnabled(!alreadyUsed);
+            rightButtons[pos].setEnabled(!used && myTurn);
+            rightButtons[pos].setBackgroundTintList(
+                    ContextCompat.getColorStateList(requireContext(),
+                            used ? android.R.color.holo_green_dark : R.color.petal));
         }
 
-        tvInfo.setText("Igrač " + activePlayer + " dobija preostale pojmove (" + remaining + ")!");
-        startTimer(30);
-    }
-
-    private void finishRound() {
-        if (timer != null) timer.cancel();
-        roundFinished = true;
-        phase = PHASE_DONE;
-        setAllButtonsEnabled(false);
-        updateHeader();
-
-        String summary = buildRoundSummary();
-
-        // Automatski prelaz: 3s pauza sa odbrojavanjem, bez dugmeta
-        new CountDownTimer(3000, 1000) {
-            @Override
-            public void onTick(long millisUntilFinished) {
-                long s = millisUntilFinished / 1000 + 1;
-                tvInfo.setText(summary + "\nNastavak za: " + s + "s...");
+        // Phase B — lijeva dugmad: samo nespojena su aktivna
+        if (PHASE_R1_B.equals(currentPhaseStr) || PHASE_R2_B.equals(currentPhaseStr)) {
+            for (int i = 0; i < 5; i++) {
+                leftButtons[i].setEnabled(!connected[i] && myTurn);
             }
+        }
 
-            @Override
-            public void onFinish() {
-                if (!isAdded()) return;
-                if (round == 1) {
-                    round = 2;
-                    startRound();
-                } else {
-                    showEndGame();
-                }
-            }
-        }.start();
+        tvInfo.setText(myTurn
+                ? "🎯 Tvoj red! Klikni lijevo → desno."
+                : "⏳ Čekam protivnika...");
     }
 
-    private String buildRoundSummary() {
-        return String.format("Runda %d završena! Igrač 1: +%d bod  |  Igrač 2: +%d bod",
-                round, roundScore1, roundScore2);
-    }
-
-    // ---- Klikovi igrača ----
+    // ─────────────────────────────────────────────────────────────────────
+    // Klikovi
+    // ─────────────────────────────────────────────────────────────────────
 
     private void onLeftClick(int index) {
-        if (roundFinished || connected[index]) return;
+        if (!myTurn || roundFinished || connected[index]) return;
 
-        // Resetuj prethodni odabir
         if (selectedLeft != -1 && !connected[selectedLeft]) {
             leftButtons[selectedLeft].setBackgroundTintList(
                     ContextCompat.getColorStateList(requireContext(), R.color.white));
         }
-
         selectedLeft = index;
         leftButtons[index].setBackgroundTintList(
                 ContextCompat.getColorStateList(requireContext(), R.color.blue));
 
         SpojniceQuestion q = questions.get(round - 1);
-        tvInfo.setText("Odabrano: \"" + q.leftItems.get(index) + "\". Sada klikni odgovarajući par desno.");
+        tvInfo.setText("Odabrano: \"" + q.leftItems.get(index) + "\". Klikni par desno.");
     }
 
     private void onRightClick(int displayPos) {
-        if (roundFinished) return;
-
+        if (!myTurn || roundFinished) return;
         if (selectedLeft == -1) {
-            Toast.makeText(requireContext(), "Prvo klikni pojam s lijeve strane!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Prvo klikni pojam lijevo!", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // Koji je originalni index odabranog desnog dugmeta
         int originalRightIndex = rightDisplayOrder[displayPos];
         SpojniceQuestion q = questions.get(round - 1);
 
         if (q.correctPairs[selectedLeft] == originalRightIndex) {
-            // ✓ TAČNO
-            connected[selectedLeft]   = true;
-            connectedBy[selectedLeft] = activePlayer;
+            // ✓ Tačno
+            int pairIndex = selectedLeft;
+            selectedLeft = -1;
+
+            // Lokalno odmah
+            renderConnectedPair(pairIndex, activePlayer);
+            connected[pairIndex]   = true;
+            connectedBy[pairIndex] = activePlayer;
             connectedCount++;
 
-            leftButtons[selectedLeft].setBackgroundTintList(
-                    ContextCompat.getColorStateList(requireContext(), android.R.color.holo_green_dark));
-            rightButtons[displayPos].setBackgroundTintList(
-                    ContextCompat.getColorStateList(requireContext(), android.R.color.holo_green_dark));
-            leftButtons[selectedLeft].setEnabled(false);
-            rightButtons[displayPos].setEnabled(false);
-
-            arrows[selectedLeft].setText("✓");
-            arrows[selectedLeft].setTextColor(
-                    ContextCompat.getColor(requireContext(), android.R.color.holo_green_dark));
-
-            // Dodaj bodove aktivnom igraču
-            if (activePlayer == 1) {
-                roundScore1   += 2;
-                player1Score  += 2;
-            } else {
-                roundScore2   += 2;
-                player2Score  += 2;
-            }
-
-            selectedLeft = -1;
-            tvInfo.setText("Tačno! +2 boda za Igrača " + activePlayer);
             updateScoreViews();
-
-            // Ako je sve spojeno u Phase A → preskoči Phase B
-            if (connectedCount == 5) {
-                finishRound();
-                return;
-            }
+            saveConnectionToFirestore(pairIndex);
 
         } else {
-            // ✗ NETAČNO — samo resetuj odabir, ne kažnjavaj
-            leftButtons[selectedLeft].setBackgroundTintList(
-                    ContextCompat.getColorStateList(requireContext(), R.color.white));
+            // ✗ Netačno
+            if (selectedLeft != -1) {
+                leftButtons[selectedLeft].setBackgroundTintList(
+                        ContextCompat.getColorStateList(requireContext(), R.color.white));
+            }
             selectedLeft = -1;
             tvInfo.setText("Netačno! Pokušaj ponovo.");
         }
-
-        updateHeader();
     }
 
-    // ---- Timer ----
+    /**
+     * Snima spajanje para u Firestore.
+     *
+     * KRITIČNO: Firestore NE podržava dot-notation za Array elemente!
+     * Ako napišemo update.put("connected.0", true) — to NEĆE raditi za arraye,
+     * samo za Map polja. Moramo uvijek pisati CIJELU listu odjednom.
+     */
+    private void saveConnectionToFirestore(int pairIndex) {
+        if (soloMode) {
+            if (connectedCount == 5) onAllConnected();
+            return;
+        }
+
+        // Izgradi nove liste (kopija lokalnog stanja)
+        List<Boolean> newConnected   = new ArrayList<>();
+        List<Integer> newConnectedBy = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            newConnected.add(connected[i]);
+            newConnectedBy.add(connectedBy[i]);
+        }
+
+        String scoreField = (activePlayer == 1) ? "p1Score" : "p2Score";
+
+        Map<String, Object> update = new HashMap<>();
+        // UVIJEK piši CIJELU listu — ne dot-notation za array!
+        update.put("connected",    newConnected);
+        update.put("connectedBy",  newConnectedBy);
+        update.put("connectedCount", connectedCount);
+        update.put(scoreField, com.google.firebase.firestore.FieldValue.increment(2));
+
+        sessionRef.update(update)
+                .addOnSuccessListener(v -> {
+                    if (!isAdded()) return;
+                    if (connectedCount == 5) onAllConnected();
+                })
+                .addOnFailureListener(e -> {
+                    if (!isAdded()) return;
+                    Toast.makeText(requireContext(), "Greška spajanja: " + e.getMessage(),
+                            Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void onAllConnected() {
+        if (!roundFinished) advancePhase(true);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Prikaz spojenog para
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void renderConnectedPair(int leftIndex, int byPlayer) {
+        if (questions.isEmpty() || questions.size() < round) return;
+        SpojniceQuestion q = questions.get(round - 1);
+
+        leftButtons[leftIndex].setBackgroundTintList(
+                ContextCompat.getColorStateList(requireContext(), android.R.color.holo_green_dark));
+        leftButtons[leftIndex].setEnabled(false);
+
+        arrows[leftIndex].setText("✓");
+        arrows[leftIndex].setTextColor(
+                ContextCompat.getColor(requireContext(), android.R.color.holo_green_dark));
+
+        int correctRight = q.correctPairs[leftIndex];
+        for (int pos = 0; pos < 5; pos++) {
+            if (rightDisplayOrder[pos] == correctRight) {
+                rightButtons[pos].setBackgroundTintList(
+                        ContextCompat.getColorStateList(requireContext(), android.R.color.holo_green_dark));
+                rightButtons[pos].setEnabled(false);
+                break;
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Timer
+    // ─────────────────────────────────────────────────────────────────────
 
     private void startTimer(int seconds) {
-        long millis = (long) seconds * 1000;
-        timer = new CountDownTimer(millis, 1000) {
+        if (timer != null) timer.cancel();
+        timer = new CountDownTimer((long) seconds * 1000, 1000) {
             @Override
-            public void onTick(long millisUntilFinished) {
-                long s = millisUntilFinished / 1000;
-                tvTimer.setText(String.format("00:%02d", s));
+            public void onTick(long ms) {
+                if (!isAdded()) return;
+                tvTimer.setText(String.format("00:%02d", ms / 1000 + 1));
             }
-
             @Override
             public void onFinish() {
+                if (!isAdded()) return;
                 tvTimer.setText("00:00");
                 onTimerExpired();
             }
@@ -428,45 +809,154 @@ public class SpojniceFragment extends Fragment {
     }
 
     private void onTimerExpired() {
-        if (phase == PHASE_PLAYER_A) {
-            // Igrač A nije završio — daj šansu igraču B za preostale
-            tvInfo.setText("Vrijeme isteklo za Igrača " + activePlayer + "! Red na Igraču "
-                    + ((roundStarterPlayer == 1) ? 2 : 1) + ".");
-            startPhaseB();
+        if (roundFinished) return;
+        // Samo igrač na potezu (ili host kao arbitar) napreduje fazu
+        if (!soloMode && !myTurn && !isHost) {
+            tvInfo.setText("Čekam...");
+            return;
+        }
+        advancePhase(false);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Napredovanje faze
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void advancePhase(boolean allConnected) {
+        if (timer != null) timer.cancel();
+        roundFinished = true;
+
+        int remaining = 0;
+        for (boolean c : connected) if (!c) remaining++;
+
+        String nextPhase;
+        switch (currentPhaseStr) {
+            case PHASE_R1_A:
+                nextPhase = (allConnected || remaining == 0) ? PHASE_R2_A : PHASE_R1_B;
+                break;
+            case PHASE_R1_B:
+                nextPhase = PHASE_R2_A;
+                break;
+            case PHASE_R2_A:
+                nextPhase = (allConnected || remaining == 0) ? PHASE_DONE : PHASE_R2_B;
+                break;
+            default: // PHASE_R2_B
+                nextPhase = PHASE_DONE;
+                break;
+        }
+
+        String finalNextPhase = nextPhase;
+
+        if (soloMode) {
+            new CountDownTimer(2000, 1000) {
+                @Override public void onTick(long ms) {
+                    if (isAdded()) tvInfo.setText("Nastavak za: " + (ms / 1000 + 1) + "s...");
+                }
+                @Override public void onFinish() {
+                    if (!isAdded()) return;
+                    currentPhaseStr = finalNextPhase;
+                    if (PHASE_DONE.equals(finalNextPhase)) { showEndGame(); return; }
+                    if (PHASE_R2_A.equals(finalNextPhase)) {
+                        connectedCount = 0;
+                        for (int i = 0; i < 5; i++) { connected[i] = false; connectedBy[i] = 0; }
+                        for (int i = 0; i < 5; i++) rightDisplayOrder[i] = savedRound2Order[i];
+                    }
+                    applyPhase(finalNextPhase);
+                }
+            }.start();
         } else {
-            // Phase B gotova — runda završena
-            finishRound();
+            // Samo host mijenja fazu u Firestoru
+            if (isHost) {
+                Map<String, Object> update = new HashMap<>();
+                update.put("phase", nextPhase);
+                if (PHASE_R2_A.equals(nextPhase)) {
+                    update.put("connected",    buildFalseBoolList());
+                    update.put("connectedBy",  buildZeroIntList());
+                    update.put("connectedCount", 0);
+                }
+                sessionRef.update(update)
+                        .addOnFailureListener(e -> {
+                            if (isAdded())
+                                Toast.makeText(requireContext(), "Greška napredovanja: " + e.getMessage(),
+                                        Toast.LENGTH_SHORT).show();
+                        });
+            }
+            tvInfo.setText("Runda završena...");
+            setAllButtonsEnabled(false);
         }
     }
 
-    // ---- Kraj igre ----
+    // ─────────────────────────────────────────────────────────────────────
+    // Kraj igre
+    // ─────────────────────────────────────────────────────────────────────
 
     private void showEndGame() {
+        if (gameEnded) return;
+        gameEnded = true;
+        if (timer != null) timer.cancel();
+        if (!isAdded()) return;
+
+        int myScore     = isHost ? player1Score : player2Score;
+        int myConnected = myScore / 2;
+        try {
+            new StatsRepository().saveSpojniceResult(myConnected, 10, myScore);
+        } catch (Exception ignored) {}
+
         String result;
-        if (player1Score > player2Score) {
+        if (player1Score > player2Score)
             result = "Pobjednik spojnica: Igrač 1! (" + player1Score + " vs " + player2Score + ")";
-        } else if (player2Score > player1Score) {
+        else if (player2Score > player1Score)
             result = "Pobjednik spojnica: Igrač 2! (" + player2Score + " vs " + player1Score + ")";
-        } else {
-            result = "Spojnice su izjednačene! (" + player1Score + " : " + player2Score + ")";
-        }
+        else
+            result = "Spojnice izjednačene! (" + player1Score + " : " + player2Score + ")";
 
         Toast.makeText(requireContext(), result, Toast.LENGTH_LONG).show();
-
-        NavHostFragment.findNavController(this)
-                .navigate(R.id.action_spojnice_to_associations);
+        try {
+            NavHostFragment.findNavController(this)
+                    .navigate(R.id.action_spojnice_to_associations);
+        } catch (Exception e) {
+            // Navigation fallback — ako akcija ne postoji, samo ostani
+        }
     }
 
-    // ---- Pomocne metode ----
+    // ─────────────────────────────────────────────────────────────────────
+    // Solo mod
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void startSoloGame() {
+        player1Score = 0;
+        player2Score = 0;
+        List<SpojniceQuestion> shuffled = new ArrayList<>(allQuestions);
+        Collections.shuffle(shuffled);
+        questions.clear();
+        questions.add(shuffled.get(0));
+        questions.add(shuffled.get(1));
+
+        List<Integer> order1 = shuffledOrder();
+        List<Integer> order2 = shuffledOrder();
+        for (int i = 0; i < 5; i++) {
+            rightDisplayOrder[i] = order1.get(i);
+            savedRound2Order[i]  = order2.get(i);
+        }
+        currentPhaseStr = PHASE_R1_A;
+        applyPhase(PHASE_R1_A);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────
 
     private void updateHeader() {
         tvRound.setText("Runda " + round + "/2");
-        String phaseLabel = (phase == PHASE_PLAYER_A)
-                ? "Na potezu: Igrač " + activePlayer + " (1. faza)"
-                : (phase == PHASE_PLAYER_B)
-                ? "Na potezu: Igrač " + activePlayer + " (preostali)"
-                : "Runda završena";
-        tvPlayer.setText(phaseLabel);
+        String label;
+        switch (currentPhaseStr) {
+            case PHASE_R1_A: label = "Na potezu: Igrač 1 (1. faza)"; break;
+            case PHASE_R1_B: label = "Na potezu: Igrač 2 (preostali)"; break;
+            case PHASE_R2_A: label = "Na potezu: Igrač 2 (1. faza)"; break;
+            case PHASE_R2_B: label = "Na potezu: Igrač 1 (preostali)"; break;
+            default:         label = "Runda završena"; break;
+        }
+        tvPlayer.setText(label);
         tvScore.setText("Igrač 1: " + player1Score + "  |  Igrač 2: " + player2Score);
     }
 
@@ -481,5 +971,25 @@ public class SpojniceFragment extends Fragment {
             leftButtons[i].setEnabled(enabled);
             rightButtons[i].setEnabled(enabled);
         }
+    }
+
+    private List<Boolean> buildFalseBoolList() {
+        List<Boolean> l = new ArrayList<>();
+        for (int i = 0; i < 5; i++) l.add(false);
+        return l;
+    }
+
+    private List<Integer> buildZeroIntList() {
+        List<Integer> l = new ArrayList<>();
+        for (int i = 0; i < 5; i++) l.add(0);
+        return l;
+    }
+
+    private int  toInt(Object v)  { return (int) toLong(v); }
+    private long toLong(Object v) {
+        if (v instanceof Long)    return (Long) v;
+        if (v instanceof Integer) return ((Integer) v).longValue();
+        if (v instanceof Boolean) return Boolean.TRUE.equals(v) ? 1L : 0L;
+        return 0L;
     }
 }

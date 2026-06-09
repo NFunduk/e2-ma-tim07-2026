@@ -69,9 +69,16 @@ public class ProfileSettingsTabFragment extends Fragment {
         btnSavePassword.setOnClickListener(v -> handlePasswordChange());
 
         btnLogout.setOnClickListener(v -> {
+            // Očisti kešovane podatke profila
+            new ViewModelProvider(requireActivity())
+                    .get(com.example.sabona.viewModel.ProfileViewModel.class)
+                    .clearData();
             viewModel.logout();
-            NavHostFragment.findNavController(this)
-                    .navigate(R.id.action_profile_to_login);
+            // Navigiraj kroz Activity NavHostFragment (ViewPager2 child ne može sam)
+            androidx.navigation.NavController navController =
+                    androidx.navigation.Navigation.findNavController(
+                            requireActivity(), R.id.navHostFragment);
+            navController.navigate(R.id.action_profile_to_login);
         });
     }
 
