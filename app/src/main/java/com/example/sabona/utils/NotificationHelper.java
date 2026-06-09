@@ -42,7 +42,7 @@ public class NotificationHelper {
             NotificationChannel ranking = new NotificationChannel(
                     CHANNEL_RANKING,
                     "Rangiranje",
-                    NotificationManager.IMPORTANCE_DEFAULT
+                    NotificationManager.IMPORTANCE_HIGH
             );
             ranking.setDescription("Obaveštenja o rang listama i ligama");
 
@@ -56,7 +56,7 @@ public class NotificationHelper {
             NotificationChannel other = new NotificationChannel(
                     CHANNEL_OTHER,
                     "Ostalo",
-                    NotificationManager.IMPORTANCE_DEFAULT
+                    NotificationManager.IMPORTANCE_HIGH
             );
             other.setDescription("Pozivi za prijatelja, partije i ostalo");
 
@@ -83,10 +83,13 @@ public class NotificationHelper {
 
         Intent intent = new Intent(context, MainActivity.class);
         intent.putExtra("open_notifications", true);
+        intent.putExtra("notification_id", notification.getId());
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        int notificationId = (int) System.currentTimeMillis();
 
         PendingIntent pendingIntent = PendingIntent.getActivity(
                 context,
-                100,
+                notificationId,
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
@@ -99,6 +102,8 @@ public class NotificationHelper {
                         .setStyle(new NotificationCompat.BigTextStyle().bigText(notification.getMessage()))
                         .setPriority(NotificationCompat.PRIORITY_HIGH)
                         .setAutoCancel(true)
+                        .setOngoing(false)
+                        .setOnlyAlertOnce(false)
                         .setContentIntent(pendingIntent);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -111,6 +116,6 @@ public class NotificationHelper {
         }
 
         NotificationManagerCompat.from(context)
-                .notify((int) System.currentTimeMillis(), builder.build());
+                .notify(notificationId, builder.build());
     }
 }

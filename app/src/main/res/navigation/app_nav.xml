@@ -92,7 +92,7 @@
 
     <fragment
         android:id="@+id/mojBrojFragment"
-        android:name="com.example.sabona.MojBrojFragment"
+        android:name="com.example.sabona.mojBroj.MojBrojFragment"
         android:label="MojBroj">
         <argument android:name="player1Score"
             app:argType="integer" android:defaultValue="0"/>
