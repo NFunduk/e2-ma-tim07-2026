@@ -32,6 +32,35 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Spojnice — 2 runde, 30s po fazi.
+ *
+ * BUGOVI KOJI SU ISPRAVLJENI:
+ * 1. Različita tema — host upisuje "question0Id" i "question1Id" u Firestore,
+ *    guest čita isti ID i mapira na svoja lokalno-učitana pitanja.
+ *
+ * 2. Crash pri spajanju para — Firestore NE podržava dot-notation za Array
+ *    elemente ("connected.0"). Fix: uvijek piši CJELU listu kao niz.
+ *    Primjer:  update.put("connected", Arrays.asList(true, false, ...))
+ *              UMJESTO: update.put("connected.0", true)
+ *
+ * 3. Izlaz iz aplikacije (crash) — moguće NPE ili navigation exception,
+ *    dodati try-catch oko navigate().
+ *
+ * Firestore: gameSessions/{sessionId}/games/spojnice
+ * Polja:
+ *   phase         : "waiting_p2" | "r1_phA" | "r1_phB" | "r2_phA" | "r2_phB" | "finished"
+ *   p1Score       : int
+ *   p2Score       : int
+ *   connected     : List<Boolean> [5]  — svih 5 parova su li spojeni
+ *   connectedBy   : List<Long> [5]     — 0=niko, 1=p1, 2=p2
+ *   connectedCount: int
+ *   round1Order   : List<Long> [5]     — shuffled indeksi desne kolone za rundu 1
+ *   round2Order   : List<Long> [5]     — shuffled indeksi desne kolone za rundu 2
+ *   question0Id   : String             — docId za rundu 1
+ *   question1Id   : String             — docId za rundu 2
+ *   hostUid       : String
+ */
 public class SpojniceFragment extends Fragment {
 
     // ── Views ──────────────────────────────────────────────────────────────
@@ -50,32 +79,33 @@ public class SpojniceFragment extends Fragment {
     // ── Repository ──────────────────────────────────────────────────────────
     private final SpojniceRepository repository = new SpojniceRepository();
 
-    // ── Pitanja (2 runde) ──────────────────────────────────────────────────
+    // ── Pitanja — SVI učitani, pa mapiramo po docId ────────────────────────
+    private List<SpojniceQuestion> allQuestions = new ArrayList<>();
+    // Finalna 2 pitanja u ispravnom redosledu (isti na oba telefona)
     private List<SpojniceQuestion> questions = new ArrayList<>();
 
     // ── Session state ──────────────────────────────────────────────────────
     private String  myUid;
     private String  sessionId;
     private boolean isHost;
-    private boolean soloMode = false;
+    private boolean soloMode  = false;
     private boolean gameEnded = false;
 
     // ── Redoslijed desnih dugmadi (shuffled, isti za oba telefona) ──────────
-    // Čuvamo u Firestoru kao "rightOrder" list, pa oba telefona vide iste parove
     private int[] rightDisplayOrder = new int[5];
+    private int[] savedRound2Order  = new int[5]; // samo za solo mod
 
     // ── Faze ──────────────────────────────────────────────────────────────
-    // Firestore phase string: "waiting_p2", "r1_phA", "r1_phB", "r2_phA", "r2_phB", "finished"
-    private static final String PHASE_WAIT    = "waiting_p2";
-    private static final String PHASE_R1_A    = "r1_phA";
-    private static final String PHASE_R1_B    = "r1_phB";
-    private static final String PHASE_R2_A    = "r2_phA";
-    private static final String PHASE_R2_B    = "r2_phB";
-    private static final String PHASE_DONE    = "finished";
+    private static final String PHASE_WAIT = "waiting_p2";
+    private static final String PHASE_R1_A = "r1_phA";
+    private static final String PHASE_R1_B = "r1_phB";
+    private static final String PHASE_R2_A = "r2_phA";
+    private static final String PHASE_R2_B = "r2_phB";
+    private static final String PHASE_DONE = "finished";
 
     // ── Stanje igre ────────────────────────────────────────────────────────
     private int round        = 1;
-    private int activePlayer = 1;   // 1 ili 2, ko je trenutno na potezu
+    private int activePlayer = 1;
     private boolean myTurn   = false;
 
     private int player1Score = 0;
@@ -87,13 +117,15 @@ public class SpojniceFragment extends Fragment {
     private int[]     connectedBy = new int[5];
     private int       connectedCount = 0;
 
-    private int selectedLeft  = -1;
+    private int     selectedLeft  = -1;
     private boolean roundFinished = false;
 
     private CountDownTimer timer;
     private String currentPhaseStr = "";
 
-    // ── Lifecycle ──────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // Lifecycle
+    // ─────────────────────────────────────────────────────────────────────
 
     @Nullable
     @Override
@@ -110,6 +142,23 @@ public class SpojniceFragment extends Fragment {
         setupClicks();
         tvInfo.setText("Učitavanje pitanja...");
         setAllButtonsEnabled(false);
+
+        // Čitaj sessionId i isHost prosleđene od KoZnaZnaFragment
+        Bundle passedArgs = getArguments();
+        if (passedArgs != null) {
+            String passedSessionId = passedArgs.getString("sessionId", "");
+            boolean passedIsHost   = passedArgs.getBoolean("isHost", true);
+            if (!passedSessionId.isEmpty()) {
+                // Sesija je već kreirana u KoZnaZna — preskoči dialog
+                sessionId = passedSessionId;
+                isHost    = passedIsHost;
+                soloMode  = false;
+                loadQuestionsAndJoinExistingSession();
+                return;
+            }
+        }
+
+        // Nema prosleđene sesije — pokaži dialog (solo ili direktan start)
         loadQuestions();
     }
 
@@ -120,7 +169,9 @@ public class SpojniceFragment extends Fragment {
         if (sessionListener != null) sessionListener.remove();
     }
 
-    // ── Bind & clicks ──────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // Bind & clicks
+    // ─────────────────────────────────────────────────────────────────────
 
     private void bindViews(View view) {
         tvRound       = view.findViewById(R.id.tvRound);
@@ -160,10 +211,12 @@ public class SpojniceFragment extends Fragment {
         }
     }
 
-    // ── Učitaj pitanja ─────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // Učitaj SVA pitanja sa docId
+    // ─────────────────────────────────────────────────────────────────────
 
     private void loadQuestions() {
-        repository.fetchQuestions(new SpojniceRepository.SpojniceCallback() {
+        repository.fetchQuestionsWithIds(new SpojniceRepository.SpojniceWithIdsCallback() {
             @Override
             public void onSuccess(List<SpojniceQuestion> result) {
                 if (!isAdded()) return;
@@ -171,9 +224,7 @@ public class SpojniceFragment extends Fragment {
                     tvInfo.setText("Nema dovoljno pitanja (min. 2).");
                     return;
                 }
-                Collections.shuffle(result);
-                questions.add(result.get(0));
-                questions.add(result.get(1));
+                allQuestions = result;
                 showJoinDialog();
             }
             @Override
@@ -184,7 +235,126 @@ public class SpojniceFragment extends Fragment {
         });
     }
 
-    // ── Dialog za odabir moda ──────────────────────────────────────────────
+    /**
+     * Koristi se kada je sesija već kreirana u KoZnaZna.
+     * Učitava pitanja, pa se odmah spaja na postojeću sesiju bez dijaloga.
+     * Host već čeka u Firestore (waiting_p2) — guest samo učitava pitanja i mijenja fazu.
+     * Host takđer samo učitava pitanja i počinje slušanje (ne treba ništa mijenjati u Firestore).
+     */
+    private void loadQuestionsAndJoinExistingSession() {
+        repository.fetchQuestionsWithIds(new SpojniceRepository.SpojniceWithIdsCallback() {
+            @Override
+            public void onSuccess(List<SpojniceQuestion> result) {
+                if (!isAdded()) return;
+                if (result.size() < 2) {
+                    tvInfo.setText("Nema dovoljno pitanja (min. 2).");
+                    return;
+                }
+                allQuestions = result;
+
+                // Spoji se na sesiju koja je već kreirana
+                sessionRef = db.collection("gameSessions")
+                        .document(sessionId)
+                        .collection("games")
+                        .document("spojnice");
+
+                if (isHost) {
+                    // Host: sesija za spojnice još ne postoji — kreira je
+                    // (KoZnaZna je koristila kolekciju "kzz", Spojnice trebaju svoju)
+                    createSessionSilent();
+                } else {
+                    // Guest: čeka da host kreira spojnice sesiju, pa se pridružuje
+                    tvInfo.setText("Čekam host da kreira Spojnice...");
+                    waitForSessionThenJoin();
+                }
+            }
+            @Override
+            public void onError(Exception e) {
+                if (!isAdded()) return;
+                tvInfo.setText("Greška: " + e.getMessage());
+            }
+        });
+    }
+
+    /** Kreira sesiju za Spojnice bez dijaloga (host, automatski). */
+    private void createSessionSilent() {
+        java.util.List<SpojniceQuestion> shuffled = new java.util.ArrayList<>(allQuestions);
+        java.util.Collections.shuffle(shuffled);
+        SpojniceQuestion q0 = shuffled.get(0);
+        SpojniceQuestion q1 = shuffled.get(1);
+        questions.clear();
+        questions.add(q0);
+        questions.add(q1);
+
+        java.util.List<Integer> order1 = shuffledOrder();
+        java.util.List<Integer> order2 = shuffledOrder();
+
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        data.put("phase",         PHASE_WAIT);
+        data.put("p1Score",       0);
+        data.put("p2Score",       0);
+        data.put("connected",     buildFalseBoolList());
+        data.put("connectedBy",   buildZeroIntList());
+        data.put("connectedCount", 0);
+        data.put("round1Order",   order1);
+        data.put("round2Order",   order2);
+        data.put("question0Id",   q0.docId != null ? q0.docId : "");
+        data.put("question1Id",   q1.docId != null ? q1.docId : "");
+        data.put("hostUid",       myUid);
+
+        sessionRef.set(data)
+                .addOnSuccessListener(v -> {
+                    tvInfo.setText("Čekam Igrača 2... (Spojnice)");
+                    startListening();
+                })
+                .addOnFailureListener(e -> tvInfo.setText("Greška: " + e.getMessage()));
+    }
+
+    /**
+     * Guest čeka da se Spojnice sesija pojavi u Firestore (host je možda malo sporiji),
+     * pa se automatski pridružuje.
+     */
+    private void waitForSessionThenJoin() {
+        sessionRef.get().addOnSuccessListener(snap -> {
+            if (!isAdded()) return;
+            if (snap.exists()) {
+                // Sesija postoji — pridruži se
+                doJoinSession(snap);
+            } else {
+                // Još ne postoji — pokušaj ponovo za 1 sekundu
+                tvInfo.setText("Čekam host... (pokušaj ponovo)");
+                new android.os.Handler(android.os.Looper.getMainLooper())
+                        .postDelayed(this::waitForSessionThenJoin, 1000);
+            }
+        }).addOnFailureListener(e -> {
+            if (isAdded()) tvInfo.setText("Greška spajanja: " + e.getMessage());
+        });
+    }
+
+    /** Zajednička logika pridruživanja guesta sesiji (koristi i joinSession i waitForSessionThenJoin). */
+    private void doJoinSession(com.google.firebase.firestore.DocumentSnapshot snap) {
+        String q0Id = snap.getString("question0Id");
+        String q1Id = snap.getString("question1Id");
+        SpojniceQuestion q0 = findById(q0Id);
+        SpojniceQuestion q1 = findById(q1Id);
+        if (q0 == null || q1 == null) {
+            tvInfo.setText("Greška: pitanja nisu nađena lokalno.");
+            return;
+        }
+        questions.clear();
+        questions.add(q0);
+        questions.add(q1);
+        sessionRef.update("phase", PHASE_R1_A, "guestUid", myUid)
+                .addOnSuccessListener(v -> {
+                    tvInfo.setText("Pridružen! Počinjemo...");
+                    startListening();
+                })
+                .addOnFailureListener(e -> tvInfo.setText("Greška: " + e.getMessage()));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Dialog
+    // ─────────────────────────────────────────────────────────────────────
 
     private void showJoinDialog() {
         String suggested = myUid.length() >= 6
@@ -221,7 +391,9 @@ public class SpojniceFragment extends Fragment {
         b.show();
     }
 
-    // ── Firestore session ──────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // Firestore session
+    // ─────────────────────────────────────────────────────────────────────
 
     private void createSession() {
         sessionRef = db.collection("gameSessions")
@@ -229,20 +401,35 @@ public class SpojniceFragment extends Fragment {
                 .collection("games")
                 .document("spojnice");
 
-        // Generiši shuffle reda za rundu 1 i rundu 2 — isti za oba telefona
+        // Host bira 2 pitanja i upisuje njihove docId-ove
+        List<SpojniceQuestion> shuffled = new ArrayList<>(allQuestions);
+        Collections.shuffle(shuffled);
+        SpojniceQuestion q0 = shuffled.get(0);
+        SpojniceQuestion q1 = shuffled.get(1);
+
+        // Postavi lokalna questions za hosta
+        questions.clear();
+        questions.add(q0);
+        questions.add(q1);
+
+        // Generiši shuffle redosled za prikaz desne kolone
         List<Integer> order1 = shuffledOrder();
         List<Integer> order2 = shuffledOrder();
 
         Map<String, Object> data = new HashMap<>();
-        data.put("phase",        PHASE_WAIT);
-        data.put("p1Score",      0);
-        data.put("p2Score",      0);
-        data.put("connected",    new ArrayList<>(java.util.Arrays.asList(false,false,false,false,false)));
-        data.put("connectedBy",  new ArrayList<>(java.util.Arrays.asList(0,0,0,0,0)));
+        data.put("phase",         PHASE_WAIT);
+        data.put("p1Score",       0);
+        data.put("p2Score",       0);
+        // Piši kao listu (Array) — NE dot-notation!
+        data.put("connected",     buildFalseBoolList());
+        data.put("connectedBy",   buildZeroIntList());
         data.put("connectedCount", 0);
-        data.put("round1Order",  order1);
-        data.put("round2Order",  order2);
-        data.put("hostUid",      myUid);
+        data.put("round1Order",   order1);
+        data.put("round2Order",   order2);
+        // Ključ za sinhronizaciju tema
+        data.put("question0Id",   q0.docId != null ? q0.docId : "");
+        data.put("question1Id",   q1.docId != null ? q1.docId : "");
+        data.put("hostUid",       myUid);
 
         sessionRef.set(data)
                 .addOnSuccessListener(v -> {
@@ -258,12 +445,23 @@ public class SpojniceFragment extends Fragment {
                 .collection("games")
                 .document("spojnice");
 
-        sessionRef.update("phase", PHASE_R1_A, "guestUid", myUid)
-                .addOnSuccessListener(v -> {
-                    tvInfo.setText("Pridružen! Počinjemo...");
-                    startListening();
-                })
-                .addOnFailureListener(e -> tvInfo.setText("Sesija nije nađena. Provjeri kod!"));
+        // Guest čita sesiju da dobije questionIds i orders
+        sessionRef.get().addOnSuccessListener(snap -> {
+            if (!isAdded()) return;
+            if (!snap.exists()) {
+                tvInfo.setText("Sesija nije nađena. Provjeri kod!");
+                return;
+            }
+            doJoinSession(snap);
+        }).addOnFailureListener(e -> tvInfo.setText("Sesija nije nađena. Provjeri kod!"));
+    }
+
+    private SpojniceQuestion findById(String docId) {
+        if (docId == null) return null;
+        for (SpojniceQuestion q : allQuestions) {
+            if (docId.equals(q.docId)) return q;
+        }
+        return null;
     }
 
     private List<Integer> shuffledOrder() {
@@ -273,7 +471,9 @@ public class SpojniceFragment extends Fragment {
         return list;
     }
 
-    // ── Realtime listener ──────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // Realtime listener
+    // ─────────────────────────────────────────────────────────────────────
 
     private void startListening() {
         sessionListener = sessionRef.addSnapshotListener((snap, err) -> {
@@ -282,7 +482,6 @@ public class SpojniceFragment extends Fragment {
             String newPhase = snap.getString("phase");
             if (newPhase == null) return;
 
-            // Uvijek osvježi scorove
             player1Score = toInt(snap.get("p1Score"));
             player2Score = toInt(snap.get("p2Score"));
 
@@ -297,22 +496,28 @@ public class SpojniceFragment extends Fragment {
                 return;
             }
 
-            // Ako se faza promijenila — postavi stanje iz Firestore
-            if (!newPhase.equals(currentPhaseStr)) {
-                currentPhaseStr = newPhase;
+            // Učitaj connected state iz Firestore (uvijek, nije samo pri promjeni faze)
+            List<?> connList = (List<?>) snap.get("connected");
+            List<?> byList   = (List<?>) snap.get("connectedBy");
+            int     cCount   = toInt(snap.get("connectedCount"));
 
-                // Učitaj connected state iz Firestore
-                List<?> connList = (List<?>) snap.get("connected");
-                List<?> byList   = (List<?>) snap.get("connectedBy");
-                long cCount      = toLong(snap.get("connectedCount"));
-                connectedCount   = (int) cCount;
+            boolean[] newConnected   = new boolean[5];
+            int[]     newConnectedBy = new int[5];
 
-                if (connList != null && byList != null) {
-                    for (int i = 0; i < 5; i++) {
-                        connected[i]   = Boolean.TRUE.equals(connList.get(i));
-                        connectedBy[i] = toInt(byList.get(i));
-                    }
+            if (connList != null && connList.size() == 5
+                    && byList != null && byList.size() == 5) {
+                for (int i = 0; i < 5; i++) {
+                    newConnected[i]   = Boolean.TRUE.equals(connList.get(i));
+                    newConnectedBy[i] = toInt(byList.get(i));
                 }
+            }
+
+            if (!newPhase.equals(currentPhaseStr)) {
+                // Nova faza
+                currentPhaseStr = newPhase;
+                connectedCount  = cCount;
+                connected       = newConnected;
+                connectedBy     = newConnectedBy;
 
                 // Učitaj rightDisplayOrder za ovu rundu
                 String orderKey = newPhase.startsWith("r1") ? "round1Order" : "round2Order";
@@ -323,26 +528,30 @@ public class SpojniceFragment extends Fragment {
 
                 applyPhase(newPhase);
             } else {
-                // Ista faza ali možda je neko nešto spojio — osvježi
-                List<?> connList = (List<?>) snap.get("connected");
-                List<?> byList   = (List<?>) snap.get("connectedBy");
-                long cCount      = toLong(snap.get("connectedCount"));
-                if (connList != null && byList != null) {
-                    int oldCount = connectedCount;
-                    connectedCount = (int) cCount;
-                    for (int i = 0; i < 5; i++) {
-                        boolean wasConnected = connected[i];
-                        connected[i]   = Boolean.TRUE.equals(connList.get(i));
-                        connectedBy[i] = toInt(byList.get(i));
-                        if (!wasConnected && connected[i]) {
-                            // Netko je upravo spojio par i — prikaži vizuelno
-                            renderConnectedPair(i, connectedBy[i]);
-                            // Ažuriraj roundScore iz Firestore podataka
-                            if (connectedBy[i] == 1) roundScore1 += 2;
-                            else if (connectedBy[i] == 2) roundScore2 += 2;
+                // Ista faza — provjeri jesu li se nova spajanja desila
+                boolean changed = false;
+                for (int i = 0; i < 5; i++) {
+                    if (!connected[i] && newConnected[i]) {
+                        // Netko je upravo spojio par i
+                        connected[i]   = true;
+                        connectedBy[i] = newConnectedBy[i];
+                        renderConnectedPair(i, newConnectedBy[i]);
+                        if (newConnectedBy[i] == 1) roundScore1 += 2;
+                        else if (newConnectedBy[i] == 2) roundScore2 += 2;
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    connectedCount = cCount;
+                    updateScoreViews();
+                    // Ako su svi parovi spojeni, odmah predje na sledecu fazu
+                    // Ovo rjesava slucaj kada guest spoji posljednji par:
+                    // host prima ovaj snapshot i on poziva advancePhase
+                    if (connectedCount == 5 && !roundFinished) {
+                        if (soloMode || isHost) {
+                            advancePhase(true);
                         }
                     }
-                    if (connectedCount != oldCount) updateScoreViews();
                 }
                 updateHeader();
                 updateScoreViews();
@@ -350,7 +559,9 @@ public class SpojniceFragment extends Fragment {
         });
     }
 
-    // ── Primijeni fazu ─────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // Primijeni fazu
+    // ─────────────────────────────────────────────────────────────────────
 
     private void applyPhase(String ph) {
         if (timer != null) timer.cancel();
@@ -359,9 +570,6 @@ public class SpojniceFragment extends Fragment {
 
         round = ph.startsWith("r1") ? 1 : 2;
 
-        // Ko je aktivan
-        // r1_phA: Igrač 1 igra; r1_phB: Igrač 2 igra
-        // r2_phA: Igrač 2 igra; r2_phB: Igrač 1 igra
         if (PHASE_R1_A.equals(ph) || PHASE_R2_B.equals(ph)) {
             activePlayer = 1;
         } else {
@@ -372,19 +580,14 @@ public class SpojniceFragment extends Fragment {
                 || (isHost  && activePlayer == 1)
                 || (!isHost && activePlayer == 2);
 
-        setupRoundUI();
-        updateHeader();
-        updateScoreViews();
-
-        // Resetuj roundScore samo na početku NOVE runde (Phase A)
+        // Resetuj round score samo pri početku runde (Phase A)
         if (PHASE_R1_A.equals(ph) || PHASE_R2_A.equals(ph)) {
-            roundScore1 = 0;
-            roundScore2 = 0;
+            roundScore1    = 0;
+            roundScore2    = 0;
             connectedCount = 0;
             for (int i = 0; i < 5; i++) { connected[i] = false; connectedBy[i] = 0; }
-            setupRoundUI();
         } else {
-            // Phase B — roundScore rekonstruišemo iz već učitanog connected stanja
+            // Phase B — rekonstruiši roundScore iz connected stanja
             roundScore1 = 0;
             roundScore2 = 0;
             for (int i = 0; i < 5; i++) {
@@ -395,11 +598,14 @@ public class SpojniceFragment extends Fragment {
             }
         }
 
+        setupRoundUI();
+        updateHeader();
+        updateScoreViews();
         startTimer(30);
     }
 
     private void setupRoundUI() {
-        if (questions.isEmpty()) return;
+        if (questions.isEmpty() || questions.size() < round) return;
         SpojniceQuestion q = questions.get(round - 1);
         tvCriteria.setText(q.criteria);
 
@@ -408,12 +614,12 @@ public class SpojniceFragment extends Fragment {
             leftButtons[i].setText(q.leftItems.get(i));
         }
 
-        // Desna kolona — prema rightDisplayOrder
+        // Desna kolona — prema rightDisplayOrder (isti na oba telefona)
         for (int pos = 0; pos < 5; pos++) {
             rightButtons[pos].setText(q.rightItems.get(rightDisplayOrder[pos]));
         }
 
-        // Obnovi vizuelno stanje — oboji spojene parove
+        // Obnovi vizuelno stanje
         for (int i = 0; i < 5; i++) {
             if (connected[i]) {
                 renderConnectedPair(i, connectedBy[i]);
@@ -426,7 +632,7 @@ public class SpojniceFragment extends Fragment {
             }
         }
 
-        // Desna dugmad — disable ona koja su spojena
+        // Desna dugmad
         for (int pos = 0; pos < 5; pos++) {
             boolean used = false;
             for (int i = 0; i < 5; i++) {
@@ -436,18 +642,13 @@ public class SpojniceFragment extends Fragment {
                 }
             }
             rightButtons[pos].setEnabled(!used && myTurn);
-            if (used) {
-                rightButtons[pos].setBackgroundTintList(
-                        ContextCompat.getColorStateList(requireContext(), android.R.color.holo_green_dark));
-            } else {
-                rightButtons[pos].setBackgroundTintList(
-                        ContextCompat.getColorStateList(requireContext(), R.color.petal));
-            }
+            rightButtons[pos].setBackgroundTintList(
+                    ContextCompat.getColorStateList(requireContext(),
+                            used ? android.R.color.holo_green_dark : R.color.petal));
         }
 
         // Phase B — lijeva dugmad: samo nespojena su aktivna
-        String ph = currentPhaseStr;
-        if (PHASE_R1_B.equals(ph) || PHASE_R2_B.equals(ph)) {
+        if (PHASE_R1_B.equals(currentPhaseStr) || PHASE_R2_B.equals(currentPhaseStr)) {
             for (int i = 0; i < 5; i++) {
                 leftButtons[i].setEnabled(!connected[i] && myTurn);
             }
@@ -458,7 +659,9 @@ public class SpojniceFragment extends Fragment {
                 : "⏳ Čekam protivnika...");
     }
 
-    // ── Klikovi ────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // Klikovi
+    // ─────────────────────────────────────────────────────────────────────
 
     private void onLeftClick(int index) {
         if (!myTurn || roundFinished || connected[index]) return;
@@ -486,63 +689,82 @@ public class SpojniceFragment extends Fragment {
         SpojniceQuestion q = questions.get(round - 1);
 
         if (q.correctPairs[selectedLeft] == originalRightIndex) {
-            // ✓ Tačno — ažuriraj Firestore
+            // ✓ Tačno
             int pairIndex = selectedLeft;
             selectedLeft = -1;
 
-            // Lokalno označi vizuelno odmah (optimistično)
+            // Lokalno odmah
             renderConnectedPair(pairIndex, activePlayer);
             connected[pairIndex]   = true;
             connectedBy[pairIndex] = activePlayer;
             connectedCount++;
 
-            // NE mijenjamo lokalne score varijable ovdje —
-            // Firestore listener će ih ažurirati kad stigne FieldValue.increment odgovor.
-            // Ovo sprečava race condition između lokalnog i serverskog stanja.
-
             updateScoreViews();
-
-            // Snimi u Firestore
-            saveConnectionToFirestore(pairIndex, connectedCount);
+            saveConnectionToFirestore(pairIndex);
 
         } else {
             // ✗ Netačno
-            leftButtons[selectedLeft].setBackgroundTintList(
-                    ContextCompat.getColorStateList(requireContext(), R.color.white));
+            if (selectedLeft != -1) {
+                leftButtons[selectedLeft].setBackgroundTintList(
+                        ContextCompat.getColorStateList(requireContext(), R.color.white));
+            }
             selectedLeft = -1;
             tvInfo.setText("Netačno! Pokušaj ponovo.");
         }
     }
 
-    private void saveConnectionToFirestore(int pairIndex, int newCount) {
+    /**
+     * Snima spajanje para u Firestore.
+     *
+     * KRITIČNO: Firestore NE podržava dot-notation za Array elemente!
+     * Ako napišemo update.put("connected.0", true) — to NEĆE raditi za arraye,
+     * samo za Map polja. Moramo uvijek pisati CIJELU listu odjednom.
+     */
+    private void saveConnectionToFirestore(int pairIndex) {
         if (soloMode) {
-            // Solo — provjeri je li gotovo
-            if (newCount == 5) { onAllConnected(); return; }
+            if (connectedCount == 5) onAllConnected();
             return;
+        }
+
+        // Izgradi nove liste (kopija lokalnog stanja)
+        List<Boolean> newConnected   = new ArrayList<>();
+        List<Integer> newConnectedBy = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            newConnected.add(connected[i]);
+            newConnectedBy.add(connectedBy[i]);
         }
 
         String scoreField = (activePlayer == 1) ? "p1Score" : "p2Score";
 
         Map<String, Object> update = new HashMap<>();
-        update.put("connected." + pairIndex,   true);
-        update.put("connectedBy." + pairIndex, activePlayer);
-        update.put("connectedCount", newCount);
-        // Koristi increment da izbjegnemo race condition (ne pisati apsolutnu vrijednost)
+        // UVIJEK piši CIJELU listu — ne dot-notation za array!
+        update.put("connected",    newConnected);
+        update.put("connectedBy",  newConnectedBy);
+        update.put("connectedCount", connectedCount);
         update.put(scoreField, com.google.firebase.firestore.FieldValue.increment(2));
 
-        sessionRef.update(update).addOnSuccessListener(v -> {
-            if (newCount == 5) onAllConnected();
-        });
+        sessionRef.update(update)
+                .addOnSuccessListener(v -> {
+                    if (!isAdded()) return;
+                    if (connectedCount == 5) onAllConnected();
+                })
+                .addOnFailureListener(e -> {
+                    if (!isAdded()) return;
+                    Toast.makeText(requireContext(), "Greška spajanja: " + e.getMessage(),
+                            Toast.LENGTH_SHORT).show();
+                });
     }
 
     private void onAllConnected() {
-        // Sve spojeno u Phase A → preskoči Phase B
-        advancePhase(true);
+        if (!roundFinished) advancePhase(true);
     }
 
-    // ── Prikaz spojenog para ───────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // Prikaz spojenog para
+    // ─────────────────────────────────────────────────────────────────────
 
     private void renderConnectedPair(int leftIndex, int byPlayer) {
+        if (questions.isEmpty() || questions.size() < round) return;
         SpojniceQuestion q = questions.get(round - 1);
 
         leftButtons[leftIndex].setBackgroundTintList(
@@ -553,7 +775,6 @@ public class SpojniceFragment extends Fragment {
         arrows[leftIndex].setTextColor(
                 ContextCompat.getColor(requireContext(), android.R.color.holo_green_dark));
 
-        // Nađi koji display pos odgovara ovom paru
         int correctRight = q.correctPairs[leftIndex];
         for (int pos = 0; pos < 5; pos++) {
             if (rightDisplayOrder[pos] == correctRight) {
@@ -565,17 +786,21 @@ public class SpojniceFragment extends Fragment {
         }
     }
 
-    // ── Timer ──────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // Timer
+    // ─────────────────────────────────────────────────────────────────────
 
     private void startTimer(int seconds) {
         if (timer != null) timer.cancel();
         timer = new CountDownTimer((long) seconds * 1000, 1000) {
             @Override
             public void onTick(long ms) {
-                tvTimer.setText(String.format("00:%02d", ms / 1000));
+                if (!isAdded()) return;
+                tvTimer.setText(String.format("00:%02d", ms / 1000 + 1));
             }
             @Override
             public void onFinish() {
+                if (!isAdded()) return;
                 tvTimer.setText("00:00");
                 onTimerExpired();
             }
@@ -585,87 +810,85 @@ public class SpojniceFragment extends Fragment {
 
     private void onTimerExpired() {
         if (roundFinished) return;
-        // Samo igrač koji je bio na potezu (ili host u realtime modu) unapređuje fazu.
-        // Gost koji čeka NE smije napredovati — Firestore listener će to riješiti.
+        // Samo igrač na potezu (ili host kao arbitar) napreduje fazu
         if (!soloMode && !myTurn && !isHost) {
-            // Nismo na potezu i nismo host — samo resetuj lokalni UI, Firestore će nas obavijestiti
             tvInfo.setText("Čekam...");
             return;
         }
         advancePhase(false);
     }
 
-    // ── Napredovanje faze ──────────────────────────────────────────────────
-    // allConnected = true ako je sve spojeno, false = tajmer istekao
+    // ─────────────────────────────────────────────────────────────────────
+    // Napredovanje faze
+    // ─────────────────────────────────────────────────────────────────────
 
     private void advancePhase(boolean allConnected) {
         if (timer != null) timer.cancel();
         roundFinished = true;
 
-        String nextPhase;
-        String ph = currentPhaseStr;
+        int remaining = 0;
+        for (boolean c : connected) if (!c) remaining++;
 
-        if (PHASE_R1_A.equals(ph)) {
-            // Provjeri ima li nepovezanih
-            int remaining = 0;
-            for (boolean c : connected) if (!c) remaining++;
-            nextPhase = (allConnected || remaining == 0) ? PHASE_R2_A : PHASE_R1_B;
-        } else if (PHASE_R1_B.equals(ph)) {
-            nextPhase = PHASE_R2_A;
-        } else if (PHASE_R2_A.equals(ph)) {
-            int remaining = 0;
-            for (boolean c : connected) if (!c) remaining++;
-            nextPhase = (allConnected || remaining == 0) ? PHASE_DONE : PHASE_R2_B;
-        } else {
-            // PHASE_R2_B
-            nextPhase = PHASE_DONE;
+        String nextPhase;
+        switch (currentPhaseStr) {
+            case PHASE_R1_A:
+                nextPhase = (allConnected || remaining == 0) ? PHASE_R2_A : PHASE_R1_B;
+                break;
+            case PHASE_R1_B:
+                nextPhase = PHASE_R2_A;
+                break;
+            case PHASE_R2_A:
+                nextPhase = (allConnected || remaining == 0) ? PHASE_DONE : PHASE_R2_B;
+                break;
+            default: // PHASE_R2_B
+                nextPhase = PHASE_DONE;
+                break;
         }
 
         String finalNextPhase = nextPhase;
 
         if (soloMode) {
-            // Solo — direktan prelaz sa 3s pauzom
-            new CountDownTimer(3000, 1000) {
+            new CountDownTimer(2000, 1000) {
                 @Override public void onTick(long ms) {
-                    tvInfo.setText("Nastavak za: " + (ms/1000+1) + "s...");
+                    if (isAdded()) tvInfo.setText("Nastavak za: " + (ms / 1000 + 1) + "s...");
                 }
                 @Override public void onFinish() {
                     if (!isAdded()) return;
                     currentPhaseStr = finalNextPhase;
                     if (PHASE_DONE.equals(finalNextPhase)) { showEndGame(); return; }
-                    // Reset za novu rundu ako prelazimo na r2
                     if (PHASE_R2_A.equals(finalNextPhase)) {
                         connectedCount = 0;
                         for (int i = 0; i < 5; i++) { connected[i] = false; connectedBy[i] = 0; }
-                        // Generiši novi redosled za rundu 2
-                        List<Integer> newOrder = shuffledOrder();
-                        for (int i = 0; i < 5; i++) rightDisplayOrder[i] = newOrder.get(i);
+                        for (int i = 0; i < 5; i++) rightDisplayOrder[i] = savedRound2Order[i];
                     }
                     applyPhase(finalNextPhase);
                 }
             }.start();
         } else {
-            // Realtime — samo host mijenja fazu u Firestoru
+            // Samo host mijenja fazu u Firestoru
             if (isHost) {
                 Map<String, Object> update = new HashMap<>();
                 update.put("phase", nextPhase);
-                // NE pisati p1Score/p2Score ovdje — već su upisani kroz FieldValue.increment
-                // u saveConnectionToFirestore(). Pisanje apsolutnih vrijednosti uzrokovalo bi
-                // race condition i pregaženje bodova.
                 if (PHASE_R2_A.equals(nextPhase)) {
-                    update.put("connected",    new ArrayList<>(java.util.Arrays.asList(false,false,false,false,false)));
-                    update.put("connectedBy",  new ArrayList<>(java.util.Arrays.asList(0,0,0,0,0)));
+                    update.put("connected",    buildFalseBoolList());
+                    update.put("connectedBy",  buildZeroIntList());
                     update.put("connectedCount", 0);
                 }
-                sessionRef.update(update);
+                sessionRef.update(update)
+                        .addOnFailureListener(e -> {
+                            if (isAdded())
+                                Toast.makeText(requireContext(), "Greška napredovanja: " + e.getMessage(),
+                                        Toast.LENGTH_SHORT).show();
+                        });
             }
-            // Prikaži pauzu oboje dok Firestore listener ne dođe
             tvInfo.setText("Runda završena...");
             setAllButtonsEnabled(false);
         }
     }
 
-    // ── Kraj igre ──────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // Kraj igre
+    // ─────────────────────────────────────────────────────────────────────
 
     private void showEndGame() {
         if (gameEnded) return;
@@ -673,9 +896,11 @@ public class SpojniceFragment extends Fragment {
         if (timer != null) timer.cancel();
         if (!isAdded()) return;
 
-        int myScore      = isHost ? player1Score : player2Score;
-        int myConnected  = myScore / 2;  // svaki spojeni par = 2 boda
-        new StatsRepository().saveSpojniceResult(myConnected, 10, myScore);
+        int myScore     = isHost ? player1Score : player2Score;
+        int myConnected = myScore / 2;
+        try {
+            new StatsRepository().saveSpojniceResult(myConnected, 10, myScore);
+        } catch (Exception ignored) {}
 
         String result;
         if (player1Score > player2Score)
@@ -686,21 +911,29 @@ public class SpojniceFragment extends Fragment {
             result = "Spojnice izjednačene! (" + player1Score + " : " + player2Score + ")";
 
         Toast.makeText(requireContext(), result, Toast.LENGTH_LONG).show();
-        NavHostFragment.findNavController(this)
-                .navigate(R.id.action_spojnice_to_associations);
+        try {
+            NavHostFragment.findNavController(this)
+                    .navigate(R.id.action_spojnice_to_associations);
+        } catch (Exception e) {
+            // Navigation fallback — ako akcija ne postoji, samo ostani
+        }
     }
 
-    // ── Solo mod ───────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // Solo mod
+    // ─────────────────────────────────────────────────────────────────────
 
     private void startSoloGame() {
         player1Score = 0;
         player2Score = 0;
-        // Generiši oba reda lokalno
+        List<SpojniceQuestion> shuffled = new ArrayList<>(allQuestions);
+        Collections.shuffle(shuffled);
+        questions.clear();
+        questions.add(shuffled.get(0));
+        questions.add(shuffled.get(1));
+
         List<Integer> order1 = shuffledOrder();
         List<Integer> order2 = shuffledOrder();
-        // Sačuvaj ih (solo nema Firestore, pa samo koristimo round1/2Order lokalne liste)
-        // Pohrani round2Order u posebnu varijablu
-        savedRound2Order = new int[5];
         for (int i = 0; i < 5; i++) {
             rightDisplayOrder[i] = order1.get(i);
             savedRound2Order[i]  = order2.get(i);
@@ -709,9 +942,9 @@ public class SpojniceFragment extends Fragment {
         applyPhase(PHASE_R1_A);
     }
 
-    private int[] savedRound2Order = new int[5];
-
-    // ── Helpers ────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────
 
     private void updateHeader() {
         tvRound.setText("Runda " + round + "/2");
@@ -738,6 +971,18 @@ public class SpojniceFragment extends Fragment {
             leftButtons[i].setEnabled(enabled);
             rightButtons[i].setEnabled(enabled);
         }
+    }
+
+    private List<Boolean> buildFalseBoolList() {
+        List<Boolean> l = new ArrayList<>();
+        for (int i = 0; i < 5; i++) l.add(false);
+        return l;
+    }
+
+    private List<Integer> buildZeroIntList() {
+        List<Integer> l = new ArrayList<>();
+        for (int i = 0; i < 5; i++) l.add(0);
+        return l;
     }
 
     private int  toInt(Object v)  { return (int) toLong(v); }

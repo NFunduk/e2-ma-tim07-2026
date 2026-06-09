@@ -22,35 +22,43 @@ import com.example.sabona.repository.KoZnaZnaRepository;
 import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
-import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Ko zna zna — simultani mod (oba igrača igraju u isto vrijeme).
+ * Ko zna zna — simultani multiplayer mod.
  *
- * Firestore dokument: gameSessions/{sessionId}/games/kzz
+ * SINHRONIZACIJA PITANJA (glavni fix):
+ *   Host pri kreiranju sesije upiše "questionIds" listu u Firestore.
+ *   Guest pri pridruživanju učita tu listu i mapira je na svoja lokalno-učitana pitanja.
+ *   Tako oba telefona imaju ISTI redosled i ISTA pitanja.
+ *
+ * Firestore: gameSessions/{sessionId}/games/kzz
  * Polja:
- *   phase          : "waiting_p2" | "question" | "finished"
- *   questionIndex  : int (0–4)
+ *   phase          : "waiting_p2" | "question" | "result" | "finished"
+ *   questionIndex  : int  (0–4)
+ *   questionIds    : List<String>  — redosled document ID-ova pitanja (host upisuje)
  *   p1Score        : int
  *   p2Score        : int
- *   p1Answer       : int  (-1 = nije odgovorio, -2 = isteklo vrijeme)
- *   p2Answer       : int  (-1 = nije odgovorio, -2 = isteklo vrijeme)
- *   p1AnswerTime   : long (serverTimestamp u ms, 0 ako nije odgovorio)
- *   p2AnswerTime   : long (serverTimestamp u ms, 0 ako nije odgovorio)
- *   winner         : "" | "p1" | "p2" | "none"  (popunjava host kad oboje odgovore)
+ *   p1Answer       : int  (-1=nije odgovorio, -2=timeout)
+ *   p2Answer       : int  (-1=nije odgovorio, -2=timeout)
+ *   p1AnswerTime   : long (ms od startTimer, 0 ako nije odgovorio)
+ *   p2AnswerTime   : long
+ *   winner         : "" | "p1" | "p2" | "none"
  *
- * Logika bodovanja (host računa):
- *   - Oba tačno → brži dobija +10
- *   - Samo jedan tačno → taj +10
- *   - Netačno → -5 (bez obzira na protivnika)
- *   - Niko ne odgovori (oba timeout) → 0 svako
+ * Bodovanje (po specifikaciji):
+ *   Oba tačno → brži +10, sporiji 0 (nema -5!)
+ *   Samo jedan tačno → taj +10, netačni -5
+ *   Niko tačno:
+ *     - Oba su odgovorila netačno → oba -5
+ *     - Oba su timeout → 0 svako
+ *     - Jedan timeout, drugi netačno → netačni -5, timeout 0
  */
 public class KoZnaZnaFragment extends Fragment {
 
@@ -75,27 +83,33 @@ public class KoZnaZnaFragment extends Fragment {
     private boolean soloMode  = false;
     private boolean gameEnded = false;
 
+    // ── Pitanja — učitana iz Firestore, indeksirana po docId ──────────────
+    private List<KoZnaZnaRepository.Question> allQuestions; // sve učitane
+    // Redosled koji je host odredio (lista docId-ova)
+    private List<String> orderedQuestionIds = new ArrayList<>();
+    // Finalna lista pitanja u ispravnom redosledu (5 komada)
+    private List<KoZnaZnaRepository.Question> questions = new ArrayList<>();
+
+    private final KoZnaZnaRepository repository = new KoZnaZnaRepository();
+
     // ── Game state ─────────────────────────────────────────────────────────
-    private int     currentQuestion = 0;
-    private int     player1Score    = 0;
-    private int     player2Score    = 0;
-    private String  phase           = "waiting_p2";
-    private boolean iAnswered       = false;   // da li sam JA već odgovorio na ovo pitanje
-    private boolean questionDone    = false;   // da li je pitanje riješeno (host prešao dalje)
+    private int     currentQuestion    = 0;
+    private int     player1Score       = 0;
+    private int     player2Score       = 0;
+    private String  phase              = "waiting_p2";
+    private boolean iAnswered          = false;
+    private boolean questionDone       = false;
     private int     myCorrectCount     = 0;
     private int     myWrongCount       = 0;
-    private boolean calculatingResult  = false; // guard protiv duplog upisa result faze
+    private boolean calculatingResult  = false;
+    private int     lastRenderedQIndex = -1; // sprečava duplo renderovanje istog pitanja
 
     // ── Solo state ─────────────────────────────────────────────────────────
     private int  soloP1Answer     = -1;
     private int  soloP2Answer     = -1;
     private long soloP1AnswerTime = 0;
     private long soloP2AnswerTime = 0;
-    private boolean soloWaitingP2 = false;  // da li čekamo P2 odgovor u solo modu
-
-    // ── Pitanja ────────────────────────────────────────────────────────────
-    private List<KoZnaZnaRepository.Question> questions;
-    private final KoZnaZnaRepository repository = new KoZnaZnaRepository();
+    private boolean soloWaitingP2 = false;
 
     // ── Timer ──────────────────────────────────────────────────────────────
     private CountDownTimer timer;
@@ -156,12 +170,11 @@ public class KoZnaZnaFragment extends Fragment {
     // ═══════════════════════════════════════════════════════════════════════
 
     private void loadQuestions() {
-        repository.fetchQuestions(new KoZnaZnaRepository.QuestionsCallback() {
+        repository.fetchQuestionsWithIds(new KoZnaZnaRepository.QuestionsWithIdsCallback() {
             @Override
             public void onSuccess(List<KoZnaZnaRepository.Question> loaded) {
                 if (!isAdded()) return;
-                Collections.shuffle(loaded);
-                questions = loaded.size() > 5 ? loaded.subList(0, 5) : loaded;
+                allQuestions = loaded;
                 progressBar.setVisibility(View.GONE);
                 showJoinDialog();
             }
@@ -169,9 +182,31 @@ public class KoZnaZnaFragment extends Fragment {
             public void onError(Exception e) {
                 if (!isAdded()) return;
                 progressBar.setVisibility(View.GONE);
-                Toast.makeText(requireContext(), "Greška: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                Toast.makeText(requireContext(), "Greška učitavanja: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Pripremi finalnu listu pitanja prema orderedQuestionIds
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private boolean buildOrderedQuestions() {
+        if (allQuestions == null || orderedQuestionIds.isEmpty()) return false;
+
+        // Napravi mapu docId -> Question
+        Map<String, KoZnaZnaRepository.Question> idMap = new HashMap<>();
+        for (KoZnaZnaRepository.Question q : allQuestions) {
+            if (q.docId != null) idMap.put(q.docId, q);
+        }
+
+        questions.clear();
+        for (String id : orderedQuestionIds) {
+            KoZnaZnaRepository.Question q = idMap.get(id);
+            if (q != null) questions.add(q);
+        }
+
+        return !questions.isEmpty();
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -222,9 +257,26 @@ public class KoZnaZnaFragment extends Fragment {
                 .collection("games")
                 .document("kzz");
 
+        // Host miješa pitanja i upisuje redosled (questionIds) u Firestore
+        // Guest će pročitati isti redosled — to je ključ sinhronizacije!
+        List<KoZnaZnaRepository.Question> shuffled = new ArrayList<>(allQuestions);
+        Collections.shuffle(shuffled);
+        List<KoZnaZnaRepository.Question> picked = shuffled.size() > 5
+                ? shuffled.subList(0, 5) : shuffled;
+
+        List<String> ids = new ArrayList<>();
+        for (KoZnaZnaRepository.Question q : picked) {
+            if (q.docId != null) ids.add(q.docId);
+        }
+        orderedQuestionIds = ids;
+
+        // Odmah postavi lokalna questions za hosta
+        questions = new ArrayList<>(picked);
+
         Map<String, Object> data = new HashMap<>();
         data.put("phase",         "waiting_p2");
         data.put("questionIndex", 0);
+        data.put("questionIds",   ids);  // <-- ključ za sinhronizaciju
         data.put("p1Score",       0);
         data.put("p2Score",       0);
         data.put("p1Answer",      -1);
@@ -249,17 +301,42 @@ public class KoZnaZnaFragment extends Fragment {
                 .collection("games")
                 .document("kzz");
 
-        Map<String, Object> update = new HashMap<>();
-        update.put("phase",    "question");
-        update.put("guestUid", myUid);
+        // Guest prvo čita sesiju da dobije questionIds
+        sessionRef.get().addOnSuccessListener(snap -> {
+            if (!isAdded()) return;
+            if (!snap.exists()) {
+                Toast.makeText(requireContext(), "Sesija nije nađena!", Toast.LENGTH_LONG).show();
+                return;
+            }
 
-        sessionRef.update(update)
-                .addOnSuccessListener(v -> {
-                    showWaiting("Pridružen! Počinjemo...");
-                    startListening();
-                })
-                .addOnFailureListener(e ->
-                        Toast.makeText(requireContext(), "Sesija nije nađena!", Toast.LENGTH_LONG).show());
+            // Učitaj redosled pitanja od hosta
+            List<?> rawIds = (List<?>) snap.get("questionIds");
+            if (rawIds != null) {
+                orderedQuestionIds.clear();
+                for (Object o : rawIds) orderedQuestionIds.add(String.valueOf(o));
+            }
+
+            // Izgradi questions u istom redosledu kao host
+            if (!buildOrderedQuestions()) {
+                Toast.makeText(requireContext(), "Greška mapiranja pitanja!", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            // Sad se pridruži i prebaci fazu na "question"
+            Map<String, Object> update = new HashMap<>();
+            update.put("phase",    "question");
+            update.put("guestUid", myUid);
+
+            sessionRef.update(update)
+                    .addOnSuccessListener(v -> {
+                        showWaiting("Pridružen! Počinjemo...");
+                        startListening();
+                    })
+                    .addOnFailureListener(e ->
+                            Toast.makeText(requireContext(), "Greška: " + e.getMessage(), Toast.LENGTH_LONG).show());
+
+        }).addOnFailureListener(e ->
+                Toast.makeText(requireContext(), "Sesija nije nađena!", Toast.LENGTH_LONG).show());
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -284,44 +361,46 @@ public class KoZnaZnaFragment extends Fragment {
 
                 case "question":
                     hideWaiting();
-                    if (qIndex != currentQuestion || !questionDone && qIndex > currentQuestion) {
-                        // Novo pitanje (ili smo zakasnili sa lokalnim indexom)
-                        currentQuestion = qIndex;
-                        questionDone    = false;
-                        iAnswered       = false;
+                    // Prikaži pitanje samo ako je to NOVI indeks koji još nismo renderovali
+                    if (qIndex != lastRenderedQIndex) {
+                        lastRenderedQIndex = qIndex;
+                        currentQuestion    = qIndex;
+                        questionDone       = false;
+                        iAnswered          = false;
+                        calculatingResult  = false;
                         renderQuestion();
-                    } else if (qIndex == currentQuestion && !questionDone) {
-                        // Isto pitanje — možda je protivnik odgovorio, osvježi status
+                    } else {
+                        // Isto pitanje — osvježi status igrača
                         int p1Ans = toInt(snap.get("p1Answer"));
                         int p2Ans = toInt(snap.get("p2Answer"));
                         updateAnswerStatus(p1Ans, p2Ans);
                         updateScoreViews();
-                        // FIX: Host mora reagovati kad gost upiše odgovor/timeout.
-                        // Gost ne može pozvati checkIfBothAnswered (isHost guard),
-                        // pa host to radi ovdje svaki put kad snapshot stigne i ja sam već odgovorio.
-                        if (isHost && iAnswered) {
+                        // Host provjeri jesu li oba odgovorila (može biti da je snapshot stigao kasno)
+                        if (isHost && iAnswered && !questionDone) {
                             checkIfBothAnswered();
                         }
                     }
                     break;
 
                 case "result":
-                    // Host je izračunao rezultat — prikaži i pređi na sljedeće
                     hideWaiting();
-                    questionDone = true;
-                    String winner = snap.getString("winner");
-                    showQuestionResult(winner,
-                            toInt(snap.get("p1Answer")),
-                            toInt(snap.get("p2Answer")));
-                    // Host nakon 2s prelazi na sljedeće pitanje
-                    if (isHost) {
-                        new CountDownTimer(2000, 2000) {
-                            @Override public void onTick(long ms) {}
-                            @Override public void onFinish() {
-                                if (!isAdded()) return;
-                                advanceToNextQuestion();
-                            }
-                        }.start();
+                    if (!questionDone) {
+                        questionDone = true;
+                        if (timer != null) timer.cancel();
+                        String winner = snap.getString("winner");
+                        showQuestionResult(winner,
+                                toInt(snap.get("p1Answer")),
+                                toInt(snap.get("p2Answer")));
+                        // Host napreduje na sljedeće pitanje nakon 2s
+                        if (isHost) {
+                            new CountDownTimer(2000, 2000) {
+                                @Override public void onTick(long ms) {}
+                                @Override public void onFinish() {
+                                    if (!isAdded()) return;
+                                    advanceToNextQuestion();
+                                }
+                            }.start();
+                        }
                     }
                     break;
 
@@ -333,15 +412,15 @@ public class KoZnaZnaFragment extends Fragment {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // Prikaz pitanja (simultano — oba igrača vide isto pitanje u isto vrijeme)
+    // Renderuj pitanje
     // ═══════════════════════════════════════════════════════════════════════
 
     private void renderQuestion() {
         if (timer != null) timer.cancel();
         iAnswered         = false;
         questionDone      = false;
-        calculatingResult = false; // reset za novo pitanje
-        soloWaitingP2     = false; // reset solo stanja
+        calculatingResult = false;
+        soloWaitingP2     = false;
 
         if (currentQuestion >= questions.size()) {
             if (soloMode) showEndGame();
@@ -359,6 +438,8 @@ public class KoZnaZnaFragment extends Fragment {
                     ContextCompat.getColorStateList(requireContext(), R.color.white));
             answerButtons[i].setTextColor(
                     ContextCompat.getColor(requireContext(), R.color.dark_blue));
+            int idx = i;
+            answerButtons[i].setOnClickListener(v -> onAnswerClick(idx));
         }
 
         tvPlayer1Status.setText("Igrač 1 ⏳");
@@ -369,8 +450,6 @@ public class KoZnaZnaFragment extends Fragment {
         updateScoreViews();
         questionStartTime = System.currentTimeMillis();
         startTimer();
-
-        setupButtonClicks();
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -388,18 +467,16 @@ public class KoZnaZnaFragment extends Fragment {
         KoZnaZnaRepository.Question q = questions.get(currentQuestion);
         boolean correct = (answerIndex == q.correctIndex);
 
-        // Označi odgovor vizuelno odmah
+        // Vizualni feedback odmah
         answerButtons[answerIndex].setBackgroundTintList(
                 ContextCompat.getColorStateList(requireContext(),
                         correct ? android.R.color.holo_green_dark : android.R.color.holo_red_light));
 
-        // Bilježi statistiku
         if (correct) myCorrectCount++; else myWrongCount++;
 
         if (soloMode) {
             handleSoloAnswer(answerIndex, correct, elapsed, q);
         } else {
-            // Piši u Firestore
             Map<String, Object> update = new HashMap<>();
             if (isHost) {
                 update.put("p1Answer",     answerIndex);
@@ -409,23 +486,25 @@ public class KoZnaZnaFragment extends Fragment {
                 update.put("p2AnswerTime", elapsed);
             }
             sessionRef.update(update).addOnSuccessListener(v -> {
-                // Oba igrača pozivaju ovu metodu, ali samo host (isHost==true)
-                // zapravo računa — vidi guard na početku checkIfBothAnswered()
-                checkIfBothAnswered();
+                if (isHost) checkIfBothAnswered();
             });
             tvInfo.setText("✅ Odgovoreno! Čekam protivnika...");
         }
     }
 
-    // ── Host provjerava jesu li oba odgovorila i računa rezultat ──────────
+    // ═══════════════════════════════════════════════════════════════════════
+    // Host računa rezultat
+    // ═══════════════════════════════════════════════════════════════════════
 
     private void checkIfBothAnswered() {
         if (!isHost || questionDone || calculatingResult) return;
-        calculatingResult = true; // zaključaj odmah da spriječimo dupli poziv
+        calculatingResult = true;
+
         sessionRef.get().addOnSuccessListener(snap -> {
             if (!isAdded() || snap == null) return;
-            int p1Ans  = toInt(snap.get("p1Answer"));
-            int p2Ans  = toInt(snap.get("p2Answer"));
+
+            int  p1Ans = toInt(snap.get("p1Answer"));
+            int  p2Ans = toInt(snap.get("p2Answer"));
             long p1T   = toLong(snap.get("p1AnswerTime"));
             long p2T   = toLong(snap.get("p2AnswerTime"));
 
@@ -433,22 +512,20 @@ public class KoZnaZnaFragment extends Fragment {
             boolean p2Done = (p2Ans != -1);
 
             if (!p1Done || !p2Done) {
-                calculatingResult = false; // još čekamo, otključaj
+                calculatingResult = false;
                 return;
             }
 
-            // Oba su odgovorila — izračunaj ko dobija bodove
             KoZnaZnaRepository.Question q = questions.get(currentQuestion);
-            boolean p1Correct = (p1Ans == q.correctIndex);
-            boolean p2Correct = (p2Ans == q.correctIndex);
+            boolean p1Correct = (p1Ans != -2) && (p1Ans == q.correctIndex);
+            boolean p2Correct = (p2Ans != -2) && (p2Ans == q.correctIndex);
 
-            // Čitaj skore iz Firestore (ne lokalne var koje mogu biti zastarjele)
             int newP1Score = toInt(snap.get("p1Score"));
             int newP2Score = toInt(snap.get("p2Score"));
             String winner;
 
             if (p1Correct && p2Correct) {
-                // Oba tačno — brži dobija +10
+                // Oba tačno — samo BRŽI dobija +10, sporiji 0 (NEMA -5!)
                 if (p1T <= p2T) {
                     newP1Score += 10;
                     winner = "p1";
@@ -457,30 +534,37 @@ public class KoZnaZnaFragment extends Fragment {
                     winner = "p2";
                 }
             } else if (p1Correct) {
+                // Samo p1 tačno
                 newP1Score += 10;
+                // p2 je odgovorio netačno (ne timeout) → -5
+                if (p2Ans != -2) newP2Score -= 5;
                 winner = "p1";
-                if (p2Ans != -2) newP2Score -= 5; // p2 je odgovorio netačno (ne timeout)
             } else if (p2Correct) {
+                // Samo p2 tačno
                 newP2Score += 10;
-                winner = "p2";
+                // p1 je odgovorio netačno (ne timeout) → -5
                 if (p1Ans != -2) newP1Score -= 5;
+                winner = "p2";
             } else {
-                // Niko nije tačno odgovorio
+                // Niko nije tačno
+                // Odbitak samo onima koji su aktivno odgovorili netačno (ne timeout)
                 if (p1Ans != -2) newP1Score -= 5;
                 if (p2Ans != -2) newP2Score -= 5;
                 winner = "none";
             }
 
             Map<String, Object> result = new HashMap<>();
-            result.put("phase",    "result");
-            result.put("p1Score",  newP1Score);
-            result.put("p2Score",  newP2Score);
-            result.put("winner",   winner);
+            result.put("phase",   "result");
+            result.put("p1Score", newP1Score);
+            result.put("p2Score", newP2Score);
+            result.put("winner",  winner);
             sessionRef.update(result);
         });
     }
 
-    // ── Prikaži rezultat pitanja ───────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    // Prikaži rezultat pitanja
+    // ═══════════════════════════════════════════════════════════════════════
 
     private void showQuestionResult(String winner, int p1Ans, int p2Ans) {
         if (timer != null) timer.cancel();
@@ -502,12 +586,14 @@ public class KoZnaZnaFragment extends Fragment {
     }
 
     private void updateAnswerStatus(int p1Ans, int p2Ans) {
+        if (questions.isEmpty() || currentQuestion >= questions.size()) return;
+        KoZnaZnaRepository.Question q = questions.get(currentQuestion);
+
         if (p1Ans == -1) {
             tvPlayer1Status.setText("Igrač 1 ⏳");
         } else if (p1Ans == -2) {
             tvPlayer1Status.setText("Igrač 1 ⌛");
         } else {
-            KoZnaZnaRepository.Question q = questions.get(currentQuestion);
             tvPlayer1Status.setText(p1Ans == q.correctIndex ? "Igrač 1 ✅" : "Igrač 1 ❌");
         }
 
@@ -516,12 +602,13 @@ public class KoZnaZnaFragment extends Fragment {
         } else if (p2Ans == -2) {
             tvPlayer2Status.setText("Igrač 2 ⌛");
         } else {
-            KoZnaZnaRepository.Question q = questions.get(currentQuestion);
             tvPlayer2Status.setText(p2Ans == q.correctIndex ? "Igrač 2 ✅" : "Igrač 2 ❌");
         }
     }
 
-    // ── Host prelazi na sljedeće pitanje ──────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    // Host napreduje na sljedeće pitanje
+    // ═══════════════════════════════════════════════════════════════════════
 
     private void advanceToNextQuestion() {
         if (!isHost) return;
@@ -544,33 +631,37 @@ public class KoZnaZnaFragment extends Fragment {
     private void startTimer() {
         tvTimer.setTextColor(ContextCompat.getColor(requireContext(), R.color.petal));
         timer = new CountDownTimer(5000, 1000) {
-            @Override public void onTick(long ms) {
-                long s = ms / 1000;
+            @Override
+            public void onTick(long ms) {
+                if (!isAdded()) return;
+                long s = ms / 1000 + 1; // +1 da prikažemo 5,4,3,2,1 umjesto 4,3,2,1,0
                 tvTimer.setText(String.valueOf(s));
                 if (s <= 2)
                     tvTimer.setTextColor(
                             ContextCompat.getColor(requireContext(), android.R.color.holo_red_light));
             }
-            @Override public void onFinish() {
+            @Override
+            public void onFinish() {
                 if (!isAdded() || questionDone) return;
                 tvTimer.setText("0");
                 if (!iAnswered) {
-                    // Označimo timeout kao -2
                     iAnswered = true;
                     for (Button btn : answerButtons) btn.setEnabled(false);
                     if (soloMode) {
                         handleSoloTimeout();
                     } else {
                         Map<String, Object> update = new HashMap<>();
-                        if (isHost) update.put("p1Answer", -2);
-                        else        update.put("p2Answer", -2);
-                        update.put(isHost ? "p1AnswerTime" : "p2AnswerTime", 99999L);
-                        sessionRef.update(update).addOnSuccessListener(v -> checkIfBothAnswered());
+                        String answerField = isHost ? "p1Answer" : "p2Answer";
+                        String timeField   = isHost ? "p1AnswerTime" : "p2AnswerTime";
+                        update.put(answerField, -2);
+                        update.put(timeField,   99999L);
+                        sessionRef.update(update)
+                                .addOnSuccessListener(v -> {
+                                    if (isHost) checkIfBothAnswered();
+                                });
+                        tvInfo.setText("⌛ Vrijeme isteklo!");
                     }
                 }
-                // NAPOMENA: Guest sam upisuje vlastiti timeout kad mu istekne tajmer.
-                // Host NE smije ovdje pisati p2Answer=-2, jer guest-ov tajmer još uvijek
-                // može biti aktivan na drugom uređaju i on sam će upisati -2 kad istekne.
             }
         }.start();
     }
@@ -580,9 +671,15 @@ public class KoZnaZnaFragment extends Fragment {
     // ═══════════════════════════════════════════════════════════════════════
 
     private void startSoloGame() {
+        // Solo — samo miješamo lokalno
+        List<KoZnaZnaRepository.Question> shuffled = new ArrayList<>(allQuestions);
+        Collections.shuffle(shuffled);
+        questions = shuffled.size() > 5 ? new ArrayList<>(shuffled.subList(0, 5)) : shuffled;
+
         currentQuestion = 0;
         player1Score    = 0;
         player2Score    = 0;
+        lastRenderedQIndex = -1;
         hideWaiting();
         renderQuestion();
     }
@@ -590,25 +687,35 @@ public class KoZnaZnaFragment extends Fragment {
     private void handleSoloAnswer(int answerIndex, boolean correct, long elapsed,
                                   KoZnaZnaRepository.Question q) {
         if (!soloWaitingP2) {
-            // Igrač 1 odgovorio
             soloP1Answer     = answerIndex;
             soloP1AnswerTime = elapsed;
             soloWaitingP2    = true;
 
             tvPlayer1Status.setText(correct ? "Igrač 1 ✅" : "Igrač 1 ❌");
-            tvInfo.setText("🎯 Igrač 2 bira odgovor!");
 
-            // Reaktiviraj dugmad za Igrača 2 (osim kliknutog ako netačno)
-            for (int i = 0; i < 4; i++) {
-                answerButtons[i].setEnabled(correct ? false : (i != answerIndex));
-            }
             if (correct) {
-                // P1 tačno odmah — P2 nema šansu (kao u specifikaciji: brži dobija)
-                soloP2Answer = -1;
-                soloFinishQuestion(q);
+                // P1 tačno — P2 i dalje igra (spec: brži dobija bodove ako oba tačno)
+                tvInfo.setText("🎯 Igrač 1 tačno! Igrač 2, tvoj red!");
+                // Resetuj klikove za P2 (P1-ov dugme ostaje zeleno, ostala su aktivna)
+                for (int i = 0; i < 4; i++) {
+                    final int idx2 = i;
+                    answerButtons[i].setEnabled(true);
+                    answerButtons[i].setOnClickListener(v2 -> onAnswerClick(idx2));
+                }
+                // P1-ov dugme onemogući (već je odabran)
+                answerButtons[answerIndex].setEnabled(false);
+            } else {
+                // P1 netačno — P2 igra
+                tvInfo.setText("🎯 Igrač 2 bira odgovor!");
+                for (int i = 0; i < 4; i++) {
+                    final int idx2 = i;
+                    answerButtons[i].setEnabled(true);
+                    answerButtons[i].setOnClickListener(v2 -> onAnswerClick(idx2));
+                }
+                // P1-ov (netačni) dugme onemogući
+                answerButtons[answerIndex].setEnabled(false);
             }
         } else {
-            // Igrač 2 odgovorio
             soloP2Answer     = answerIndex;
             soloP2AnswerTime = elapsed;
             soloWaitingP2    = false;
@@ -619,30 +726,31 @@ public class KoZnaZnaFragment extends Fragment {
     }
 
     private void handleSoloTimeout() {
+        KoZnaZnaRepository.Question q = questions.get(currentQuestion);
         if (!soloWaitingP2) {
-            // P1 nije odgovorio
             soloP1Answer     = -2;
             soloP1AnswerTime = 99999;
             soloWaitingP2    = true;
             tvPlayer1Status.setText("Igrač 1 ⌛");
             tvInfo.setText("🎯 Igrač 2 bira odgovor!");
-            // Reaktiviraj za P2
             for (Button btn : answerButtons) btn.setEnabled(true);
+            // Resetuj timer na 5s za P2
+            startTimer();
         } else {
-            // P2 nije odgovorio
             soloP2Answer = -2;
             soloWaitingP2 = false;
             tvPlayer2Status.setText("Igrač 2 ⌛");
-            soloFinishQuestion(questions.get(currentQuestion));
+            soloFinishQuestion(q);
         }
     }
 
     private void soloFinishQuestion(KoZnaZnaRepository.Question q) {
+        if (timer != null) timer.cancel();
         for (Button btn : answerButtons) btn.setEnabled(false);
         markCorrectAnswer(q.correctIndex);
 
-        boolean p1Correct = (soloP1Answer == q.correctIndex);
-        boolean p2Correct = (soloP2Answer == q.correctIndex);
+        boolean p1Correct = (soloP1Answer != -2) && (soloP1Answer == q.correctIndex);
+        boolean p2Correct = (soloP2Answer != -2) && (soloP2Answer == q.correctIndex);
 
         if (p1Correct && p2Correct) {
             if (soloP1AnswerTime <= soloP2AnswerTime) { player1Score += 10; tvInfo.setText("🏆 Igrač 1 bio brži! +10"); }
@@ -663,7 +771,6 @@ public class KoZnaZnaFragment extends Fragment {
 
         updateScoreViews();
 
-        // Reset solo state
         soloP1Answer = soloP2Answer = -1;
         soloP1AnswerTime = soloP2AnswerTime = 0;
 
@@ -672,6 +779,7 @@ public class KoZnaZnaFragment extends Fragment {
             @Override public void onFinish() {
                 if (!isAdded()) return;
                 currentQuestion++;
+                lastRenderedQIndex = -1; // reset za sljedeće pitanje
                 if (currentQuestion < questions.size()) renderQuestion();
                 else showEndGame();
             }
@@ -700,8 +808,15 @@ public class KoZnaZnaFragment extends Fragment {
             winner = "Nerješeno! (" + player1Score + " : " + player2Score + ")";
 
         Toast.makeText(requireContext(), winner, Toast.LENGTH_LONG).show();
-        NavHostFragment.findNavController(this)
-                .navigate(R.id.action_kozna_to_spojnice);
+        try {
+            Bundle args = new Bundle();
+            args.putString("sessionId", soloMode ? "" : sessionId);
+            args.putBoolean("isHost", isHost);
+            NavHostFragment.findNavController(this)
+                    .navigate(R.id.action_kozna_to_spojnice, args);
+        } catch (Exception e) {
+            // Navigation fallback
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -719,14 +834,6 @@ public class KoZnaZnaFragment extends Fragment {
     private void hideWaiting() {
         if (layoutWaiting != null) layoutWaiting.setVisibility(View.GONE);
         layoutGame.setVisibility(View.VISIBLE);
-        setupButtonClicks();
-    }
-
-    private void setupButtonClicks() {
-        for (int i = 0; i < 4; i++) {
-            int idx = i;
-            answerButtons[i].setOnClickListener(v -> onAnswerClick(idx));
-        }
     }
 
     private void markCorrectAnswer(int idx) {
