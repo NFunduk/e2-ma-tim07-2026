@@ -24,12 +24,23 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.example.sabona.model.AppNotification;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.DocumentChange;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
+
 public class MainActivity extends AppCompatActivity {
 
     private BottomNavigationView bottomNav;
     private NavController navController;
     private ImageView btnNotifications;
     private TextView tvToolbarTitle;
+
+    private FirebaseFirestore db;
+    private ListenerRegistration notificationsListener;
+    private boolean firstLoadNotifications = true;
 
     private final Set<Integer> authDestinations = new HashSet<>(Arrays.asList(
             R.id.loginFragment,
@@ -73,6 +84,14 @@ public class MainActivity extends AppCompatActivity {
         NavHostFragment navHostFragment = (NavHostFragment)
                 getSupportFragmentManager().findFragmentById(R.id.navHostFragment);
         navController = navHostFragment.getNavController();
+
+        if (getIntent() != null &&
+                getIntent().getBooleanExtra("open_notifications", false)) {
+            if (navController.getCurrentDestination() != null &&
+                    navController.getCurrentDestination().getId() != R.id.notificationsFragment) {
+                navController.navigate(R.id.notificationsFragment);
+            }
+        }
 
         navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
             boolean isAuth = authDestinations.contains(destination.getId());
@@ -147,11 +166,17 @@ public class MainActivity extends AppCompatActivity {
                                 navController.navigate(R.id.homeFragment))
                         .show();
             } else {
-                navController.navigate(R.id.notificationsFragment);
+                if (navController.getCurrentDestination() != null &&
+                        navController.getCurrentDestination().getId() != R.id.notificationsFragment) {
+                    navController.navigate(R.id.notificationsFragment);
+                }
             }
         });
 
         NotificationHelper.createChannels(this);
+
+        db = FirebaseFirestore.getInstance();
+        startListeningForSystemNotifications();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissions(
@@ -160,5 +185,75 @@ public class MainActivity extends AppCompatActivity {
             );
         }
 
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (notificationsListener == null &&
+                FirebaseAuth.getInstance().getCurrentUser() != null) {
+            firstLoadNotifications = true;
+            startListeningForSystemNotifications();
+        }
+    }
+
+    private void startListeningForSystemNotifications() {
+        if (FirebaseAuth.getInstance().getCurrentUser() == null) {
+            return;
+        }
+
+        if (notificationsListener != null) {
+            return;
+        }
+
+        String uid = FirebaseAuth.getInstance().getCurrentUser().getUid();
+
+        notificationsListener = db.collection("users")
+                .document(uid)
+                .collection("notifications")
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .addSnapshotListener((snapshots, error) -> {
+                    if (error != null || snapshots == null) return;
+
+                    for (DocumentChange change : snapshots.getDocumentChanges()) {
+                        if (change.getType() == DocumentChange.Type.ADDED) {
+                            AppNotification notification =
+                                    change.getDocument().toObject(AppNotification.class);
+
+                            notification.setId(change.getDocument().getId());
+
+                            if (!notification.isRead()) {
+                                NotificationHelper.showNotification(
+                                        MainActivity.this,
+                                        notification
+                                );
+                            }
+                        }
+                    }
+                });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        if (notificationsListener != null) {
+            notificationsListener.remove();
+        }
+    }
+
+    @Override
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+
+        if (intent.getBooleanExtra("open_notifications", false)
+                && navController != null) {
+            if (navController.getCurrentDestination() != null &&
+                    navController.getCurrentDestination().getId() != R.id.notificationsFragment) {
+                navController.navigate(R.id.notificationsFragment);
+            }
+        }
     }
 }

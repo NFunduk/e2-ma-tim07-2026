@@ -42,6 +42,21 @@ public class NotificationRepository {
                 );
     }
 
+    public void markAllAsRead() {
+        String uid = getCurrentUid();
+        if (uid == null) return;
+
+        db.collection("users")
+                .document(uid)
+                .collection("notifications")
+                .get()
+                .addOnSuccessListener(snapshot -> {
+                    for (com.google.firebase.firestore.DocumentSnapshot doc : snapshot.getDocuments()) {
+                        doc.getReference().update("read", true);
+                    }
+                });
+    }
+
     @Nullable
     private String getCurrentUid() {
         if (FirebaseAuth.getInstance().getCurrentUser() == null) {
