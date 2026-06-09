@@ -14,11 +14,11 @@ import java.util.Random;
 public class MojBrojViewModel extends ViewModel {
 
     public enum Phase {
-        IDLE,           // čekamo STOP za traženi broj
-        REVEAL_TARGET,  // traženi broj otkriven, čekamo STOP za ponuđene
-        PLAYING,        // igrač unosi izraz
-        ROUND_END,      // runda gotova
-        GAME_OVER       // obe runde gotove
+        IDLE,            // čekamo STOP za traženi broj (samo activePlayer)
+        REVEAL_TARGET,   // traženi broj otkriven, čekamo STOP za ponuđene (samo activePlayer)
+        PLAYING,         // OBA igrača unose izraz istovremeno (60s)
+        ROUND_END,       // runda gotova — prikazujemo rezultate
+        GAME_OVER        // obe runde gotove
     }
 
     // ── LiveData ─────────────────────────────────────────────────────
@@ -31,6 +31,8 @@ public class MojBrojViewModel extends ViewModel {
     private final MutableLiveData<Integer> liveExprResult = new MutableLiveData<>();
     private final MutableLiveData<Boolean> isMyTurn       = new MutableLiveData<>(false);
     private final MutableLiveData<String>  roundSummary   = new MutableLiveData<>();
+    // true kad sam ja lično završio unos (submit ili timer) — da Fragment zna da zaključa UI
+    private final MutableLiveData<Boolean> iDoneLocal     = new MutableLiveData<>(false);
 
     // ── Lokalno stanje ────────────────────────────────────────────────
     private MojBrojGameState remoteState = new MojBrojGameState();
@@ -53,8 +55,9 @@ public class MojBrojViewModel extends ViewModel {
     public LiveData<Integer> getLiveExprResult()  { return liveExprResult; }
     public LiveData<Boolean> getIsMyTurn()        { return isMyTurn; }
     public LiveData<String>  getRoundSummary()    { return roundSummary; }
+    public LiveData<Boolean> getIDoneLocal()      { return iDoneLocal; }
 
-    public int getActivePlayer() {
+    public int getActivePlayerNumber() {
         return remoteState.activePlayerUid.equals(GameSessionManager.UID_PLAYER1) ? 1 : 2;
     }
 
@@ -63,20 +66,22 @@ public class MojBrojViewModel extends ViewModel {
     public void init() {
         iAmPlayer1 = sessionMgr.isPlayer1();
 
-        // Player1 kreira početno stanje
+        // Player1 kreira početno stanje u Firestoru
         if (iAmPlayer1 && !initialized) {
             initialized = true;
             MojBrojGameState initState = new MojBrojGameState();
-            initState.status          = "playing";
-            initState.round           = 1;
-            initState.activePlayerUid = GameSessionManager.UID_PLAYER1;
-            initState.phase           = "IDLE";
-            initState.targetNumber    = 0;
-            initState.offeredNumbers  = "";
-            initState.player1Score    = 0;
-            initState.player2Score    = 0;
+            initState.status             = "playing";
+            initState.round              = 1;
+            initState.activePlayerUid    = GameSessionManager.UID_PLAYER1;
+            initState.phase              = "IDLE";
+            initState.targetNumber       = 0;
+            initState.offeredNumbers     = "";
+            initState.player1Score       = 0;
+            initState.player2Score       = 0;
             initState.player1RoundResult = -1;
             initState.player2RoundResult = -1;
+            initState.player1Done        = false;
+            initState.player2Done        = false;
             sessionRepo.initMojBrojState(initState);
         }
 
@@ -96,13 +101,14 @@ public class MojBrojViewModel extends ViewModel {
     }
 
     private void applyRemoteState(MojBrojGameState state) {
+        // isMyTurn = jesam li ja activePlayer (onaj ko stopira)
         boolean myTurn = state.activePlayerUid.equals(sessionMgr.getMyUid());
         isMyTurn.postValue(myTurn);
 
         int activePlayer = state.activePlayerUid.equals(GameSessionManager.UID_PLAYER1) ? 1 : 2;
-        roundLabel.postValue("Runda " + state.round + "/2  —  Igrač " + activePlayer);
+        roundLabel.postValue("Runda " + state.round + "/2  —  Igrač " + activePlayer + " stopira");
 
-        // Parsiraj ponuđene brojeve iz stringa
+        // Parsiraj ponuđene brojeve
         if (state.offeredNumbers != null && !state.offeredNumbers.isEmpty()) {
             offeredNumbers.postValue(parseNumbers(state.offeredNumbers));
         }
@@ -113,11 +119,12 @@ public class MojBrojViewModel extends ViewModel {
 
         switch (state.phase) {
             case "IDLE":
+                iDoneLocal.postValue(false);
                 phase.postValue(Phase.IDLE);
                 if (myTurn) {
                     infoText.postValue("Tvoj red! Pritisni STOP da vidiš traženi broj.");
                 } else {
-                    infoText.postValue("Igrač " + activePlayer + " pritiska STOP...");
+                    infoText.postValue("Igrač " + activePlayer + " pritiska STOP za traženi broj...");
                 }
                 break;
 
@@ -128,18 +135,23 @@ public class MojBrojViewModel extends ViewModel {
                             + " — pritisni STOP za ponuđene brojeve.");
                 } else {
                     infoText.postValue("Traženi: " + state.targetNumber
-                            + " — čekamo igrača " + activePlayer + "...");
+                            + " — čekamo igrača " + activePlayer + " da otkrije brojeve...");
                 }
                 break;
 
             case "PLAYING":
+                // OBA igrača su u PLAYING — svako ima 60s tajmer lokalno
                 phase.postValue(Phase.PLAYING);
-                if (myTurn) {
-                    infoText.postValue("Napravi " + state.targetNumber
-                            + " od ponuđenih brojeva!");
+                boolean myDone = iAmPlayer1 ? state.player1Done : state.player2Done;
+                boolean opDone = iAmPlayer1 ? state.player2Done : state.player1Done;
+
+                if (myDone) {
+                    infoText.postValue(opDone
+                            ? "Oba igrača su završila — čekamo rezultate..."
+                            : "Predao/la si. Čekamo protivnika...");
                 } else {
-                    infoText.postValue("Igrač " + activePlayer
-                            + " rešava... Čekaj.");
+                    infoText.postValue("Napravi " + state.targetNumber
+                            + " od ponuđenih brojeva! (" + (opDone ? "Protivnik je završio" : "Oba igraju") + ")");
                 }
                 break;
 
@@ -171,7 +183,7 @@ public class MojBrojViewModel extends ViewModel {
     // ── Akcije igrača ─────────────────────────────────────────────────
 
     /**
-     * Aktivni igrač pritisne STOP.
+     * Aktivni igrač (activePlayer) pritisne STOP ili shake.
      * IDLE → generiše traženi broj i prelazi u REVEAL_TARGET
      * REVEAL_TARGET → generiše ponuđene brojeve i prelazi u PLAYING
      */
@@ -186,8 +198,12 @@ public class MojBrojViewModel extends ViewModel {
             sessionRepo.updateMojBrojState(newState);
 
         } else if ("REVEAL_TARGET".equals(remoteState.phase)) {
-            newState.offeredNumbers = generateOfferedNumbers();
-            newState.phase = "PLAYING";
+            newState.offeredNumbers  = generateOfferedNumbers();
+            newState.phase           = "PLAYING";
+            newState.player1Done     = false;
+            newState.player2Done     = false;
+            newState.player1RoundResult = -1;
+            newState.player2RoundResult = -1;
             sessionRepo.updateMojBrojState(newState);
         }
     }
@@ -221,77 +237,135 @@ public class MojBrojViewModel extends ViewModel {
     }
 
     /**
-     * Igrač potvrđuje izraz.
+     * Igrač potvrđuje izraz (submit dugme).
      * Vraća evaluiran rezultat, ili -1 ako je neispravan (faza se ne menja).
+     * Oba igrača mogu ovo da urade nezavisno tokom PLAYING faze.
      */
     public int submitExpression(String expr) {
-        if (!remoteState.activePlayerUid.equals(sessionMgr.getMyUid())) return -1;
+        if (!"PLAYING".equals(remoteState.phase)) return -1;
+        // Proveri da li sam već predao
+        boolean alreadyDone = iAmPlayer1 ? remoteState.player1Done : remoteState.player2Done;
+        if (alreadyDone) return -1;
 
-        int result = -1;
-        if (expr != null && !expr.trim().isEmpty()) {
-            try {
-                ExpressionEvaluator ev = new ExpressionEvaluator(expr);
-                double val = ev.evaluate();
-                if (val == Math.floor(val) && val > 0) {
-                    result = (int) val;
-                } else {
-                    return -1; // decimalan ili negativan — ne menjaj fazu
-                }
-            } catch (ExpressionEvaluator.EvalException e) {
-                return -1; // neispravan izraz — ne menjaj fazu
-            }
-        }
+        int result = evaluateExpr(expr);
+        if (result == -1) return -1; // neispravan izraz — ne menjaj ništa
 
-        finalizeRound(result);
+        recordMyResult(result);
         return result;
     }
 
-    /** Timer istekao — prihvati šta god je uneseno */
+    /**
+     * Tajmer za 60s istekao za ovog igrača — prihvati šta god je uneseno.
+     * Svaki igrač poziva ovo lokalno kada mu istekne timer.
+     */
     public void onRoundTimerFinished(String currentExpr) {
-        if (!remoteState.activePlayerUid.equals(sessionMgr.getMyUid())) return;
+        if (!"PLAYING".equals(remoteState.phase)) return;
+        boolean alreadyDone = iAmPlayer1 ? remoteState.player1Done : remoteState.player2Done;
+        if (alreadyDone) return;
 
-        int result = -1;
-        if (currentExpr != null && !currentExpr.trim().isEmpty()) {
-            try {
-                ExpressionEvaluator ev = new ExpressionEvaluator(currentExpr);
-                double val = ev.evaluate();
-                if (val == Math.floor(val) && val > 0) result = (int) val;
-            } catch (ExpressionEvaluator.EvalException ignored) {}
-        }
-        finalizeRound(result);
+        int result = evaluateExpr(currentExpr); // može biti -1 ako je prazan/neispravan
+        recordMyResult(result);
     }
 
-    private void finalizeRound(int myResult) {
+    /**
+     * Upis svog rezultata u Firestore.
+     * Ako su oba igrača done → izračunaj bodove i prebaci u ROUND_END.
+     */
+    private void recordMyResult(int myResult) {
         MojBrojGameState newState = copyState(remoteState);
 
         if (iAmPlayer1) {
             newState.player1RoundResult = myResult;
+            newState.player1Done = true;
         } else {
             newState.player2RoundResult = myResult;
+            newState.player2Done = true;
         }
 
-        // Izračunaj bodove i upiši
-        int pts1 = scoreFor(myResult,
-                iAmPlayer1 ? -999 : newState.player2RoundResult, // opponent još nije igrao u r1
-                newState.targetNumber, true);
-        int pts2 = scoreFor(iAmPlayer1 ? -999 : myResult,
-                iAmPlayer1 ? myResult : -999,
-                newState.targetNumber, false);
+        // Javi lokalno da sam završio (da Fragment zaključa UI odmah)
+        iDoneLocal.postValue(true);
 
-        // Jednostavnije: skor za aktivnog igrača
-        int myPts = calcScore(myResult, newState.targetNumber);
-        if (iAmPlayer1) {
-            newState.player1Score += myPts;
-        } else {
-            newState.player2Score += myPts;
+        // Ako su oba završila → izračunaj bodove i idi u ROUND_END
+        boolean bothDone = (iAmPlayer1 ? newState.player1Done : newState.player2Done)
+                && (iAmPlayer1 ? remoteState.player2Done : remoteState.player1Done)
+                // Proverimo i current newState (da ne preskočimo race condition)
+                || (newState.player1Done && newState.player2Done);
+
+        if (bothDone) {
+            applyScoring(newState);
+            newState.phase = "ROUND_END";
         }
 
-        newState.phase = "ROUND_END";
         sessionRepo.updateMojBrojState(newState);
     }
 
     /**
-     * Poziva Fragment posle 3s pauze — samo player1 pokreće sledeću rundu.
+     * Bodovanje po specifikaciji:
+     *
+     * - Ako igrač pogodi traženi broj → 10 bodova.
+     * - Ako prvi igrač ne pogodi, a drugi pogodi → drugi 10 bodova.
+     * - Ako oba ne pogode:
+     *     - Onaj čiji je rezultat bliži dobija 5 bodova.
+     *     - Ako su isti rezultat (≠ 0) → 5 bodova dobija igrač ČIJA je runda (activePlayer).
+     *     - Ako igrač ništa nije uneo (-1) → 0 bodova.
+     * - Ako oba ništa nisu unela → 0-0.
+     */
+    private void applyScoring(MojBrojGameState s) {
+        int target = s.targetNumber;
+        int r1 = s.player1RoundResult; // -1 = nije uneo
+        int r2 = s.player2RoundResult;
+
+        boolean p1Hit = (r1 == target);
+        boolean p2Hit = (r2 == target);
+
+        if (p1Hit && p2Hit) {
+            // Oba pogodila — po spec nije eksplicitno, ali svako dobija 10
+            s.player1Score += 10;
+            s.player2Score += 10;
+        } else if (p1Hit) {
+            s.player1Score += 10;
+        } else if (p2Hit) {
+            s.player2Score += 10;
+        } else {
+            // Niko nije pogodio
+            if (r1 == -1 && r2 == -1) {
+                // Oba bez unosa — 0-0
+                return;
+            }
+            if (r1 == -1) {
+                // Samo P2 nešto uneo → P2 dobija 5 (bliži od 0 bodova P1)
+                s.player2Score += 5;
+                return;
+            }
+            if (r2 == -1) {
+                // Samo P1 nešto uneo → P1 dobija 5
+                s.player1Score += 5;
+                return;
+            }
+
+            int diff1 = Math.abs(r1 - target);
+            int diff2 = Math.abs(r2 - target);
+
+            if (diff1 < diff2) {
+                s.player1Score += 5;
+            } else if (diff2 < diff1) {
+                s.player2Score += 5;
+            } else {
+                // Isti rezultat (i različit od targeta) → bodove dobija čija je runda
+                boolean activeIsP1 = s.activePlayerUid.equals(GameSessionManager.UID_PLAYER1);
+                if (activeIsP1) {
+                    s.player1Score += 5;
+                } else {
+                    s.player2Score += 5;
+                }
+            }
+        }
+    }
+
+    /**
+     * Poziva Fragment posle 3s pauze na kraju runde.
+     * Samo player1 pokreće sledeću rundu (da ne bi oba pisala).
+     * Ali: ako su oba done a ROUND_END još nije upisan, player1 to radi.
      */
     public void onRoundEndCountdownFinished() {
         if (!"ROUND_END".equals(remoteState.phase)) return;
@@ -299,48 +373,50 @@ public class MojBrojViewModel extends ViewModel {
 
         if (remoteState.round == 1) {
             MojBrojGameState newState = copyState(remoteState);
-            newState.round = 2;
-            newState.activePlayerUid = GameSessionManager.UID_PLAYER2;
-            newState.phase = "IDLE";
-            newState.targetNumber = 0;
-            newState.offeredNumbers = "";
-            newState.player1RoundResult = -1;
-            newState.player2RoundResult = -1;
+            newState.round               = 2;
+            newState.activePlayerUid     = GameSessionManager.UID_PLAYER2;
+            newState.phase               = "IDLE";
+            newState.targetNumber        = 0;
+            newState.offeredNumbers      = "";
+            newState.player1RoundResult  = -1;
+            newState.player2RoundResult  = -1;
+            newState.player1Done         = false;
+            newState.player2Done         = false;
             sessionRepo.updateMojBrojState(newState);
         } else {
             MojBrojGameState newState = copyState(remoteState);
-            newState.phase = "GAME_OVER";
+            newState.phase  = "GAME_OVER";
             newState.status = "finished";
             sessionRepo.updateMojBrojState(newState);
         }
     }
 
-    // ── Bodovanje ─────────────────────────────────────────────────────
-
-    /**
-     * Bodovi za aktivnog igrača u rundi.
-     * Pošto igrači igraju jedan po jedan (ne simultano),
-     * svaki dobija bodove samo za svoju rundu.
-     */
-    private int calcScore(int myResult, int target) {
-        if (myResult == target) return 10;
-        if (myResult == -1) return 0;
-        return 5; // bliži od protivnika — u ovoj implementaciji svako igra sam pa dobija 5
-    }
-
-    // Ostavljamo za kompatibilnost
-    private int scoreFor(int my, int their, int target, boolean iAmActive) { return 0; }
-
     // ── Helpers ───────────────────────────────────────────────────────
+
+    /** Evaluira izraz, vraća ceo pozitivan rezultat ili -1 ako nije validan */
+    private int evaluateExpr(String expr) {
+        if (expr == null || expr.trim().isEmpty()) return -1;
+        try {
+            ExpressionEvaluator ev = new ExpressionEvaluator(expr);
+            double val = ev.evaluate();
+            if (val == Math.floor(val) && val > 0) {
+                return (int) val;
+            }
+        } catch (ExpressionEvaluator.EvalException ignored) {}
+        return -1;
+    }
 
     private String generateOfferedNumbers() {
         int[] nums = new int[6];
+        // 4 jednocifrena
         nums[0] = 1 + rng.nextInt(9);
         nums[1] = 1 + rng.nextInt(9);
         nums[2] = 1 + rng.nextInt(9);
         nums[3] = 1 + rng.nextInt(9);
+        // jedan srednji: 10, 15 ili 20
         int[] medium = {10, 15, 20};
         nums[4] = medium[rng.nextInt(3)];
+        // jedan veliki: 25, 50, 75 ili 100
         int[] large = {25, 50, 75, 100};
         nums[5] = large[rng.nextInt(4)];
 
@@ -380,6 +456,8 @@ public class MojBrojViewModel extends ViewModel {
         copy.player2Score        = src.player2Score;
         copy.player1RoundResult  = src.player1RoundResult;
         copy.player2RoundResult  = src.player2RoundResult;
+        copy.player1Done         = src.player1Done;
+        copy.player2Done         = src.player2Done;
         return copy;
     }
 

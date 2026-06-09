@@ -45,6 +45,9 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
     private CountDownTimer   autoRevealTimer;
     private CountDownTimer   roundEndTimer;
 
+    // Da ne pokrenemo tajmer dva puta (Firestore može da puca više puta za isti state)
+    private boolean roundTimerRunning = false;
+
     // ── Shake sensor ──────────────────────────────────────────────────
     private SensorManager sensorManager;
     private Sensor        accelerometer;
@@ -132,7 +135,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {}
 
-    // ── Observer ──────────────────────────────────────────────────────
+    // ── Observeri ─────────────────────────────────────────────────────
 
     private void observeViewModel() {
 
@@ -175,19 +178,10 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
             }
         });
 
-        viewModel.getIsMyTurn().observe(getViewLifecycleOwner(), myTurn -> {
-            // Refresh UI zavisno od faze i reda
-            MojBrojViewModel.Phase currentPhase = viewModel.getPhase().getValue();
-            if (currentPhase == MojBrojViewModel.Phase.IDLE
-                    || currentPhase == MojBrojViewModel.Phase.REVEAL_TARGET) {
-                btnStop.setEnabled(myTurn);
-                btnStopNumbers.setEnabled(myTurn);
-            }
-            if (currentPhase == MojBrojViewModel.Phase.PLAYING) {
-                etExpression.setEnabled(myTurn);
-                setOperatorButtonsEnabled(myTurn);
-                btnSubmit.setEnabled(myTurn);
-                btnClear.setEnabled(myTurn);
+        // iDoneLocal: kad sam ja predao, zaključaj moj UI odmah (ne čekaj Firestore)
+        viewModel.getIDoneLocal().observe(getViewLifecycleOwner(), done -> {
+            if (Boolean.TRUE.equals(done)) {
+                lockExpressionUI();
             }
         });
 
@@ -198,46 +192,60 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
 
             switch (p) {
                 case IDLE:
+                    roundTimerRunning = false;
                     resetExpressionUI();
+                    // Samo activePlayer vidi STOP dugme aktivnim
                     btnStop.setEnabled(myTurn);
                     btnStopNumbers.setEnabled(false);
                     etExpression.setEnabled(false);
                     setOperatorButtonsEnabled(false);
                     btnSubmit.setEnabled(false);
                     btnClear.setEnabled(false);
+                    // Auto-reveal posle 5s — samo activePlayer
                     if (myTurn) startAutoRevealTimer(true);
                     break;
 
                 case REVEAL_TARGET:
                     btnStop.setEnabled(false);
                     btnStopNumbers.setEnabled(myTurn);
+                    etExpression.setEnabled(false);
+                    setOperatorButtonsEnabled(false);
+                    btnSubmit.setEnabled(false);
+                    btnClear.setEnabled(false);
                     if (myTurn) startAutoRevealTimer(false);
                     break;
 
                 case PLAYING:
+                    // OBA igrača dobijaju 60s tajmer — svako lokalno
                     btnStop.setEnabled(false);
                     btnStopNumbers.setEnabled(false);
-                    etExpression.setEnabled(myTurn);
-                    setOperatorButtonsEnabled(myTurn);
-                    btnSubmit.setEnabled(myTurn);
-                    btnClear.setEnabled(myTurn);
-                    if (myTurn) startRoundTimer();
+                    // Omogući input svima (osim ako sam već predao)
+                    boolean alreadyDone = Boolean.TRUE.equals(viewModel.getIDoneLocal().getValue());
+                    if (!alreadyDone) {
+                        etExpression.setEnabled(true);
+                        setOperatorButtonsEnabled(true);
+                        btnSubmit.setEnabled(true);
+                        btnClear.setEnabled(true);
+                        // Pokreni tajmer samo ako još nije pokrenut
+                        if (!roundTimerRunning) {
+                            roundTimerRunning = true;
+                            startRoundTimer();
+                        }
+                    }
                     break;
 
                 case ROUND_END:
+                    roundTimerRunning = false;
                     cancelAllTimers();
-                    etExpression.setEnabled(false);
-                    setOperatorButtonsEnabled(false);
-                    btnStop.setEnabled(false);
-                    btnStopNumbers.setEnabled(false);
-                    btnSubmit.setEnabled(false);
-                    btnClear.setEnabled(false);
+                    lockExpressionUI();
                     tvMojBrojTimer.setText("00:00");
                     startRoundEndTimer();
                     break;
 
                 case GAME_OVER:
+                    roundTimerRunning = false;
                     cancelAllTimers();
+                    lockExpressionUI();
                     break;
             }
         });
@@ -285,6 +293,8 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
                         "Neispravan izraz.", Toast.LENGTH_SHORT).show();
             } else {
                 cancelRoundTimer();
+                roundTimerRunning = false;
+                // lockExpressionUI() će biti pozvan iz iDoneLocal observera
             }
         });
 
@@ -298,8 +308,9 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         for (int i = 0; i < 6; i++) {
             final int idx = i;
             tvNums[idx].setOnClickListener(v -> {
-                if (viewModel.getPhase().getValue() != MojBrojViewModel.Phase.PLAYING) return;
-                if (!Boolean.TRUE.equals(viewModel.getIsMyTurn().getValue())) return;
+                MojBrojViewModel.Phase cur = viewModel.getPhase().getValue();
+                if (cur != MojBrojViewModel.Phase.PLAYING) return;
+                if (Boolean.TRUE.equals(viewModel.getIDoneLocal().getValue())) return;
                 if (usedCount[idx] > 0) {
                     Toast.makeText(requireContext(),
                             "Ovaj broj si već iskoristio!", Toast.LENGTH_SHORT).show();
@@ -342,6 +353,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         autoRevealTimer.start();
     }
 
+    /** 60 sekundi — teče lokalno na oba uređaja istovremeno */
     private void startRoundTimer() {
         cancelRoundTimer();
         roundTimer = new CountDownTimer(60_000, 1_000) {
@@ -353,6 +365,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
             @Override
             public void onFinish() {
                 tvMojBrojTimer.setText("00:00");
+                roundTimerRunning = false;
                 String expr = etExpression.getText().toString().trim();
                 viewModel.onRoundTimerFinished(expr);
             }
@@ -399,6 +412,15 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         if (!Boolean.TRUE.equals(viewModel.getIsMyTurn().getValue())) return;
         cancelAutoRevealTimer();
         viewModel.onStop();
+    }
+
+    private void lockExpressionUI() {
+        etExpression.setEnabled(false);
+        setOperatorButtonsEnabled(false);
+        btnSubmit.setEnabled(false);
+        btnClear.setEnabled(false);
+        btnStop.setEnabled(false);
+        btnStopNumbers.setEnabled(false);
     }
 
     private void appendExpr(String token) {
@@ -469,6 +491,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         etExpression.setText("");
         tvResult.setText("—");
         tvTargetNumber.setText("???");
+        tvMojBrojTimer.setText("01:00");
         for (int i = 0; i < 6; i++) {
             tvNums[i].setText("?");
             usedCount[i] = 0;
