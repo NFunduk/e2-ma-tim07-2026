@@ -7,22 +7,38 @@ import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
+/**
+ * Pristup Firestoru za igre.
+ *
+ * Struktura (ista kao Ko Zna Zna):
+ *   gameSessions/{sessionId}/games/korakPoKorak
+ *   gameSessions/{sessionId}/games/mojBroj
+ */
 public class GameSessionRepository {
 
-    private static final String COL_GAMES    = "games";
     private static final String DOC_KORAK    = "korakPoKorak";
     private static final String DOC_MOJ_BROJ = "mojBroj";
 
-    private final FirebaseFirestore db = FirebaseFirestore.getInstance();
+    private final FirebaseFirestore   db         = FirebaseFirestore.getInstance();
+    private final GameSessionManager  sessionMgr = GameSessionManager.get();
 
-    // ── Korak po korak ───────────────────────────────────────────────
+    // ── Document refs ────────────────────────────────────────────────
 
     private DocumentReference korakRef() {
-        return db.collection(COL_GAMES)
-                .document(GameSessionManager.GAME_ID)
+        return db.collection(GameSessionManager.COL_GAME_SESSIONS)
+                .document(sessionMgr.getSessionId())
                 .collection("games")
                 .document(DOC_KORAK);
     }
+
+    private DocumentReference mojBrojRef() {
+        return db.collection(GameSessionManager.COL_GAME_SESSIONS)
+                .document(sessionMgr.getSessionId())
+                .collection("games")
+                .document(DOC_MOJ_BROJ);
+    }
+
+    // ── Korak po korak ───────────────────────────────────────────────
 
     public void initKorakState(KorakGameState state) {
         korakRef().set(state);
@@ -37,14 +53,16 @@ public class GameSessionRepository {
         return korakRef().addSnapshotListener(listener);
     }
 
-    // ── Moj broj ─────────────────────────────────────────────────────
-
-    private DocumentReference mojBrojRef() {
-        return db.collection(COL_GAMES)
-                .document(GameSessionManager.GAME_ID)
-                .collection("games")
-                .document(DOC_MOJ_BROJ);
+    /** Guest čita sesiju da bi dobio hostUid */
+    public void getKorakOnce(EventListener<DocumentSnapshot> listener) {
+        korakRef().get().addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                listener.onEvent(task.getResult(), null);
+            }
+        });
     }
+
+    // ── Moj broj ─────────────────────────────────────────────────────
 
     public void initMojBrojState(MojBrojGameState state) {
         mojBrojRef().set(state);
@@ -57,5 +75,12 @@ public class GameSessionRepository {
 
     public ListenerRegistration listenMojBroj(EventListener<DocumentSnapshot> listener) {
         return mojBrojRef().addSnapshotListener(listener);
+    }
+
+    /** Ažurira samo status sesije (za označavanje kao "waiting_p2" → "playing") */
+    public void updateSessionStatus(String status) {
+        db.collection(GameSessionManager.COL_GAME_SESSIONS)
+                .document(sessionMgr.getSessionId())
+                .update("status", status);
     }
 }

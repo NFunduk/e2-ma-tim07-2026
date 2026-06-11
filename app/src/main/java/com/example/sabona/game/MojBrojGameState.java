@@ -2,41 +2,46 @@ package com.example.sabona.game;
 
 import com.google.firebase.Timestamp;
 
+/**
+ * Firestore state za Moj Broj.
+ *
+ * activePlayerRole = "player1" | "player2" (umesto UID — konzistentno s KoZnaZna)
+ */
 public class MojBrojGameState {
 
     public String status = "waiting"; // "waiting" | "playing" | "finished"
 
-    // 1 ili 2
-    public int round = 1;
+    public int round = 1; // 1 ili 2
 
-    // uid igrača ČIJA je runda (ko je stopirao, ko vidi STOP dugme)
-    // U MojBroj: runda 1 = player1 stopira, runda 2 = player2 stopira
-    public String activePlayerUid = GameSessionManager.UID_PLAYER1;
+    // "player1" | "player2" — ko stopira (čija je runda)
+    public String activePlayerRole = GameSessionManager.ROLE_PLAYER1;
 
-    // "IDLE"         - čekamo STOP za traženi broj (samo activePlayer može)
-    // "REVEAL_TARGET"- traženi broj otkriven, čekamo STOP za ponuđene (samo activePlayer)
-    // "PLAYING"      - OBA igrača unose izraz istovremeno (60s tajmer)
-    // "ROUND_END"    - runda gotova, prikazujemo rezultate
+    // "WAITING_P2"   - čekamo da se guest pridruži
+    // "IDLE"         - čekamo STOP za traženi broj
+    // "REVEAL_TARGET"- traženi broj otkriven, čekamo STOP za ponuđene
+    // "PLAYING"      - OBA igrača unose izraz (60s)
+    // "ROUND_END"    - runda gotova
     // "GAME_OVER"    - obe runde gotove
-    public String phase = "IDLE";
+    public String phase = "WAITING_P2";
 
     public int targetNumber = 0;
 
-    // kao String "1,2,3,4,5,6"
+    // "1,2,3,4,5,6"
     public String offeredNumbers = "";
 
     public int player1Score = 0;
     public int player2Score = 0;
 
-    // -1 = nije uneo ništa / još nije završio
-    // 0+ = rezultat evaluiranog izraza
+    // -1 = nije predao, 0+ = evaluiran rezultat izraza
     public int player1RoundResult = -1;
     public int player2RoundResult = -1;
 
-    // Indicator da je igrač predao (submit ili timer istekao)
-    // false = još igra / nije ni počeo, true = gotov
+    // false = još igra, true = predao (submit ili timer)
     public boolean player1Done = false;
     public boolean player2Done = false;
+
+    // UID hosta — guest ga čita pri pridruživanju
+    public String hostUid = null;
 
     public Timestamp updatedAt = null;
 
