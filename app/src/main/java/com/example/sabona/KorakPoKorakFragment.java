@@ -2,6 +2,7 @@ package com.example.sabona;
 
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,20 +14,33 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
 
-import com.example.sabona.repository.StatsRepository;
+import com.example.sabona.game.GameSessionManager;
 import com.example.sabona.viewModel.KorakViewModel;
 
+/**
+ * Korak po Korak fragment.
+ *
+ * Konzistentno s Ko Zna Zna:
+ *  - AlertDialog za kreiranje/pridruživanje sesije (isti pattern)
+ *  - Host čeka u WAITING_P2, guest menja fazu u MAIN pri pridruživanju
+ *  - ViewModel/LiveData arhitektura (tvoja, bolja)
+ */
 public class KorakPoKorakFragment extends Fragment {
 
+    // ── Views ─────────────────────────────────────────────────────────
     private TextView   tvKorakRound, tvKorakTimer, tvKorakInfo, tvCurrentPoints;
+    private TextView   tvScore1, tvScore2;
     private TextView[] tvSteps = new TextView[7];
     private EditText   etKorakAnswer;
     private Button     btnKorakGuess;
     private ProgressBar progressBar;
+    private View       layoutWaiting, layoutGame;
+    private TextView   tvWaitingMsg;
 
     private KorakViewModel viewModel;
     private CountDownTimer activeTimer;
@@ -45,21 +59,28 @@ public class KorakPoKorakFragment extends Fragment {
 
         viewModel = new ViewModelProvider(this).get(KorakViewModel.class);
         observeViewModel();
+        setupClickListeners();
 
-        btnKorakGuess.setOnClickListener(v -> {
-            String guess = etKorakAnswer.getText().toString().trim();
-            if (guess.isEmpty()) {
-                Toast.makeText(requireContext(), "Unesi odgovor", Toast.LENGTH_SHORT).show();
+        // Provjeri da li je sesija već postavljena (stigli smo iz KoZnaZna ili Spojnice)
+        Bundle args = getArguments();
+        if (args != null && args.containsKey("sessionId")) {
+            String passedSessionId = args.getString("sessionId", "");
+            boolean passedIsHost   = args.getBoolean("isHost", true);
+            String passedHostUid   = args.getString("hostUid", "");
+
+            if (!passedSessionId.isEmpty()) {
+                if (passedIsHost) {
+                    GameSessionManager.get().setupAsHost(passedSessionId);
+                } else {
+                    GameSessionManager.get().setupAsGuest(passedSessionId, passedHostUid);
+                }
+                viewModel.init();
                 return;
             }
-            boolean correct = viewModel.submitAnswer(guess);
-            if (!correct) {
-                Toast.makeText(requireContext(), "Netačno, pokušaj ponovo.", Toast.LENGTH_SHORT).show();
-            }
-            etKorakAnswer.setText("");
-        });
+        }
 
-        viewModel.init();
+        // Nema prosleđene sesije — pokaži dialog (isti kao KoZnaZna)
+        showJoinDialog();
     }
 
     @Override
@@ -68,33 +89,71 @@ public class KorakPoKorakFragment extends Fragment {
         cancelTimer();
     }
 
+    // ── Join dialog (isti pattern kao KoZnaZna) ───────────────────────
+
+    private void showJoinDialog() {
+        GameSessionManager mgr = GameSessionManager.get();
+        String suggested = mgr.getMyUid().length() >= 6
+                ? mgr.getMyUid().substring(0, 6).toUpperCase() : "KPK01";
+
+        AlertDialog.Builder b = new AlertDialog.Builder(requireContext());
+        b.setTitle("Korak po Korak");
+        b.setMessage("Odaberi način igranja.\nKod sesije: " + suggested);
+
+        EditText input = new EditText(requireContext());
+        input.setHint("Kod sesije");
+        input.setText(suggested);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        b.setView(input);
+
+        b.setPositiveButton("Kreiraj (Igrač 1)", (d, w) -> {
+            String sessionId = input.getText().toString().trim().toUpperCase();
+            GameSessionManager.get().setupAsHost(sessionId);
+            viewModel.init();
+        });
+
+        b.setNegativeButton("Pridruži se (Igrač 2)", (d, w) -> {
+            String sessionId = input.getText().toString().trim().toUpperCase();
+            // hostUid se čita iz Firestore u ViewModel-u (setupAsGuest se zove tamo)
+            GameSessionManager.get().setupAsGuest(sessionId, ""); // hostUid popuniti iz Firestore
+            viewModel.init();
+        });
+
+        b.setCancelable(false);
+        b.show();
+    }
+
+    // ── Observeri ─────────────────────────────────────────────────────
+
     private void observeViewModel() {
 
-        viewModel.getPhase().observe(getViewLifecycleOwner(), phase -> {
-            switch (phase) {
-
+        viewModel.getPhase().observe(getViewLifecycleOwner(), p -> {
+            switch (p) {
                 case LOADING:
                     progressBar.setVisibility(View.VISIBLE);
+                    showWaiting("Učitavanje...");
                     btnKorakGuess.setEnabled(false);
                     break;
 
-                case WAITING:
+                case WAITING_P2:
                     progressBar.setVisibility(View.GONE);
-                    tvKorakInfo.setText("Čekanje na protivnika...");
+                    showWaiting("Čekam Igrača 2...\nKod: "
+                            + GameSessionManager.get().getSessionId());
                     btnKorakGuess.setEnabled(false);
                     break;
 
                 case MAIN:
                     progressBar.setVisibility(View.GONE);
+                    hideWaiting();
                     etKorakAnswer.setText("");
                     tvKorakRound.setText("Runda " + viewModel.getRound()
                             + "/2  —  Igrač " + viewModel.getActivePlayerNumber());
                     cancelTimer();
-                    // Tajmer pokreću OBA telefona lokalno — sinhronizacija je preko Firestorea
                     startMainTimer();
                     break;
 
                 case BONUS:
+                    hideWaiting();
                     cancelTimer();
                     etKorakAnswer.setText("");
                     startBonusTimer();
@@ -113,14 +172,13 @@ public class KorakPoKorakFragment extends Fragment {
             }
         });
 
-        // Omogući/onemogući input zavisno od toga čiji je red
         viewModel.getIsMyTurn().observe(getViewLifecycleOwner(), myTurn -> {
             KorakViewModel.Phase currentPhase = viewModel.getPhase().getValue();
             if (currentPhase == KorakViewModel.Phase.MAIN) {
                 etKorakAnswer.setEnabled(myTurn);
                 btnKorakGuess.setEnabled(myTurn);
             } else if (currentPhase == KorakViewModel.Phase.BONUS) {
-                // U bonus fazi, suprotni igrač odgovara
+                // U bonus fazi odgovara PROTIVNIK (suprotno od activePlayer)
                 etKorakAnswer.setEnabled(!myTurn);
                 btnKorakGuess.setEnabled(!myTurn);
             }
@@ -152,17 +210,35 @@ public class KorakPoKorakFragment extends Fragment {
 
         viewModel.getFinalScores().observe(getViewLifecycleOwner(), scores -> {
             if (scores == null) return;
-
-            // Snimi statistiku za igrača 1
-            int myScore = scores[0];
-            int myStep = viewModel.getPlayer1GuessedAtStep();
-            new StatsRepository().saveKorakResult(myScore, myStep);
-
             Bundle args = new Bundle();
             args.putInt("player1Score", scores[0]);
             args.putInt("player2Score", scores[1]);
-            NavHostFragment.findNavController(this)
-                    .navigate(R.id.action_korak_to_mojbroj, args);
+            args.putString("sessionId", GameSessionManager.get().getSessionId());
+            args.putBoolean("isHost", GameSessionManager.get().isPlayer1());
+            args.putString("hostUid", GameSessionManager.get().getPlayer1Uid());
+            try {
+                NavHostFragment.findNavController(this)
+                        .navigate(R.id.action_korak_to_mojbroj, args);
+            } catch (Exception e) {
+                // Navigation fallback
+            }
+        });
+    }
+
+    // ── Click listeneri ───────────────────────────────────────────────
+
+    private void setupClickListeners() {
+        btnKorakGuess.setOnClickListener(v -> {
+            String guess = etKorakAnswer.getText().toString().trim();
+            if (guess.isEmpty()) {
+                Toast.makeText(requireContext(), "Unesi odgovor", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            boolean correct = viewModel.submitAnswer(guess);
+            if (!correct) {
+                Toast.makeText(requireContext(), "Netačno, pokušaj ponovo.", Toast.LENGTH_SHORT).show();
+            }
+            etKorakAnswer.setText("");
         });
     }
 
@@ -172,16 +248,16 @@ public class KorakPoKorakFragment extends Fragment {
         activeTimer = new CountDownTimer(70_000, 1_000) {
             @Override
             public void onTick(long ms) {
+                if (!isAdded()) return;
                 long secondsLeft = ms / 1000;
                 tvKorakTimer.setText(String.format("00:%02d", secondsLeft));
-                // Korak se otkriva svakih 10s — samo aktivni igrač piše u Firestore
                 if (secondsLeft % 10 == 0 && secondsLeft != 70 && secondsLeft > 0) {
                     viewModel.revealNextStep();
                 }
             }
-
             @Override
             public void onFinish() {
+                if (!isAdded()) return;
                 tvKorakTimer.setText("00:00");
                 viewModel.onMainTimerFinished();
             }
@@ -193,11 +269,12 @@ public class KorakPoKorakFragment extends Fragment {
         activeTimer = new CountDownTimer(10_000, 1_000) {
             @Override
             public void onTick(long ms) {
+                if (!isAdded()) return;
                 tvKorakTimer.setText(String.format("00:%02d", ms / 1000));
             }
-
             @Override
             public void onFinish() {
+                if (!isAdded()) return;
                 tvKorakTimer.setText("00:00");
                 viewModel.onBonusTimerFinished();
             }
@@ -209,14 +286,12 @@ public class KorakPoKorakFragment extends Fragment {
         activeTimer = new CountDownTimer(3_000, 1_000) {
             @Override
             public void onTick(long ms) {
-                tvKorakTimer.setText(String.format("00:%02d", ms / 1000));
+                if (!isAdded()) return;
+                tvKorakTimer.setText(String.format("00:0%d", ms / 1000));
             }
-
             @Override
             public void onFinish() {
-                // Samo player1 radi update u VM, ali oba pokreću countdown lokalno
-                etKorakAnswer.setEnabled(true);
-                btnKorakGuess.setEnabled(true);
+                if (!isAdded()) return;
                 viewModel.onRoundEndCountdownFinished();
             }
         };
@@ -224,18 +299,37 @@ public class KorakPoKorakFragment extends Fragment {
     }
 
     private void cancelTimer() {
-        if (activeTimer != null) {
-            activeTimer.cancel();
-            activeTimer = null;
-        }
+        if (activeTimer != null) { activeTimer.cancel(); activeTimer = null; }
     }
+
+    // ── UI helpers ────────────────────────────────────────────────────
+
+    private void showWaiting(String msg) {
+        if (layoutWaiting != null) {
+            layoutWaiting.setVisibility(View.VISIBLE);
+            if (tvWaitingMsg != null) tvWaitingMsg.setText(msg);
+        }
+        if (layoutGame != null) layoutGame.setVisibility(View.GONE);
+    }
+
+    private void hideWaiting() {
+        if (layoutWaiting != null) layoutWaiting.setVisibility(View.GONE);
+        if (layoutGame != null) layoutGame.setVisibility(View.VISIBLE);
+    }
+
+    // ── Bind ──────────────────────────────────────────────────────────
 
     private void bindViews(View view) {
         tvKorakRound    = view.findViewById(R.id.tvKorakRound);
         tvKorakTimer    = view.findViewById(R.id.tvKorakTimer);
         tvKorakInfo     = view.findViewById(R.id.tvKorakInfo);
         tvCurrentPoints = view.findViewById(R.id.tvCurrentPoints);
+        tvScore1        = view.findViewById(R.id.tvScore1);
+        tvScore2        = view.findViewById(R.id.tvScore2);
         progressBar     = view.findViewById(R.id.progressBarKorak);
+        layoutWaiting   = view.findViewById(R.id.layoutWaiting);
+        layoutGame      = view.findViewById(R.id.layoutGame);
+        tvWaitingMsg    = view.findViewById(R.id.tvWaitingMsg);
 
         tvSteps[0] = view.findViewById(R.id.tvStep1);
         tvSteps[1] = view.findViewById(R.id.tvStep2);

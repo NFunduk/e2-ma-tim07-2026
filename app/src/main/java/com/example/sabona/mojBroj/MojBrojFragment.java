@@ -8,6 +8,7 @@ import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.text.Editable;
+import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -19,24 +20,37 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
 
 import com.example.sabona.R;
+import com.example.sabona.game.GameSessionManager;
 
+/**
+ * Moj Broj fragment.
+ *
+ * Konzistentno s Ko Zna Zna:
+ *  - AlertDialog za kreiranje/pridruživanje sesije
+ *  - WAITING_P2 faza dok guest nije tu
+ *  - layoutWaiting/layoutGame (isti pattern)
+ *  - Prosleđuje sessionId sledećoj igri kroz Bundle args
+ */
 public class MojBrojFragment extends Fragment implements SensorEventListener {
 
     // ── Views ─────────────────────────────────────────────────────────
     private TextView   tvMojBrojRound, tvMojBrojTimer, tvMojBrojInfo;
-    private TextView   tvTargetNumber;
+    private TextView   tvTargetNumber, tvResult;
+    private TextView   tvScore1, tvScore2;
     private TextView[] tvNums = new TextView[6];
-    private TextView   tvResult;
     private Button     btnStop, btnStopNumbers, btnClear, btnBackspace, btnSubmit;
     private Button     btnPlus, btnMinus, btnMul, btnDiv, btnOpenP, btnCloseP;
     private EditText   etExpression;
+    private View       layoutWaiting, layoutGame;
+    private TextView   tvWaitingMsg;
 
-    // ── Praćenje iskorišćenih brojeva ─────────────────────────────────
+    // ── UsedCount ─────────────────────────────────────────────────────
     private final int[] usedCount = new int[6];
 
     // ── ViewModel & timeri ────────────────────────────────────────────
@@ -44,15 +58,13 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
     private CountDownTimer   roundTimer;
     private CountDownTimer   autoRevealTimer;
     private CountDownTimer   roundEndTimer;
-
-    // Da ne pokrenemo tajmer dva puta (Firestore može da puca više puta za isti state)
-    private boolean roundTimerRunning = false;
+    private boolean          roundTimerRunning = false;
 
     // ── Shake sensor ──────────────────────────────────────────────────
     private SensorManager sensorManager;
     private Sensor        accelerometer;
     private static final float SHAKE_THRESHOLD = 12f;
-    private long lastShakeTime = 0;
+    private long  lastShakeTime = 0;
     private float gravX = 0f, gravY = 0f, gravZ = SensorManager.GRAVITY_EARTH;
     private static final float ALPHA = 0.8f;
 
@@ -68,7 +80,6 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
     @Override
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-
         bindViews(view);
         setupSensor();
 
@@ -76,15 +87,33 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         observeViewModel();
         setupClickListeners();
 
-        viewModel.init();
+        // Provjeri prosleđenu sesiju (iz Korak po korak)
+        Bundle args = getArguments();
+        if (args != null && args.containsKey("sessionId")) {
+            String passedSessionId = args.getString("sessionId", "");
+            boolean passedIsHost   = args.getBoolean("isHost", true);
+            String passedHostUid   = args.getString("hostUid", "");
+
+            if (!passedSessionId.isEmpty()) {
+                if (passedIsHost) {
+                    GameSessionManager.get().setupAsHost(passedSessionId);
+                } else {
+                    GameSessionManager.get().setupAsGuest(passedSessionId, passedHostUid);
+                }
+                viewModel.init();
+                return;
+            }
+        }
+
+        // Nema prosleđene sesije — pokaži dialog (isti pattern kao KoZnaZna)
+        showJoinDialog();
     }
 
     @Override
     public void onResume() {
         super.onResume();
         if (accelerometer != null) {
-            sensorManager.registerListener(this, accelerometer,
-                    SensorManager.SENSOR_DELAY_NORMAL);
+            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
         }
     }
 
@@ -100,29 +129,56 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         cancelAllTimers();
     }
 
+    // ── Join dialog ───────────────────────────────────────────────────
+
+    private void showJoinDialog() {
+        GameSessionManager mgr = GameSessionManager.get();
+        String suggested = mgr.getMyUid().length() >= 6
+                ? mgr.getMyUid().substring(0, 6).toUpperCase() : "MB001";
+
+        AlertDialog.Builder b = new AlertDialog.Builder(requireContext());
+        b.setTitle("Moj Broj");
+        b.setMessage("Odaberi način igranja.\nKod sesije: " + suggested);
+
+        EditText input = new EditText(requireContext());
+        input.setHint("Kod sesije");
+        input.setText(suggested);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        b.setView(input);
+
+        b.setPositiveButton("Kreiraj (Igrač 1)", (d, w) -> {
+            String sessionId = input.getText().toString().trim().toUpperCase();
+            GameSessionManager.get().setupAsHost(sessionId);
+            viewModel.init();
+        });
+
+        b.setNegativeButton("Pridruži se (Igrač 2)", (d, w) -> {
+            String sessionId = input.getText().toString().trim().toUpperCase();
+            GameSessionManager.get().setupAsGuest(sessionId, "");
+            viewModel.init();
+        });
+
+        b.setCancelable(false);
+        b.show();
+    }
+
     // ── Shake sensor ──────────────────────────────────────────────────
 
     private void setupSensor() {
-        sensorManager = (SensorManager) requireActivity()
-                .getSystemService(Context.SENSOR_SERVICE);
-        if (sensorManager != null) {
-            accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        }
+        sensorManager = (SensorManager) requireActivity().getSystemService(Context.SENSOR_SERVICE);
+        if (sensorManager != null) accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
     }
 
     @Override
     public void onSensorChanged(SensorEvent event) {
         if (event.sensor.getType() != Sensor.TYPE_ACCELEROMETER) return;
-
         gravX = ALPHA * gravX + (1 - ALPHA) * event.values[0];
         gravY = ALPHA * gravY + (1 - ALPHA) * event.values[1];
         gravZ = ALPHA * gravZ + (1 - ALPHA) * event.values[2];
-
         float linX = event.values[0] - gravX;
         float linY = event.values[1] - gravY;
         float linZ = event.values[2] - gravZ;
         float magnitude = (float) Math.sqrt(linX * linX + linY * linY + linZ * linZ);
-
         if (magnitude > SHAKE_THRESHOLD) {
             long now = System.currentTimeMillis();
             if (now - lastShakeTime > 1200) {
@@ -151,10 +207,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         });
 
         viewModel.getOfferedNumbers().observe(getViewLifecycleOwner(), nums -> {
-            if (nums == null) {
-                for (TextView tv : tvNums) tv.setText("?");
-                return;
-            }
+            if (nums == null) { for (TextView tv : tvNums) tv.setText("?"); return; }
             for (int i = 0; i < 6; i++) {
                 usedCount[i] = 0;
                 tvNums[i].setText(String.valueOf(nums[i]));
@@ -169,43 +222,45 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
             } else {
                 tvResult.setText(String.valueOf(result));
                 Integer target = viewModel.getTargetNumber().getValue();
-                if (target != null && result == target) {
-                    tvResult.setTextColor(
-                            getResources().getColor(android.R.color.holo_green_dark, null));
-                } else {
-                    tvResult.setTextColor(getResources().getColor(R.color.dark_blue, null));
-                }
+                tvResult.setTextColor(target != null && result.equals(target)
+                        ? getResources().getColor(android.R.color.holo_green_dark, null)
+                        : getResources().getColor(R.color.dark_blue, null));
             }
         });
 
-        // iDoneLocal: kad sam ja predao, zaključaj moj UI odmah (ne čekaj Firestore)
         viewModel.getIDoneLocal().observe(getViewLifecycleOwner(), done -> {
-            if (Boolean.TRUE.equals(done)) {
-                lockExpressionUI();
-            }
+            if (Boolean.TRUE.equals(done)) lockExpressionUI();
         });
 
         viewModel.getPhase().observe(getViewLifecycleOwner(), p -> {
             cancelAutoRevealTimer();
-
             boolean myTurn = Boolean.TRUE.equals(viewModel.getIsMyTurn().getValue());
 
             switch (p) {
+                case LOADING:
+                    showWaiting("Učitavanje...");
+                    break;
+
+                case WAITING_P2:
+                    showWaiting("Čekam Igrača 2...\nKod: "
+                            + GameSessionManager.get().getSessionId());
+                    break;
+
                 case IDLE:
+                    hideWaiting();
                     roundTimerRunning = false;
                     resetExpressionUI();
-                    // Samo activePlayer vidi STOP dugme aktivnim
                     btnStop.setEnabled(myTurn);
                     btnStopNumbers.setEnabled(false);
                     etExpression.setEnabled(false);
                     setOperatorButtonsEnabled(false);
                     btnSubmit.setEnabled(false);
                     btnClear.setEnabled(false);
-                    // Auto-reveal posle 5s — samo activePlayer
                     if (myTurn) startAutoRevealTimer(true);
                     break;
 
                 case REVEAL_TARGET:
+                    hideWaiting();
                     btnStop.setEnabled(false);
                     btnStopNumbers.setEnabled(myTurn);
                     etExpression.setEnabled(false);
@@ -216,21 +271,16 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
                     break;
 
                 case PLAYING:
-                    // OBA igrača dobijaju 60s tajmer — svako lokalno
+                    hideWaiting();
                     btnStop.setEnabled(false);
                     btnStopNumbers.setEnabled(false);
-                    // Omogući input svima (osim ako sam već predao)
                     boolean alreadyDone = Boolean.TRUE.equals(viewModel.getIDoneLocal().getValue());
                     if (!alreadyDone) {
                         etExpression.setEnabled(true);
                         setOperatorButtonsEnabled(true);
                         btnSubmit.setEnabled(true);
                         btnClear.setEnabled(true);
-                        // Pokreni tajmer samo ako još nije pokrenut
-                        if (!roundTimerRunning) {
-                            roundTimerRunning = true;
-                            startRoundTimer();
-                        }
+                        if (!roundTimerRunning) { roundTimerRunning = true; startRoundTimer(); }
                     }
                     break;
 
@@ -253,16 +303,16 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         viewModel.getFinalScores().observe(getViewLifecycleOwner(), scores -> {
             if (scores == null) return;
             new CountDownTimer(3_000, 1_000) {
-                @Override public void onTick(long ms) {
-                    tvMojBrojTimer.setText(String.format("00:0%d", ms / 1000));
-                }
+                @Override public void onTick(long ms) { tvMojBrojTimer.setText(String.format("00:0%d", ms / 1000)); }
                 @Override public void onFinish() {
                     if (!isAdded()) return;
                     Bundle args = new Bundle();
                     args.putInt("player1Score", scores[0]);
                     args.putInt("player2Score", scores[1]);
-                    NavHostFragment.findNavController(MojBrojFragment.this)
-                            .navigate(R.id.action_mojbroj_to_gameover, args);
+                    try {
+                        NavHostFragment.findNavController(MojBrojFragment.this)
+                                .navigate(R.id.action_mojbroj_to_gameover, args);
+                    } catch (Exception e) { /* fallback */ }
                 }
             }.start();
         });
@@ -277,10 +327,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         btnClear.setOnClickListener(v -> {
             etExpression.setText("");
             tvResult.setText("—");
-            for (int i = 0; i < 6; i++) {
-                usedCount[i] = 0;
-                setNumUsed(i, false);
-            }
+            for (int i = 0; i < 6; i++) { usedCount[i] = 0; setNumUsed(i, false); }
         });
 
         btnBackspace.setOnClickListener(v -> handleBackspace());
@@ -289,12 +336,10 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
             String expr = etExpression.getText().toString().trim();
             int result = viewModel.submitExpression(expr);
             if (result == -1) {
-                Toast.makeText(requireContext(),
-                        "Neispravan izraz.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(requireContext(), "Neispravan izraz.", Toast.LENGTH_SHORT).show();
             } else {
                 cancelRoundTimer();
                 roundTimerRunning = false;
-                // lockExpressionUI() će biti pozvan iz iDoneLocal observera
             }
         });
 
@@ -312,8 +357,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
                 if (cur != MojBrojViewModel.Phase.PLAYING) return;
                 if (Boolean.TRUE.equals(viewModel.getIDoneLocal().getValue())) return;
                 if (usedCount[idx] > 0) {
-                    Toast.makeText(requireContext(),
-                            "Ovaj broj si već iskoristio!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), "Ovaj broj si već iskoristio!", Toast.LENGTH_SHORT).show();
                     return;
                 }
                 usedCount[idx]++;
@@ -325,9 +369,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         etExpression.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int st, int c, int a) {}
             @Override public void onTextChanged(CharSequence s, int st, int b, int c) {}
-            @Override public void afterTextChanged(Editable s) {
-                viewModel.onExpressionChanged(s.toString());
-            }
+            @Override public void afterTextChanged(Editable s) { viewModel.onExpressionChanged(s.toString()); }
         });
     }
 
@@ -341,8 +383,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
                 int sec = (int)(ms / 1000) + 1;
                 tvMojBrojInfo.setText(forTarget
                         ? "Pritisni STOP ili šejkuj... (" + sec + ")"
-                        : "Traženi: " + viewModel.getTargetNumber().getValue()
-                        + " — STOP za brojeve (" + sec + ")");
+                        : "Traženi: " + viewModel.getTargetNumber().getValue() + " — STOP za brojeve (" + sec + ")");
             }
             @Override
             public void onFinish() {
@@ -353,7 +394,6 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         autoRevealTimer.start();
     }
 
-    /** 60 sekundi — teče lokalno na oba uređaja istovremeno */
     private void startRoundTimer() {
         cancelRoundTimer();
         roundTimer = new CountDownTimer(60_000, 1_000) {
@@ -366,8 +406,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
             public void onFinish() {
                 tvMojBrojTimer.setText("00:00");
                 roundTimerRunning = false;
-                String expr = etExpression.getText().toString().trim();
-                viewModel.onRoundTimerFinished(expr);
+                viewModel.onRoundTimerFinished(etExpression.getText().toString().trim());
             }
         };
         roundTimer.start();
@@ -376,39 +415,22 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
     private void startRoundEndTimer() {
         cancelRoundEndTimer();
         roundEndTimer = new CountDownTimer(3_000, 1_000) {
-            @Override
-            public void onTick(long ms) {
-                tvMojBrojTimer.setText(String.format("00:0%d", ms / 1000));
-            }
-            @Override
-            public void onFinish() {
-                viewModel.onRoundEndCountdownFinished();
-            }
+            @Override public void onTick(long ms) { tvMojBrojTimer.setText(String.format("00:0%d", ms / 1000)); }
+            @Override public void onFinish() { viewModel.onRoundEndCountdownFinished(); }
         };
         roundEndTimer.start();
     }
 
-    private void cancelAutoRevealTimer() {
-        if (autoRevealTimer != null) { autoRevealTimer.cancel(); autoRevealTimer = null; }
-    }
-    private void cancelRoundTimer() {
-        if (roundTimer != null) { roundTimer.cancel(); roundTimer = null; }
-    }
-    private void cancelRoundEndTimer() {
-        if (roundEndTimer != null) { roundEndTimer.cancel(); roundEndTimer = null; }
-    }
-    private void cancelAllTimers() {
-        cancelAutoRevealTimer();
-        cancelRoundTimer();
-        cancelRoundEndTimer();
-    }
+    private void cancelAutoRevealTimer() { if (autoRevealTimer != null) { autoRevealTimer.cancel(); autoRevealTimer = null; } }
+    private void cancelRoundTimer()      { if (roundTimer != null) { roundTimer.cancel(); roundTimer = null; } }
+    private void cancelRoundEndTimer()   { if (roundEndTimer != null) { roundEndTimer.cancel(); roundEndTimer = null; } }
+    private void cancelAllTimers()       { cancelAutoRevealTimer(); cancelRoundTimer(); cancelRoundEndTimer(); }
 
     // ── Helpers ───────────────────────────────────────────────────────
 
     private void handleStop() {
         MojBrojViewModel.Phase current = viewModel.getPhase().getValue();
-        if (current != MojBrojViewModel.Phase.IDLE
-                && current != MojBrojViewModel.Phase.REVEAL_TARGET) return;
+        if (current != MojBrojViewModel.Phase.IDLE && current != MojBrojViewModel.Phase.REVEAL_TARGET) return;
         if (!Boolean.TRUE.equals(viewModel.getIsMyTurn().getValue())) return;
         cancelAutoRevealTimer();
         viewModel.onStop();
@@ -429,32 +451,21 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
     }
 
     private void setOperatorButtonsEnabled(boolean enabled) {
-        btnPlus.setEnabled(enabled);
-        btnMinus.setEnabled(enabled);
-        btnMul.setEnabled(enabled);
-        btnDiv.setEnabled(enabled);
-        btnOpenP.setEnabled(enabled);
-        btnCloseP.setEnabled(enabled);
+        btnPlus.setEnabled(enabled); btnMinus.setEnabled(enabled);
+        btnMul.setEnabled(enabled);  btnDiv.setEnabled(enabled);
+        btnOpenP.setEnabled(enabled); btnCloseP.setEnabled(enabled);
         btnBackspace.setEnabled(enabled);
     }
 
     private void handleBackspace() {
         String expr = etExpression.getText().toString();
         if (expr.isEmpty()) return;
-
         String trimmed = expr.stripTrailing();
         if (trimmed.isEmpty()) { etExpression.setText(""); return; }
-
         int lastSpace = trimmed.lastIndexOf(' ');
-        String lastToken;
-        String newExpr;
-        if (lastSpace == -1) {
-            lastToken = trimmed;
-            newExpr = "";
-        } else {
-            lastToken = trimmed.substring(lastSpace + 1);
-            newExpr = trimmed.substring(0, lastSpace);
-        }
+        String lastToken, newExpr;
+        if (lastSpace == -1) { lastToken = trimmed; newExpr = ""; }
+        else { lastToken = trimmed.substring(lastSpace + 1); newExpr = trimmed.substring(0, lastSpace); }
 
         int[] offered = viewModel.getOfferedNumbers().getValue();
         if (offered != null) {
@@ -469,22 +480,16 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
                 }
             } catch (NumberFormatException ignored) {}
         }
-
         etExpression.setText(newExpr);
         etExpression.setSelection(newExpr.length());
     }
 
     private void setNumUsed(int idx, boolean used) {
         TextView tv = tvNums[idx];
-        if (used) {
-            tv.setAlpha(0.35f);
-            tv.setEnabled(false);
-            tv.setPaintFlags(tv.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
-        } else {
-            tv.setAlpha(1.0f);
-            tv.setEnabled(true);
-            tv.setPaintFlags(tv.getPaintFlags() & ~android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
-        }
+        tv.setAlpha(used ? 0.35f : 1.0f);
+        tv.setEnabled(!used);
+        if (used) tv.setPaintFlags(tv.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
+        else      tv.setPaintFlags(tv.getPaintFlags() & ~android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
     }
 
     private void resetExpressionUI() {
@@ -493,10 +498,18 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         tvTargetNumber.setText("???");
         tvMojBrojTimer.setText("01:00");
         for (int i = 0; i < 6; i++) {
-            tvNums[i].setText("?");
-            usedCount[i] = 0;
-            setNumUsed(i, false);
+            tvNums[i].setText("?"); usedCount[i] = 0; setNumUsed(i, false);
         }
+    }
+
+    private void showWaiting(String msg) {
+        if (layoutWaiting != null) { layoutWaiting.setVisibility(View.VISIBLE); if (tvWaitingMsg != null) tvWaitingMsg.setText(msg); }
+        if (layoutGame != null) layoutGame.setVisibility(View.GONE);
+    }
+
+    private void hideWaiting() {
+        if (layoutWaiting != null) layoutWaiting.setVisibility(View.GONE);
+        if (layoutGame != null) layoutGame.setVisibility(View.VISIBLE);
     }
 
     private void bindViews(View v) {
@@ -505,6 +518,8 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         tvMojBrojInfo   = v.findViewById(R.id.tvMojBrojInfo);
         tvTargetNumber  = v.findViewById(R.id.tvTargetNumber);
         tvResult        = v.findViewById(R.id.tvResult);
+        tvScore1        = v.findViewById(R.id.tvScore1);
+        tvScore2        = v.findViewById(R.id.tvScore2);
         btnStop         = v.findViewById(R.id.btnStopTarget);
         btnStopNumbers  = v.findViewById(R.id.btnStopNumbers);
         btnClear        = v.findViewById(R.id.btnClearExpression);
@@ -517,6 +532,9 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         btnOpenP        = v.findViewById(R.id.btnOpOpenParen);
         btnCloseP       = v.findViewById(R.id.btnOpCloseParen);
         etExpression    = v.findViewById(R.id.etExpression);
+        layoutWaiting   = v.findViewById(R.id.layoutWaiting);
+        layoutGame      = v.findViewById(R.id.layoutGame);
+        tvWaitingMsg    = v.findViewById(R.id.tvWaitingMsg);
 
         tvNums[0] = v.findViewById(R.id.tvNum1);
         tvNums[1] = v.findViewById(R.id.tvNum2);
