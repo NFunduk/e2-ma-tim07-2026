@@ -45,6 +45,8 @@ public class KorakGameState {
     public int    lastAnswerPlayer = 0;
     public int    lastPointsAwarded = 0;
 
+    public int player2GuessedAtStep = 0;
+
     // UID hosta (player1) — guest ga čita pri pridruživanju
     public String hostUid = null;
 

@@ -18,6 +18,7 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
@@ -86,6 +87,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         viewModel = new ViewModelProvider(this).get(MojBrojViewModel.class);
         observeViewModel();
         setupClickListeners();
+        setupBackPressHandling();
 
         // Provjeri prosleđenu sesiju (iz Korak po korak)
         Bundle args = getArguments();
@@ -160,6 +162,31 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
 
         b.setCancelable(false);
         b.show();
+    }
+
+    // ── Back press ────────────────────────────────────────────────────
+
+    /**
+     * Sprečava napuštanje igre pritiskom na sistemsko dugme "Nazad" dok
+     * je partija u toku (sve faze osim GAME_OVER).
+     */
+    private void setupBackPressHandling() {
+        requireActivity().getOnBackPressedDispatcher().addCallback(
+                getViewLifecycleOwner(),
+                new OnBackPressedCallback(true) {
+                    @Override
+                    public void handleOnBackPressed() {
+                        MojBrojViewModel.Phase currentPhase = viewModel.getPhase().getValue();
+                        if (currentPhase == MojBrojViewModel.Phase.GAME_OVER) {
+                            setEnabled(false);
+                            requireActivity().getOnBackPressedDispatcher().onBackPressed();
+                            return;
+                        }
+                        Toast.makeText(requireContext(),
+                                "Ne možeš napustiti igru dok partija traje.",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
     // ── Shake sensor ──────────────────────────────────────────────────
@@ -490,6 +517,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         tv.setEnabled(!used);
         if (used) tv.setPaintFlags(tv.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
         else      tv.setPaintFlags(tv.getPaintFlags() & ~android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
+        tv.invalidate();
     }
 
     private void resetExpressionUI() {

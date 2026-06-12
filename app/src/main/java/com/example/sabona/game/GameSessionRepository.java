@@ -7,6 +7,8 @@ import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
+import java.util.function.Function;
+
 /**
  * Pristup Firestoru za igre.
  *
@@ -53,6 +55,28 @@ public class GameSessionRepository {
         return korakRef().addSnapshotListener(listener);
     }
 
+    /**
+     * Transakciono ažuriranje Korak stanja — čita najnoviju verziju sa servera
+     * pre mutacije, čime se sprečava da dva istovremena pisanja jedno pregazi drugo
+     * (npr. host i guest istovremeno mijenjaju stanje na osnovu zastarjelog lokalnog kopija).
+     *
+     * @param updater funkcija koja prima trenutno (sa servera) stanje i vraća novo stanje za upis,
+     *                ili null ako ne treba ništa upisati (npr. uslov vise nije ispunjen).
+     */
+    public void runKorakTransaction(Function<KorakGameState, KorakGameState> updater) {
+        FirebaseFirestore.getInstance().runTransaction(transaction -> {
+            DocumentSnapshot snap = transaction.get(korakRef());
+            KorakGameState current = snap.toObject(KorakGameState.class);
+            if (current == null) current = new KorakGameState();
+            KorakGameState updated = updater.apply(current);
+            if (updated != null) {
+                updated.updatedAt = Timestamp.now();
+                transaction.set(korakRef(), updated);
+            }
+            return null;
+        });
+    }
+
     /** Guest čita sesiju da bi dobio hostUid */
     public void getKorakOnce(EventListener<DocumentSnapshot> listener) {
         korakRef().get().addOnCompleteListener(task -> {
@@ -75,6 +99,25 @@ public class GameSessionRepository {
 
     public ListenerRegistration listenMojBroj(EventListener<DocumentSnapshot> listener) {
         return mojBrojRef().addSnapshotListener(listener);
+    }
+
+    /**
+     * Transakciono ažuriranje Moj Broj stanja — vidi {@link #runKorakTransaction}.
+     * Koristi se za sve akcije gde oba igrača mogu pisati skoro istovremeno
+     * (npr. predaja izraza oba igrača, prelazak na sledeću rundu).
+     */
+    public void runMojBrojTransaction(Function<MojBrojGameState, MojBrojGameState> updater) {
+        FirebaseFirestore.getInstance().runTransaction(transaction -> {
+            DocumentSnapshot snap = transaction.get(mojBrojRef());
+            MojBrojGameState current = snap.toObject(MojBrojGameState.class);
+            if (current == null) current = new MojBrojGameState();
+            MojBrojGameState updated = updater.apply(current);
+            if (updated != null) {
+                updated.updatedAt = Timestamp.now();
+                transaction.set(mojBrojRef(), updated);
+            }
+            return null;
+        });
     }
 
     /** Ažurira samo status sesije (za označavanje kao "waiting_p2" → "playing") */

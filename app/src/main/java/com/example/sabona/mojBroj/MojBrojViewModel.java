@@ -230,21 +230,26 @@ public class MojBrojViewModel extends ViewModel {
 
     public void onStop() {
         if (!isMyActiveRole(remoteState.activePlayerRole)) return;
-        MojBrojGameState newState = copyState(remoteState);
 
-        if ("IDLE".equals(remoteState.phase)) {
-            newState.targetNumber = 100 + rng.nextInt(900);
-            newState.phase = "REVEAL_TARGET";
-            sessionRepo.updateMojBrojState(newState);
-        } else if ("REVEAL_TARGET".equals(remoteState.phase)) {
-            newState.offeredNumbers      = generateOfferedNumbers();
-            newState.phase               = "PLAYING";
-            newState.player1Done         = false;
-            newState.player2Done         = false;
-            newState.player1RoundResult  = -1;
-            newState.player2RoundResult  = -1;
-            sessionRepo.updateMojBrojState(newState);
-        }
+        sessionRepo.runMojBrojTransaction(current -> {
+            if (!isMyActiveRole(current.activePlayerRole)) return null;
+
+            MojBrojGameState newState = copyState(current);
+            if ("IDLE".equals(current.phase)) {
+                newState.targetNumber = 100 + rng.nextInt(900);
+                newState.phase = "REVEAL_TARGET";
+                return newState;
+            } else if ("REVEAL_TARGET".equals(current.phase)) {
+                newState.offeredNumbers      = generateOfferedNumbers();
+                newState.phase               = "PLAYING";
+                newState.player1Done         = false;
+                newState.player2Done         = false;
+                newState.player1RoundResult  = -1;
+                newState.player2RoundResult  = -1;
+                return newState;
+            }
+            return null;
+        });
     }
 
     public void onTargetAutoReveal()  { if ("IDLE".equals(remoteState.phase)) onStop(); }
@@ -281,25 +286,32 @@ public class MojBrojViewModel extends ViewModel {
     }
 
     private void recordMyResult(int myResult) {
-        MojBrojGameState newState = copyState(remoteState);
+        boolean isP1 = sessionMgr.isPlayer1();
 
-        if (sessionMgr.isPlayer1()) {
-            newState.player1RoundResult = myResult;
-            newState.player1Done = true;
-        } else {
-            newState.player2RoundResult = myResult;
-            newState.player2Done = true;
-        }
+        sessionRepo.runMojBrojTransaction(current -> {
+            if (!"PLAYING".equals(current.phase)) return null;
+
+            boolean alreadyDone = isP1 ? current.player1Done : current.player2Done;
+            if (alreadyDone) return null;
+
+            MojBrojGameState newState = copyState(current);
+            if (isP1) {
+                newState.player1RoundResult = myResult;
+                newState.player1Done = true;
+            } else {
+                newState.player2RoundResult = myResult;
+                newState.player2Done = true;
+            }
+
+            boolean bothDone = newState.player1Done && newState.player2Done;
+            if (bothDone) {
+                applyScoring(newState);
+                newState.phase = "ROUND_END";
+            }
+            return newState;
+        });
 
         iDoneLocal.postValue(true);
-
-        boolean bothDone = newState.player1Done && newState.player2Done;
-        if (bothDone) {
-            applyScoring(newState);
-            newState.phase = "ROUND_END";
-        }
-
-        sessionRepo.updateMojBrojState(newState);
     }
 
     /** Bodovanje po specifikaciji */
@@ -338,24 +350,26 @@ public class MojBrojViewModel extends ViewModel {
         if (!"ROUND_END".equals(remoteState.phase)) return;
         if (!sessionMgr.isPlayer1()) return; // samo host napreduje
 
-        if (remoteState.round == 1) {
-            MojBrojGameState newState = copyState(remoteState);
-            newState.round              = 2;
-            newState.activePlayerRole   = GameSessionManager.ROLE_PLAYER2;
-            newState.phase              = "IDLE";
-            newState.targetNumber       = 0;
-            newState.offeredNumbers     = "";
-            newState.player1RoundResult = -1;
-            newState.player2RoundResult = -1;
-            newState.player1Done        = false;
-            newState.player2Done        = false;
-            sessionRepo.updateMojBrojState(newState);
-        } else {
-            MojBrojGameState newState = copyState(remoteState);
-            newState.phase  = "GAME_OVER";
-            newState.status = "finished";
-            sessionRepo.updateMojBrojState(newState);
-        }
+        sessionRepo.runMojBrojTransaction(current -> {
+            if (!"ROUND_END".equals(current.phase)) return null;
+
+            MojBrojGameState newState = copyState(current);
+            if (current.round == 1) {
+                newState.round              = 2;
+                newState.activePlayerRole   = GameSessionManager.ROLE_PLAYER2;
+                newState.phase              = "IDLE";
+                newState.targetNumber       = 0;
+                newState.offeredNumbers     = "";
+                newState.player1RoundResult = -1;
+                newState.player2RoundResult = -1;
+                newState.player1Done        = false;
+                newState.player2Done        = false;
+            } else {
+                newState.phase  = "GAME_OVER";
+                newState.status = "finished";
+            }
+            return newState;
+        });
     }
 
     // ── Helpers ───────────────────────────────────────────────────────

@@ -122,17 +122,17 @@ public class KorakViewModel extends ViewModel {
         orderedGames.add(g1);
 
         KorakGameState initState = new KorakGameState();
-        initState.status          = "playing";
-        initState.round           = 1;
+        initState.status           = "playing";
+        initState.round            = 1;
         initState.activePlayerRole = GameSessionManager.ROLE_PLAYER1;
-        initState.phase           = "WAITING_P2";
-        initState.stepsRevealed   = 1;
-        initState.gameIndex       = 0;
-        initState.game0Id         = g0.docId;
-        initState.game1Id         = g1.docId;
-        initState.player1Score    = 0;
-        initState.player2Score    = 0;
-        initState.hostUid         = sessionMgr.getMyUid();
+        initState.phase            = "WAITING_P2";
+        initState.stepsRevealed    = 1;
+        initState.gameIndex        = 0;
+        initState.game0Id          = g0.docId;
+        initState.game1Id          = g1.docId;
+        initState.player1Score     = 0;
+        initState.player2Score     = 0;
+        initState.hostUid          = sessionMgr.getMyUid();
 
         sessionRepo.initKorakState(initState);
         startListening();
@@ -225,12 +225,11 @@ public class KorakViewModel extends ViewModel {
             case "GAME_OVER":
                 phase.postValue(Phase.GAME_OVER);
                 finalScores.postValue(new int[]{state.player1Score, state.player2Score});
-                // Spremi statistiku za player1 (Student 2 funkcionalnost)
+                // Spremi statistiku za tekućeg igrača (Student 2 funkcionalnost)
                 if (sessionMgr.isPlayer1()) {
                     statsRepo.saveKorakResult(state.player1Score, state.player1GuessedAtStep);
                 } else {
-                    // player2 statistika — stepGuessed nije trackovan za p2, šaljemo 0
-                    statsRepo.saveKorakResult(state.player2Score, 0);
+                    statsRepo.saveKorakResult(state.player2Score, state.player2GuessedAtStep);
                 }
                 break;
         }
@@ -256,35 +255,48 @@ public class KorakViewModel extends ViewModel {
         if (currentGame() == null) return false;
         if (!guess.equalsIgnoreCase(currentGame().answer)) return false;
 
-        KorakGameState newState = copyState(remoteState);
         boolean inBonus = "BONUS".equals(remoteState.phase);
+        int myPlayerNumber = sessionMgr.getMyPlayerNumber();
 
-        if (!inBonus) {
-            int pts = Math.max(20 - (remoteState.stepsRevealed - 1) * 2, 0);
-            if (GameSessionManager.ROLE_PLAYER1.equals(remoteState.activePlayerRole)) {
-                newState.player1Score += pts;
-                // Statistika: pamtimo na kom koraku je player1 pogodio (Student 2)
-                newState.player1GuessedAtStep = remoteState.stepsRevealed;
-            } else {
-                newState.player2Score += pts;
-            }
-            newState.lastPointsAwarded = pts;
-            newState.lastAnswerPlayer  = getActivePlayerNumber();
-        } else {
-            // Protivnik u bonus fazi
-            boolean activeIsP1 = GameSessionManager.ROLE_PLAYER1.equals(remoteState.activePlayerRole);
-            if (activeIsP1) {
-                newState.player2Score += 5;
-            } else {
-                newState.player1Score += 5;
-            }
-            newState.lastPointsAwarded = 5;
-            newState.lastAnswerPlayer  = sessionMgr.getMyPlayerNumber();
-        }
+        sessionRepo.runKorakTransaction(current -> {
+            boolean currentInBonus = "BONUS".equals(current.phase);
+            if (currentInBonus != inBonus) return null; // faza se promenila u međuvremenu
+            if (!"MAIN".equals(current.phase) && !"BONUS".equals(current.phase)) return null;
 
-        newState.lastAnswerResult = "correct";
-        newState.phase = "ROUND_END";
-        sessionRepo.updateKorakState(newState);
+            KorakGameState newState = copyState(current);
+
+            if (!currentInBonus) {
+                int pts = Math.max(20 - (current.stepsRevealed - 1) * 2, 0);
+                if (GameSessionManager.ROLE_PLAYER1.equals(current.activePlayerRole)) {
+                    newState.player1Score += pts;
+                    // Statistika: pamtimo na kom koraku je player1 pogodio (Student 2)
+                    newState.player1GuessedAtStep = current.stepsRevealed;
+                } else {
+                    newState.player2Score += pts;
+                    // Statistika: pamtimo na kom koraku je player2 pogodio (Student 2)
+                    newState.player2GuessedAtStep = current.stepsRevealed;
+                }
+                newState.lastPointsAwarded = pts;
+                newState.lastAnswerPlayer  = GameSessionManager.ROLE_PLAYER1.equals(current.activePlayerRole) ? 1 : 2;
+            } else {
+                // Protivnik u bonus fazi
+                boolean activeIsP1 = GameSessionManager.ROLE_PLAYER1.equals(current.activePlayerRole);
+                if (activeIsP1) {
+                    newState.player2Score += 5;
+                    newState.player2GuessedAtStep = current.stepsRevealed; // bonus korak
+                } else {
+                    newState.player1Score += 5;
+                    newState.player1GuessedAtStep = current.stepsRevealed; // bonus korak
+                }
+                newState.lastPointsAwarded = 5;
+                newState.lastAnswerPlayer  = myPlayerNumber;
+            }
+
+            newState.lastAnswerResult = "correct";
+            newState.phase = "ROUND_END";
+            return newState;
+        });
+
         return true;
     }
 
@@ -292,9 +304,14 @@ public class KorakViewModel extends ViewModel {
         if (!"MAIN".equals(remoteState.phase)) return;
         if (!isMyActiveRole(remoteState.activePlayerRole)) return;
 
-        KorakGameState newState = copyState(remoteState);
-        newState.phase = "BONUS";
-        sessionRepo.updateKorakState(newState);
+        sessionRepo.runKorakTransaction(current -> {
+            if (!"MAIN".equals(current.phase)) return null;
+            if (!isMyActiveRole(current.activePlayerRole)) return null;
+
+            KorakGameState newState = copyState(current);
+            newState.phase = "BONUS";
+            return newState;
+        });
     }
 
     public void onBonusTimerFinished() {
@@ -303,35 +320,44 @@ public class KorakViewModel extends ViewModel {
         boolean iAmOpponent = sessionMgr.isPlayer1() != activeIsP1;
         if (!iAmOpponent) return;
 
-        KorakGameState newState = copyState(remoteState);
-        newState.lastAnswerResult  = "wrong";
-        newState.lastAnswerPlayer  = 0;
-        newState.lastPointsAwarded = 0;
-        newState.phase = "ROUND_END";
-        sessionRepo.updateKorakState(newState);
+        sessionRepo.runKorakTransaction(current -> {
+            if (!"BONUS".equals(current.phase)) return null;
+            boolean currentActiveIsP1 = GameSessionManager.ROLE_PLAYER1.equals(current.activePlayerRole);
+            boolean currentIAmOpponent = sessionMgr.isPlayer1() != currentActiveIsP1;
+            if (!currentIAmOpponent) return null;
+
+            KorakGameState newState = copyState(current);
+            newState.lastAnswerResult  = "wrong";
+            newState.lastAnswerPlayer  = 0;
+            newState.lastPointsAwarded = 0;
+            newState.phase = "ROUND_END";
+            return newState;
+        });
     }
 
     public void onRoundEndCountdownFinished() {
         if (!"ROUND_END".equals(remoteState.phase)) return;
         if (!sessionMgr.isPlayer1()) return; // samo host napreduje
 
-        if (remoteState.round == 1) {
-            KorakGameState newState = copyState(remoteState);
-            newState.round            = 2;
-            newState.activePlayerRole = GameSessionManager.ROLE_PLAYER2;
-            newState.phase            = "MAIN";
-            newState.stepsRevealed    = 1;
-            newState.gameIndex        = 1;
-            newState.lastAnswerResult = null;
-            newState.player1Answer    = null;
-            newState.player2Answer    = null;
-            sessionRepo.updateKorakState(newState);
-        } else {
-            KorakGameState newState = copyState(remoteState);
-            newState.phase  = "GAME_OVER";
-            newState.status = "finished";
-            sessionRepo.updateKorakState(newState);
-        }
+        sessionRepo.runKorakTransaction(current -> {
+            if (!"ROUND_END".equals(current.phase)) return null;
+
+            KorakGameState newState = copyState(current);
+            if (current.round == 1) {
+                newState.round            = 2;
+                newState.activePlayerRole = GameSessionManager.ROLE_PLAYER2;
+                newState.phase            = "MAIN";
+                newState.stepsRevealed    = 1;
+                newState.gameIndex        = 1;
+                newState.lastAnswerResult = null;
+                newState.player1Answer    = null;
+                newState.player2Answer    = null;
+            } else {
+                newState.phase  = "GAME_OVER";
+                newState.status = "finished";
+            }
+            return newState;
+        });
     }
 
     public void revealNextStep() {
@@ -339,9 +365,15 @@ public class KorakViewModel extends ViewModel {
         if (remoteState.stepsRevealed >= 7) return;
         if (!"MAIN".equals(remoteState.phase)) return;
 
-        KorakGameState newState = copyState(remoteState);
-        newState.stepsRevealed = remoteState.stepsRevealed + 1;
-        sessionRepo.updateKorakState(newState);
+        sessionRepo.runKorakTransaction(current -> {
+            if (!isMyActiveRole(current.activePlayerRole)) return null;
+            if (current.stepsRevealed >= 7) return null;
+            if (!"MAIN".equals(current.phase)) return null;
+
+            KorakGameState newState = copyState(current);
+            newState.stepsRevealed = current.stepsRevealed + 1;
+            return newState;
+        });
     }
 
     @Override
@@ -352,23 +384,24 @@ public class KorakViewModel extends ViewModel {
 
     private KorakGameState copyState(KorakGameState src) {
         KorakGameState copy = new KorakGameState();
-        copy.status            = src.status;
-        copy.round             = src.round;
-        copy.activePlayerRole  = src.activePlayerRole;
-        copy.phase             = src.phase;
-        copy.stepsRevealed     = src.stepsRevealed;
-        copy.gameIndex         = src.gameIndex;
-        copy.game0Id           = src.game0Id;
-        copy.game1Id           = src.game1Id;
-        copy.player1Score      = src.player1Score;
-        copy.player2Score      = src.player2Score;
-        copy.player1Answer     = src.player1Answer;
-        copy.player2Answer     = src.player2Answer;
-        copy.lastAnswerResult  = src.lastAnswerResult;
-        copy.lastAnswerPlayer  = src.lastAnswerPlayer;
-        copy.lastPointsAwarded = src.lastPointsAwarded;
-        copy.hostUid           = src.hostUid;
+        copy.status               = src.status;
+        copy.round                = src.round;
+        copy.activePlayerRole     = src.activePlayerRole;
+        copy.phase                = src.phase;
+        copy.stepsRevealed        = src.stepsRevealed;
+        copy.gameIndex            = src.gameIndex;
+        copy.game0Id              = src.game0Id;
+        copy.game1Id              = src.game1Id;
+        copy.player1Score         = src.player1Score;
+        copy.player2Score         = src.player2Score;
+        copy.player1Answer        = src.player1Answer;
+        copy.player2Answer        = src.player2Answer;
+        copy.lastAnswerResult     = src.lastAnswerResult;
+        copy.lastAnswerPlayer     = src.lastAnswerPlayer;
+        copy.lastPointsAwarded    = src.lastPointsAwarded;
+        copy.hostUid              = src.hostUid;
         copy.player1GuessedAtStep = src.player1GuessedAtStep;
+        copy.player2GuessedAtStep = src.player2GuessedAtStep;
         return copy;
     }
 
