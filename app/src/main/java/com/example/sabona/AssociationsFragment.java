@@ -27,6 +27,12 @@ import java.util.Map;
 
 import java.util.List;
 
+import androidx.lifecycle.ViewModelProvider;
+
+import com.example.sabona.game.AsocijacijeGameState;
+import com.example.sabona.game.GameSessionManager;
+import com.example.sabona.viewModel.AsocijacijeViewModel;
+
 public class AssociationsFragment extends Fragment {
 
     private TextView tvRound, tvPlayer, tvTimer, tvScore, tvInfo;
@@ -37,10 +43,15 @@ public class AssociationsFragment extends Fragment {
     private EditText finalInput;
     private Button btnGuessFinal, btnPassTurn;
 
+    private boolean roundEndTimerStarted = false;
+    private long lastTimerEnd = 0L;
+
     private int round = 1;
     private int currentPlayer = 1;
     private int player1Score = 0;
     private int player2Score = 0;
+
+    private String currentRemotePhase = "";
 
     private boolean[][] opened = new boolean[4][4];
     private boolean[] columnSolved = new boolean[4];
@@ -52,6 +63,13 @@ public class AssociationsFragment extends Fragment {
 
     private List<AssociationGame> games;
 
+    private AsocijacijeViewModel viewModel;
+    private boolean multiplayerMode = false;
+    private boolean suppressRemoteUpdate = false;
+
+    private boolean myTurnNow = false;
+    private int lastRenderedRound = -1;
+    private boolean alreadyNavigated = false;
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
@@ -66,6 +84,29 @@ public class AssociationsFragment extends Fragment {
 
         connectViews(view);
         setupClicks();
+
+        Bundle args = getArguments();
+
+        if (args != null && args.containsKey("sessionId")) {
+            String passedSessionId = args.getString("sessionId", "");
+            boolean passedIsHost = args.getBoolean("isHost", true);
+            String passedHostUid = args.getString("hostUid", "");
+
+            if (!passedSessionId.isEmpty()) {
+                multiplayerMode = true;
+
+                if (passedIsHost) {
+                    GameSessionManager.get().setupAsHost(passedSessionId);
+                } else {
+                    GameSessionManager.get().setupAsGuest(passedSessionId, passedHostUid);
+                }
+
+                loadAssociationsForMultiplayer();
+                return;
+            }
+        }
+
+        multiplayerMode = false;
 
         new AssociationRepository().getAssociations(
                 new AssociationRepository.Callback() {
@@ -102,6 +143,248 @@ public class AssociationsFragment extends Fragment {
     public void onDestroyView() {
         super.onDestroyView();
         if (timer != null) timer.cancel();
+    }
+
+    private void loadAssociationsForMultiplayer() {
+        new AssociationRepository().getAssociations(
+                new AssociationRepository.Callback() {
+
+                    @Override
+                    public void onSuccess(List<AssociationGame> loadedGames) {
+                        if (loadedGames == null || loadedGames.size() < 2) {
+                            Toast.makeText(
+                                    requireContext(),
+                                    "U bazi moraju postojati bar 2 asocijacije.",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                            return;
+                        }
+
+                        games = loadedGames;
+
+                        viewModel = new ViewModelProvider(AssociationsFragment.this)
+                                .get(AsocijacijeViewModel.class);
+
+                        observeViewModel();
+                        viewModel.init(games);
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        Toast.makeText(
+                                requireContext(),
+                                "Greška pri učitavanju asocijacija",
+                                Toast.LENGTH_LONG
+                        ).show();
+                    }
+                }
+        );
+    }
+
+    private void observeViewModel() {
+        viewModel.getState().observe(getViewLifecycleOwner(), state -> {
+            if (state == null || games == null) return;
+            currentRemotePhase = state.phase;
+            round = state.round;
+
+            if (lastRenderedRound != round) {
+                lastRenderedRound = round;
+                resetRoundUiOnlyVisual();
+            }
+
+            if (state.phaseEndsAtMillis > 0 && state.phaseEndsAtMillis != lastTimerEnd) {
+                lastTimerEnd = state.phaseEndsAtMillis;
+                startTimer(state.phaseEndsAtMillis);
+            }
+            currentPlayer = GameSessionManager.ROLE_PLAYER1.equals(state.activePlayerRole) ? 1 : 2;
+            player1Score = state.player1Score;
+            player2Score = state.player2Score;
+
+            finalSolved = state.finalSolved;
+            fieldOpenedThisTurn = state.fieldOpenedThisTurn;
+            roundFinished = state.roundFinished;
+
+            applyRemoteGameOrder(state);
+            applyRemoteOpenedFields(state);
+            applyRemoteColumns(state);
+
+            updateHeader();
+        });
+
+        viewModel.getPhase().observe(getViewLifecycleOwner(), phase -> {
+            if (phase == null) return;
+
+            if (phase == AsocijacijeViewModel.Phase.WAITING_P2) {
+                tvInfo.setText("Čekamo drugog igrača da se pridruži...");
+                setAllInputsEnabled(false);
+            }
+
+
+
+            if (phase == AsocijacijeViewModel.Phase.ROUND_END) {
+                revealAllAnswers();
+                setAllInputsEnabled(false);
+                tvInfo.setText("Runda završena! Prikazana su rešenja.");
+            }
+
+            if (phase == AsocijacijeViewModel.Phase.GAME_OVER) {
+                showEndGame();
+            }
+        });
+
+        viewModel.getMyTurn().observe(getViewLifecycleOwner(), isMyTurn -> {
+            if (isMyTurn == null) return;
+
+            myTurnNow = isMyTurn;
+
+            if (multiplayerMode) {
+                refreshEnabledState();
+
+                if (myTurnNow) {
+                    tvInfo.setText("Ti si na potezu.");
+                } else {
+                    tvInfo.setText("Čekaj, drugi igrač je na potezu.");
+                }
+            }
+        });
+    }
+
+    private void refreshEnabledState() {
+        boolean canPlay = myTurnNow && !roundFinished && !finalSolved;
+
+        for (int col = 0; col < 4; col++) {
+            columnInputs[col].setEnabled(canPlay);
+            guessColumnButtons[col].setEnabled(canPlay);
+
+            for (int row = 0; row < 4; row++) {
+                fieldButtons[col][row].setEnabled(
+                        canPlay &&
+                                !fieldOpenedThisTurn &&
+                                !opened[col][row] &&
+                                !columnSolved[col]
+                );
+            }
+        }
+
+        finalInput.setEnabled(canPlay);
+        btnGuessFinal.setEnabled(canPlay);
+        btnPassTurn.setEnabled(canPlay && fieldOpenedThisTurn);
+    }
+
+    private void resetRoundUiOnlyVisual() {
+        if (timer != null) timer.cancel();
+
+        finalSolved = false;
+        fieldOpenedThisTurn = false;
+        roundFinished = false;
+        roundEndTimerStarted = false;
+
+        for (int col = 0; col < 4; col++) {
+            columnSolved[col] = false;
+            columnSolutions[col].setText("?");
+            columnInputs[col].setText("");
+
+            for (int row = 0; row < 4; row++) {
+                opened[col][row] = false;
+                fieldButtons[col][row].setText("?");
+            }
+        }
+
+        finalInput.setText("");
+        updateHeader();
+       // startTimer();
+    }
+
+    private void applyRemoteGameOrder(AsocijacijeGameState state) {
+        if (state.game0Id == null || state.game1Id == null) return;
+
+        AssociationGame first = null;
+        AssociationGame second = null;
+
+        for (AssociationGame g : games) {
+            if (state.game0Id.equals(g.docId)) first = g;
+            if (state.game1Id.equals(g.docId)) second = g;
+        }
+
+        if (first != null && second != null) {
+            List<AssociationGame> ordered = new java.util.ArrayList<>();
+            ordered.add(first);
+            ordered.add(second);
+            games = ordered;
+        }
+    }
+
+    private void applyRemoteOpenedFields(AsocijacijeGameState state) {
+        if (state.opened == null || state.opened.size() < 16) return;
+
+        for (int col = 0; col < 4; col++) {
+            for (int row = 0; row < 4; row++) {
+                int index = col * 4 + row;
+                boolean isOpened = state.opened.get(index);
+
+                opened[col][row] = isOpened;
+
+                if (isOpened) {
+                    fieldButtons[col][row].setText(
+                            games.get(round - 1).columns.get(col).fields.get(row)
+                    );
+                } else {
+                    fieldButtons[col][row].setText("?");
+                }
+            }
+        }
+
+        refreshEnabledState();
+    }
+
+    private void applyRemoteColumns(AsocijacijeGameState state) {
+        if (state.columnSolved == null || state.columnSolved.size() < 4) return;
+
+        for (int col = 0; col < 4; col++) {
+            boolean solved = state.columnSolved.get(col);
+            columnSolved[col] = solved;
+
+            if (solved) {
+                columnSolutions[col].setText(
+                        games.get(round - 1).columns.get(col).answer
+                );
+            } else {
+                columnSolutions[col].setText("?");
+            }
+        }
+
+        if (state.finalSolved) {
+            revealAllAnswers();
+        }
+
+        refreshEnabledState();
+    }
+
+    private void resetRoundUiFromState() {
+        if (timer != null) timer.cancel();
+
+        for (int col = 0; col < 4; col++) {
+            columnInputs[col].setText("");
+            finalInput.setText("");
+        }
+
+        updateHeader();
+        startTimer();
+    }
+
+    private void setAllInputsEnabled(boolean enabled) {
+        for (int col = 0; col < 4; col++) {
+            columnInputs[col].setEnabled(enabled);
+            guessColumnButtons[col].setEnabled(enabled);
+
+            for (int row = 0; row < 4; row++) {
+                fieldButtons[col][row].setEnabled(enabled);
+            }
+        }
+
+        finalInput.setEnabled(enabled);
+        btnGuessFinal.setEnabled(enabled);
+        btnPassTurn.setEnabled(enabled);
     }
 
     private void connectViews(View view) {
@@ -210,12 +493,18 @@ public class AssociationsFragment extends Fragment {
     }
 
     private void openField(int col, int row) {
+
+        if (multiplayerMode && !myTurnNow) return;
         if (opened[col][row] || columnSolved[col] || finalSolved || fieldOpenedThisTurn || roundFinished) {
             return;
         }
 
         opened[col][row] = true;
         fieldOpenedThisTurn = true;
+
+        if (multiplayerMode && viewModel != null) {
+            viewModel.openField(col, row);
+        }
 
         fieldButtons[col][row].setText(games.get(round - 1).columns.get(col).fields.get(row));
         disableFieldOpening();
@@ -225,6 +514,11 @@ public class AssociationsFragment extends Fragment {
     }
 
     private void passTurn() {
+        if (multiplayerMode && viewModel != null) {
+            viewModel.passTurn();
+            return;
+        }
+
         switchPlayer();
         fieldOpenedThisTurn = false;
         enableFieldOpening();
@@ -234,6 +528,11 @@ public class AssociationsFragment extends Fragment {
 
     private void guessColumn(int col) {
         if (columnSolved[col] || finalSolved || roundFinished) return;
+
+        if (!hasOpenedFieldInColumn(col)) {
+            Toast.makeText(requireContext(), "Prvo otvori neko polje u toj koloni.", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         if (!canGuessNow()) {
             Toast.makeText(requireContext(), "Prvo otvori jedno polje.", Toast.LENGTH_SHORT).show();
@@ -250,7 +549,13 @@ public class AssociationsFragment extends Fragment {
 
         if (normalize(guess).equals(normalize(answer))) {
             int points = calculateColumnPoints(col);
-            addPoints(points);
+
+            if (multiplayerMode && viewModel != null) {
+                viewModel.solveColumn(col, points);
+            } else {
+                addPoints(points);
+            }
+
             revealColumn(col);
             tvInfo.setText("Tačno! Dobijeno bodova za kolonu: " + points);
         } else {
@@ -261,6 +566,7 @@ public class AssociationsFragment extends Fragment {
 
         updateHeader();
     }
+
 
     private void guessFinal() {
         if (finalSolved || roundFinished) return;
@@ -280,7 +586,12 @@ public class AssociationsFragment extends Fragment {
 
         if (normalize(guess).equals(normalize(answer))) {
             int points = calculateFinalPoints();
-            addPoints(points);
+
+            if (multiplayerMode && viewModel != null) {
+                viewModel.solveFinal(points);
+            } else {
+                addPoints(points);
+            }
 
             finalSolved = true;
             revealAllAnswers();
@@ -389,8 +700,31 @@ public class AssociationsFragment extends Fragment {
         currentPlayer = currentPlayer == 1 ? 2 : 1;
     }
 
-    private void startTimer() {
-        timer = new CountDownTimer(120000, 1000) {
+    private void startTimer(long endsAtMillis) {
+        if (timer != null) timer.cancel();
+
+        long remaining = endsAtMillis - System.currentTimeMillis();
+
+        if (remaining <= 0) {
+            tvTimer.setText("00:00");
+
+            if (multiplayerMode && viewModel != null) {
+                if (GameSessionManager.get().isPlayer1()) {
+                    if ("ROUND_END".equals(currentRemotePhase)) {
+                        viewModel.startNextRound();
+                    } else if ("PLAYING".equals(currentRemotePhase)) {
+                        viewModel.finishRound();
+                    }
+                }
+                return;
+            }
+
+            revealAllAnswers();
+            finishRound();
+            return;
+        }
+
+        timer = new CountDownTimer(remaining, 1000) {
             @Override
             public void onTick(long millisUntilFinished) {
                 long seconds = millisUntilFinished / 1000;
@@ -402,6 +736,18 @@ public class AssociationsFragment extends Fragment {
             @Override
             public void onFinish() {
                 tvTimer.setText("00:00");
+
+                if (multiplayerMode && viewModel != null) {
+                    if (GameSessionManager.get().isPlayer1()) {
+                        if ("ROUND_END".equals(currentRemotePhase)) {
+                            viewModel.startNextRound();
+                        } else if ("PLAYING".equals(currentRemotePhase)) {
+                            viewModel.finishRound();
+                        }
+                    }
+                    return;
+                }
+
                 tvInfo.setText("Vreme je isteklo. Rešenja su otkrivena.");
                 revealAllAnswers();
                 finishRound();
@@ -411,24 +757,24 @@ public class AssociationsFragment extends Fragment {
         timer.start();
     }
 
+    private void startTimer() {
+        startTimer(System.currentTimeMillis() + 120000);
+    }
+
     private void finishRound() {
+        if (multiplayerMode && viewModel != null) {
+            revealAllAnswers();
+            setAllInputsEnabled(false);
+            viewModel.finishRound();
+            return;
+        }
+
         if (timer != null) timer.cancel();
 
         roundFinished = true;
         fieldOpenedThisTurn = false;
 
-        for (int col = 0; col < 4; col++) {
-            guessColumnButtons[col].setEnabled(false);
-            columnInputs[col].setEnabled(false);
-
-            for (int row = 0; row < 4; row++) {
-                fieldButtons[col][row].setEnabled(false);
-            }
-        }
-
-        finalInput.setEnabled(false);
-        btnGuessFinal.setEnabled(false);
-        btnPassTurn.setEnabled(false);
+        revealAllAnswers();
 
         new CountDownTimer(3000, 1000) {
             @Override
@@ -452,7 +798,18 @@ public class AssociationsFragment extends Fragment {
         updateHeader();
     }
 
+    private boolean hasOpenedFieldInColumn(int col) {
+        for (int row = 0; row < 4; row++) {
+            if (opened[col][row]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void showEndGame() {
+        if (alreadyNavigated) return;
+        alreadyNavigated = true;
         String winner;
 
         if (player1Score > player2Score) {
@@ -467,8 +824,16 @@ public class AssociationsFragment extends Fragment {
 
         saveAssociationsResult();
 
+        Bundle args = new Bundle();
+
+        if (multiplayerMode) {
+            args.putString("sessionId", GameSessionManager.get().getSessionId());
+            args.putBoolean("isHost", GameSessionManager.get().isPlayer1());
+            args.putString("hostUid", GameSessionManager.get().getPlayer1Uid());
+        }
+
         NavHostFragment.findNavController(this)
-                .navigate(R.id.action_associations_to_skocko);
+                .navigate(R.id.action_associations_to_skocko, args);
     }
 
     private void updateHeader() {

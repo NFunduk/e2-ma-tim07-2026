@@ -6,6 +6,8 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.example.sabona.game.SkockoGameState;
+import com.example.sabona.game.AsocijacijeGameState;
 
 import java.util.function.Function;
 
@@ -20,6 +22,10 @@ public class GameSessionRepository {
 
     private static final String DOC_KORAK    = "korakPoKorak";
     private static final String DOC_MOJ_BROJ = "mojBroj";
+
+    private static final String DOC_SKOCKO = "skocko";
+
+    private static final String DOC_ASOCIJACIJE = "asocijacije";
 
     private final FirebaseFirestore   db         = FirebaseFirestore.getInstance();
     private final GameSessionManager  sessionMgr = GameSessionManager.get();
@@ -38,6 +44,20 @@ public class GameSessionRepository {
                 .document(sessionMgr.getSessionId())
                 .collection("games")
                 .document(DOC_MOJ_BROJ);
+    }
+
+    private DocumentReference skockoRef() {
+        return db.collection(GameSessionManager.COL_GAME_SESSIONS)
+                .document(sessionMgr.getSessionId())
+                .collection("games")
+                .document(DOC_SKOCKO);
+    }
+
+    private DocumentReference asocijacijeRef() {
+        return db.collection(GameSessionManager.COL_GAME_SESSIONS)
+                .document(sessionMgr.getSessionId())
+                .collection("games")
+                .document(DOC_ASOCIJACIJE);
     }
 
     // ── Korak po korak ───────────────────────────────────────────────
@@ -125,5 +145,34 @@ public class GameSessionRepository {
         db.collection(GameSessionManager.COL_GAME_SESSIONS)
                 .document(sessionMgr.getSessionId())
                 .update("status", status);
+    }
+
+    //Skocko
+
+    public void initSkockoState(SkockoGameState state) {
+        skockoRef().set(state);
+    }
+
+    public void updateSkockoState(SkockoGameState state) {
+        state.updatedAt = Timestamp.now();
+        skockoRef().set(state);
+    }
+
+    public ListenerRegistration listenSkocko(EventListener<DocumentSnapshot> listener) {
+        return skockoRef().addSnapshotListener(listener);
+    }
+
+    // Asocijacije
+    public void initAsocijacijeState(AsocijacijeGameState state) {
+        asocijacijeRef().set(state);
+    }
+
+    public void updateAsocijacijeState(AsocijacijeGameState state) {
+        state.updatedAt = Timestamp.now();
+        asocijacijeRef().set(state);
+    }
+
+    public ListenerRegistration listenAsocijacije(EventListener<DocumentSnapshot> listener) {
+        return asocijacijeRef().addSnapshotListener(listener);
     }
 }

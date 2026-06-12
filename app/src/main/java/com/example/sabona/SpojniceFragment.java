@@ -912,8 +912,13 @@ public class SpojniceFragment extends Fragment {
 
         Toast.makeText(requireContext(), result, Toast.LENGTH_LONG).show();
         try {
+            Bundle args = new Bundle();
+            args.putString("sessionId", sessionId);
+            args.putBoolean("isHost", isHost);
+            args.putString("hostUid", myUid);
+
             NavHostFragment.findNavController(this)
-                    .navigate(R.id.action_spojnice_to_associations);
+                    .navigate(R.id.action_spojnice_to_associations, args);
         } catch (Exception e) {
             // Navigation fallback — ako akcija ne postoji, samo ostani
         }
