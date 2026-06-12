@@ -221,6 +221,11 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
 
     // ── Observeri ─────────────────────────────────────────────────────
 
+    // ── STOP BUTTON FIX ───────────────────────────────────────────────────────────
+// Replace observeViewModel() with this version.
+// Key change: extract updatePhaseButtons() and observe isMyTurn independently
+// so button states are never stale due to postValue ordering.
+
     private void observeViewModel() {
 
         viewModel.getRoundLabel().observe(getViewLifecycleOwner(),
@@ -261,6 +266,15 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
             if (Boolean.TRUE.equals(done)) lockExpressionUI();
         });
 
+        // Observe isMyTurn independently so button states are always up-to-date
+        // even when the phase observer fires before isMyTurn's postValue is processed.
+        viewModel.getIsMyTurn().observe(getViewLifecycleOwner(), myTurn -> {
+            MojBrojViewModel.Phase currentPhase = viewModel.getPhase().getValue();
+            if (currentPhase != null) {
+                updatePhaseButtons(currentPhase, Boolean.TRUE.equals(myTurn));
+            }
+        });
+
         viewModel.getPhase().observe(getViewLifecycleOwner(), p -> {
             cancelAutoRevealTimer();
             boolean myTurn = Boolean.TRUE.equals(viewModel.getIsMyTurn().getValue());
@@ -279,8 +293,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
                     hideWaiting();
                     roundTimerRunning = false;
                     resetExpressionUI();
-                    btnStop.setEnabled(myTurn);
-                    btnStopNumbers.setEnabled(false);
+                    updatePhaseButtons(p, myTurn);
                     etExpression.setEnabled(false);
                     setOperatorButtonsEnabled(false);
                     btnSubmit.setEnabled(false);
@@ -290,8 +303,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
 
                 case REVEAL_TARGET:
                     hideWaiting();
-                    btnStop.setEnabled(false);
-                    btnStopNumbers.setEnabled(myTurn);
+                    updatePhaseButtons(p, myTurn);
                     etExpression.setEnabled(false);
                     setOperatorButtonsEnabled(false);
                     btnSubmit.setEnabled(false);
@@ -301,8 +313,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
 
                 case PLAYING:
                     hideWaiting();
-                    btnStop.setEnabled(false);
-                    btnStopNumbers.setEnabled(false);
+                    updatePhaseButtons(p, myTurn);
                     boolean alreadyDone = Boolean.TRUE.equals(viewModel.getIDoneLocal().getValue());
                     if (!alreadyDone) {
                         etExpression.setEnabled(true);
@@ -345,6 +356,28 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
                 }
             }.start();
         });
+    }
+
+    /**
+     * Centralno mesto za enable/disable STOP dugmadi.
+     * Poziva se i iz phase observera i iz isMyTurn observera —
+     * tako se eliminiše race condition između ta dva postValue poziva.
+     */
+    private void updatePhaseButtons(MojBrojViewModel.Phase phase, boolean myTurn) {
+        switch (phase) {
+            case IDLE:
+                btnStop.setEnabled(myTurn);        // aktivan samo za igrača čija je runda
+                btnStopNumbers.setEnabled(false);
+                break;
+            case REVEAL_TARGET:
+                btnStop.setEnabled(false);
+                btnStopNumbers.setEnabled(myTurn); // aktivan samo za igrača čija je runda
+                break;
+            default:
+                btnStop.setEnabled(false);
+                btnStopNumbers.setEnabled(false);
+                break;
+        }
     }
 
     // ── Click listeneri ───────────────────────────────────────────────
@@ -488,18 +521,35 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         btnBackspace.setEnabled(enabled);
     }
 
+    // ── BACKSPACE FIX ─────────────────────────────────────────────────────────────
+
     private void handleBackspace() {
         String expr = etExpression.getText().toString();
         if (expr.isEmpty()) return;
-        String trimmed = expr.stripTrailing();
-        if (trimmed.isEmpty()) { etExpression.setText(""); return; }
-        int lastSpace = trimmed.lastIndexOf(' ');
-        String lastToken, newExpr;
-        if (lastSpace == -1) { lastToken = trimmed; newExpr = ""; }
-        else { lastToken = trimmed.substring(lastSpace + 1); newExpr = trimmed.substring(0, lastSpace); }
 
-        try {
-            Integer.parseInt(lastToken); // samo provera da je broj, ne operator
+        // Strip trailing whitespace (operators are appended as " + ", " - " etc.)
+        String trimmed = expr.stripTrailing();
+        if (trimmed.isEmpty()) {
+            etExpression.setText("");
+            return;
+        }
+
+        char lastChar = trimmed.charAt(trimmed.length() - 1);
+        String newExpr;
+
+        if (lastChar == '(' || lastChar == ')') {
+            // Single parenthesis — remove it, no number tile to restore
+            newExpr = trimmed.substring(0, trimmed.length() - 1);
+
+        } else if (Character.isDigit(lastChar)) {
+            // Walk backwards to find the full number run
+            int start = trimmed.length() - 1;
+            while (start > 0 && Character.isDigit(trimmed.charAt(start - 1))) {
+                start--;
+            }
+            newExpr = trimmed.substring(0, start);
+
+            // Restore the corresponding number tile
             if (!clickOrder.isEmpty()) {
                 int idx = clickOrder.pop();
                 if (usedCount[idx] > 0) {
@@ -507,7 +557,14 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
                     if (usedCount[idx] == 0) setNumUsed(idx, false);
                 }
             }
-        } catch (NumberFormatException ignored) {}
+
+        } else {
+            // Operator token ("+", "-", "*", "/") — strip back past it and its leading space
+            int lastSpace = trimmed.lastIndexOf(' ');
+            newExpr = (lastSpace <= 0)
+                    ? ""
+                    : trimmed.substring(0, lastSpace).stripTrailing();
+        }
 
         etExpression.setText(newExpr);
         etExpression.setSelection(newExpr.length());
