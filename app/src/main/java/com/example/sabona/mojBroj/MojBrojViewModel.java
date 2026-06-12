@@ -204,10 +204,14 @@ public class MojBrojViewModel extends ViewModel {
                     boolean foundExact = (state.player1RoundResult == state.targetNumber
                             && state.player1RoundResult != -1);
                     statsRepo.saveMojBrojResult(state.player1Score, foundExact);
+                    boolean iWon = state.player1Score > state.player2Score;
+                    statsRepo.incrementGamesPlayed(iWon);
                 } else {
                     boolean foundExact = (state.player2RoundResult == state.targetNumber
                             && state.player2RoundResult != -1);
                     statsRepo.saveMojBrojResult(state.player2Score, foundExact);
+                    boolean iWon = state.player2Score > state.player1Score;
+                    statsRepo.incrementGamesPlayed(iWon);
                 }
                 break;
         }
