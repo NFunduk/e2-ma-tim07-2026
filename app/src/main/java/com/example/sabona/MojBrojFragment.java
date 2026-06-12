@@ -22,7 +22,7 @@ import java.util.Random;
 
 public class MojBrojFragment extends Fragment {
 
-    private TextView tvMojBrojRound, tvMojBrojTimer;
+    private TextView tvMojBrojRound, tvMojBrojTimer, tvMojBrojPlayer, tvMojBrojScore;
     private TextView tvMojBrojInfo, tvTargetNumber;
     private TextView tvNum1, tvNum2, tvNum3, tvNum4, tvNum5, tvNum6;
     private TextView tvResult;
@@ -58,9 +58,9 @@ public class MojBrojFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         tvMojBrojRound      = view.findViewById(R.id.tvMojBrojRound);
-        //tvMojBrojPlayer     = view.findViewById(R.id.tvMojBrojPlayer);
+        tvMojBrojPlayer     = view.findViewById(R.id.tvMojBrojPlayer);
         tvMojBrojTimer      = view.findViewById(R.id.tvMojBrojTimer);
-        //tvMojBrojScore      = view.findViewById(R.id.tvMojBrojScore);
+        tvMojBrojScore      = view.findViewById(R.id.tvMojBrojScore);
         tvMojBrojInfo       = view.findViewById(R.id.tvMojBrojInfo);
         tvTargetNumber      = view.findViewById(R.id.tvTargetNumber);
         tvNum1              = view.findViewById(R.id.tvNum1);
@@ -129,6 +129,7 @@ public class MojBrojFragment extends Fragment {
         btnStopNumbers.setEnabled(true);
         tvMojBrojInfo.setText("Pritisni STOP da vidiš traženi broj.");
 
+        updateHeader();
         startRoundTimer();
     }
 
@@ -270,5 +271,11 @@ public class MojBrojFragment extends Fragment {
         args.putBoolean("player1Won", iWon);
         NavHostFragment.findNavController(this)
                 .navigate(R.id.action_mojbroj_to_gameover, args);
+    }
+
+    private void updateHeader() {
+        tvMojBrojRound.setText("Runda " + round + "/2");
+        tvMojBrojPlayer.setText("Na potezu: igrač " + currentPlayer);
+        tvMojBrojScore.setText(player1Score + " : " + player2Score);
     }
 }

@@ -103,6 +103,8 @@ public class MainActivity extends AppCompatActivity {
 
             bottomNav.setVisibility((isAuth || isGame) ? View.GONE : View.VISIBLE);
 
+            layoutStatsChip.setVisibility(isGame ? View.GONE : View.VISIBLE);
+
             //bottomNav.setVisibility(isAuth ? View.GONE : View.VISIBLE);
 
             /*bottomNav.setEnabled(!isGame);

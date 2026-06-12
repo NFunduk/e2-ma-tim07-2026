@@ -63,7 +63,7 @@ import java.util.Map;
 public class KoZnaZnaFragment extends Fragment {
 
     // ── Views ──────────────────────────────────────────────────────────────
-    private TextView tvQuestionNum, tvTimer, tvScore, tvInfo, tvQuestion;
+    private TextView tvQuestionNum, tvTimer, tvRound, tvTurn, tvScore, tvInfo, tvQuestion;
     private TextView tvPlayer1Status, tvPlayer2Status, tvScore1, tvScore2;
     private Button[] answerButtons = new Button[4];
     private ProgressBar progressBar;
@@ -132,6 +132,8 @@ public class KoZnaZnaFragment extends Fragment {
 
         tvQuestionNum   = view.findViewById(R.id.tvQuestionNum);
         tvTimer         = view.findViewById(R.id.tvTimer);
+        tvRound = view.findViewById(R.id.tvRound);
+        tvTurn = view.findViewById(R.id.tvTurn);
         tvScore         = view.findViewById(R.id.tvScore);
         tvInfo          = view.findViewById(R.id.tvInfo);
         tvQuestion      = view.findViewById(R.id.tvQuestion);
@@ -445,6 +447,8 @@ public class KoZnaZnaFragment extends Fragment {
         tvPlayer1Status.setText("Igrač 1 ⏳");
         tvPlayer2Status.setText("Igrač 2 ⏳");
         tvQuestionNum.setText("Pitanje " + (currentQuestion + 1) + "/" + questions.size());
+        tvRound.setText("Runda 1/1");
+        tvTurn.setText("Na potezu: oba");
         tvInfo.setText("🎯 Oba igrača biraju odgovor!");
 
         updateScoreViews();
@@ -629,13 +633,13 @@ public class KoZnaZnaFragment extends Fragment {
     // ═══════════════════════════════════════════════════════════════════════
 
     private void startTimer() {
-        tvTimer.setTextColor(ContextCompat.getColor(requireContext(), R.color.petal));
+        tvTimer.setTextColor(ContextCompat.getColor(requireContext(), R.color.dark_blue));
         timer = new CountDownTimer(5000, 1000) {
             @Override
             public void onTick(long ms) {
                 if (!isAdded()) return;
                 long s = ms / 1000 + 1; // +1 da prikažemo 5,4,3,2,1 umjesto 4,3,2,1,0
-                tvTimer.setText(String.valueOf(s));
+                tvTimer.setText(String.format("00:%02d", s));
                 if (s <= 2)
                     tvTimer.setTextColor(
                             ContextCompat.getColor(requireContext(), android.R.color.holo_red_light));
@@ -643,7 +647,7 @@ public class KoZnaZnaFragment extends Fragment {
             @Override
             public void onFinish() {
                 if (!isAdded() || questionDone) return;
-                tvTimer.setText("0");
+                tvTimer.setText("00:00");
                 if (!iAnswered) {
                     iAnswered = true;
                     for (Button btn : answerButtons) btn.setEnabled(false);
@@ -845,7 +849,10 @@ public class KoZnaZnaFragment extends Fragment {
     }
 
     private void updateScoreViews() {
-        tvScore.setText("Igrač 1: " + player1Score + "  |  Igrač 2: " + player2Score);
+        if (tvScore != null) {
+            tvScore.setText("Igrač 1: " + player1Score + "  |  Igrač 2: " + player2Score);
+        }
+
         tvScore1.setText(player1Score + " bod.");
         tvScore2.setText(player2Score + " bod.");
     }

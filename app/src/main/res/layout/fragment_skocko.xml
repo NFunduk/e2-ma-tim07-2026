@@ -22,63 +22,70 @@
             android:orientation="vertical"
             android:padding="4dp">
 
-            <androidx.cardview.widget.CardView
+            <!-- HEADER ISTI KAO KORAK PO KORAK -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="18dp"
-                app:cardElevation="4dp"
-                app:cardBackgroundColor="@color/dark_blue">
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="6dp">
+
+                <TextView
+                    android:id="@+id/tvSkockoRound"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Runda 1/2"
+                    android:textColor="@color/dark_blue"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvSkockoTimer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="00:30"
+                    android:textColor="@color/dark_blue"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
 
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:orientation="vertical"
-                    android:padding="6dp">
-
-                    <TextView
-                        android:id="@+id/tvSkockoRound"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Runda 1/2"
-                        android:textColor="@color/white"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
+                    android:gravity="end">
 
                     <TextView
                         android:id="@+id/tvSkockoPlayer"
-                        android:layout_width="match_parent"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Na potezu: igrač 1"
-                        android:textColor="@color/lavender"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvSkockoTimer"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="00:30"
-                        android:textColor="@color/petal"
-                        android:textSize="18sp"
+                        android:textColor="@color/dark_blue"
+                        android:textSize="11sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/tvSkockoScore"
-                        android:layout_width="match_parent"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Igrač 1: 0 | Igrač 2: 0"
-                        android:textColor="@color/white"
-                        android:textSize="14sp" />
+                        android:text="0 : 0"
+                        android:textColor="@color/dark_blue"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tvSkockoInfo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="6dp"
                 android:background="@drawable/channel_chip_bg"
-                android:padding="6dp"
+                android:padding="8dp"
+                android:gravity="center"
+                android:textSize="13sp"
                 android:text="Izaberi 4 znaka i proveri kombinaciju."
                 android:textColor="@color/dark_blue"
                 android:textStyle="bold" />
@@ -101,12 +108,12 @@
             <TextView
                 android:id="@+id/currentGuess"
                 android:layout_width="match_parent"
-                android:layout_height="54dp"
+                android:layout_height="46dp"
                 android:layout_marginTop="4dp"
                 android:gravity="center"
                 android:text="_  _  _  _"
                 android:textColor="@color/dark_blue"
-                android:textSize="22sp"
+                android:textSize="20sp"
                 android:textStyle="bold"
                 android:background="@drawable/filter_unselected_bg" />
 
@@ -151,7 +158,7 @@
             <Button
                 android:id="@+id/btnCheck"
                 android:layout_width="match_parent"
-                android:layout_height="36dp"
+                android:layout_height="34dp"
                 android:layout_marginTop="12dp"
                 android:text="Proveri"
                 android:textColor="@color/white"
@@ -161,7 +168,7 @@
             <Button
                 android:id="@+id/btnClear"
                 android:layout_width="match_parent"
-                android:layout_height="36dp"
+                android:layout_height="34dp"
                 android:layout_marginTop="8dp"
                 android:text="Obriši unos"
                 android:textColor="@color/white"
@@ -171,7 +178,7 @@
             <Button
                 android:id="@+id/btnNextSkocko"
                 android:layout_width="match_parent"
-                android:layout_height="36dp"
+                android:layout_height="34dp"
                 android:layout_marginTop="8dp"
                 android:text="Sledeća runda"
                 android:textColor="@color/white"
