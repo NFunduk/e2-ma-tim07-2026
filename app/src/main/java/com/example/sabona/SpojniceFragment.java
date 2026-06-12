@@ -37,7 +37,7 @@ public class SpojniceFragment extends Fragment {
 
     // ── Views ──────────────────────────────────────────────────────────────
     private TextView tvRound, tvPlayer, tvTimer, tvScore, tvInfo, tvCriteria;
-    private TextView tvRoundScore1, tvRoundScore2, tvConnected;
+   // private TextView tvRoundScore1, tvRoundScore2, tvConnected;
     private Button[] leftButtons  = new Button[5];
     private Button[] rightButtons = new Button[5];
     private TextView[] arrows     = new TextView[5];
@@ -154,9 +154,9 @@ public class SpojniceFragment extends Fragment {
         tvScore       = view.findViewById(R.id.tvScore);
         tvInfo        = view.findViewById(R.id.tvInfo);
         tvCriteria    = view.findViewById(R.id.tvCriteria);
-        tvRoundScore1 = view.findViewById(R.id.tvRoundScore1);
-        tvRoundScore2 = view.findViewById(R.id.tvRoundScore2);
-        tvConnected   = view.findViewById(R.id.tvConnected);
+       // tvRoundScore1 = view.findViewById(R.id.tvRoundScore1);
+        // tvRoundScore2 = view.findViewById(R.id.tvRoundScore2);
+        //tvConnected   = view.findViewById(R.id.tvConnected);
 
         leftButtons[0]  = view.findViewById(R.id.btnLeft1);
         leftButtons[1]  = view.findViewById(R.id.btnLeft2);
@@ -969,13 +969,11 @@ public class SpojniceFragment extends Fragment {
             default:         label = "Runda završena"; break;
         }
         tvPlayer.setText(label);
-        tvScore.setText("Igrač 1: " + player1Score + "  |  Igrač 2: " + player2Score);
+        tvScore.setText(player1Score + " : " + player2Score);
     }
 
     private void updateScoreViews() {
-        tvRoundScore1.setText(roundScore1 + " bod.");
-        tvRoundScore2.setText(roundScore2 + " bod.");
-        tvConnected.setText(connectedCount + "/5");
+
     }
 
     private void setAllButtonsEnabled(boolean enabled) {
