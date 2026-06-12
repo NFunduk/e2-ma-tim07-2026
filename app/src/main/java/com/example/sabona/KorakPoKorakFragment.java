@@ -12,6 +12,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
@@ -60,6 +61,7 @@ public class KorakPoKorakFragment extends Fragment {
         viewModel = new ViewModelProvider(this).get(KorakViewModel.class);
         observeViewModel();
         setupClickListeners();
+        setupBackPressHandling();
 
         // Provjeri da li je sesija već postavljena (stigli smo iz KoZnaZna ili Spojnice)
         Bundle args = getArguments();
@@ -302,7 +304,34 @@ public class KorakPoKorakFragment extends Fragment {
         if (activeTimer != null) { activeTimer.cancel(); activeTimer = null; }
     }
 
-    // ── UI helpers ────────────────────────────────────────────────────
+    // ── Back press ────────────────────────────────────────────────────
+
+    /**
+     * Sprečava napuštanje igre pritiskom na sistemsko dugme "Nazad" dok
+     * je partija u toku (sve faze osim GAME_OVER). Pre toga je dugme
+     * "Nazad" vraćalo igrača na ekran Spojnice usred igre.
+     */
+    private void setupBackPressHandling() {
+        requireActivity().getOnBackPressedDispatcher().addCallback(
+                getViewLifecycleOwner(),
+                new OnBackPressedCallback(true) {
+                    @Override
+                    public void handleOnBackPressed() {
+                        KorakViewModel.Phase currentPhase = viewModel.getPhase().getValue();
+                        if (currentPhase == KorakViewModel.Phase.GAME_OVER) {
+                            // Dozvoli izlazak kada je partija gotova
+                            setEnabled(false);
+                            requireActivity().getOnBackPressedDispatcher().onBackPressed();
+                            return;
+                        }
+                        Toast.makeText(requireContext(),
+                                "Ne možeš napustiti igru dok partija traje.",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+
 
     private void showWaiting(String msg) {
         if (layoutWaiting != null) {
