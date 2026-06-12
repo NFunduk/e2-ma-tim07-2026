@@ -8,54 +8,73 @@
     android:background="@color/lace"
     android:padding="12dp">
 
-    <!-- Runda + Tajmer + Info -->
+    <!-- HEADER ISTI KAO KORAK PO KORAK -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center_horizontal"
-        android:layout_marginBottom="8dp">
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="6dp">
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/tvMojBrojRound"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:id="@+id/tvMojBrojRound"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Runda 1/2"
-                android:textColor="@color/dark_blue"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvMojBrojInfo"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="2"
-                android:text="Pritisni STOP"
-                android:textColor="@color/dark_blue"
-                android:textSize="11sp"
-                android:gravity="center"
-                android:maxLines="1"
-                android:ellipsize="end" />
-        </LinearLayout>
+            android:layout_weight="1"
+            android:text="Runda 1/2"
+            android:textColor="@color/dark_blue"
+            android:textSize="15sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvMojBrojTimer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:letterSpacing="-0.03"
             android:text="01:00"
-            android:textColor="@color/blue"
-            android:textSize="38sp"
+            android:textColor="@color/dark_blue"
+            android:textSize="24sp"
             android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="end">
+
+            <TextView
+                android:id="@+id/tvMojBrojPlayer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Na potezu: igrač 1"
+                android:textColor="@color/dark_blue"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvMojBrojScore"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 : 0"
+                android:textColor="@color/dark_blue"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvMojBrojInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/channel_chip_bg"
+        android:padding="8dp"
+        android:text="Pritisni STOP"
+        android:textColor="@color/dark_blue"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:gravity="center" />
 
     <!-- Traženi broj + STOP -->
     <androidx.cardview.widget.CardView

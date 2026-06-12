@@ -22,66 +22,71 @@
             android:orientation="vertical"
             android:padding="3dp">
 
-            <androidx.cardview.widget.CardView
+            <!-- HEADER ISTI KAO KORAK PO KORAK -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="14dp"
-                app:cardElevation="3dp"
-                app:cardBackgroundColor="@color/dark_blue">
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="6dp">
+
+                <TextView
+                    android:id="@+id/tvRound"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Runda 1/2"
+                    android:textColor="@color/dark_blue"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvTimer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="02:00"
+                    android:textColor="@color/dark_blue"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
 
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:orientation="vertical"
-                    android:padding="5dp">
-
-                    <TextView
-                        android:id="@+id/tvRound"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Runda 1/2"
-                        android:textColor="@color/white"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
+                    android:gravity="end">
 
                     <TextView
                         android:id="@+id/tvPlayer"
-                        android:layout_width="match_parent"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Na potezu: igrač 1"
-                        android:textColor="@color/lavender"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvTimer"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="02:00"
-                        android:textColor="@color/petal"
-                        android:textSize="15sp"
+                        android:textColor="@color/dark_blue"
+                        android:textSize="11sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/tvScore"
-                        android:layout_width="match_parent"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Igrač 1: 0 | Igrač 2: 0"
-                        android:textColor="@color/white"
-                        android:textSize="12sp" />
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
+                        android:text="0 : 0"
+                        android:textColor="@color/dark_blue"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
 
+                </LinearLayout>
+
+            </LinearLayout>
             <TextView
                 android:id="@+id/tvInfo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="6dp"
                 android:background="@drawable/channel_chip_bg"
-                android:padding="4dp"
+                android:padding="8dp"
                 android:text="Otvori polje ili pogodi rešenje."
                 android:textColor="@color/dark_blue"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 android:textStyle="bold" />
 
             <!-- A i B -->
@@ -119,7 +124,7 @@
                         android:layout_height="36dp"
                         android:hint="Rešenje A"
                         android:textSize="12sp"
-                        android:padding="3dp" />
+                        android:padding="6dp" />
 
                     <Button
                         android:id="@+id/btnGuessA"

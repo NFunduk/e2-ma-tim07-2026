@@ -839,7 +839,7 @@ public class AssociationsFragment extends Fragment {
     private void updateHeader() {
         tvRound.setText("Runda " + round + "/2");
         tvPlayer.setText("Na potezu: igrač " + currentPlayer);
-        tvScore.setText("Igrač 1: " + player1Score + "  |  Igrač 2: " + player2Score);
+        tvScore.setText(player1Score + " : " + player2Score);
     }
 
     private boolean hasOpenableField() {
