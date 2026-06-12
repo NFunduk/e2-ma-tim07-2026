@@ -27,6 +27,11 @@ import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 
+import androidx.lifecycle.ViewModelProvider;
+import com.example.sabona.game.GameSessionManager;
+import com.example.sabona.game.SkockoGameState;
+import com.example.sabona.viewModel.SkockoViewModel;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -43,6 +48,7 @@ public class SkockoFragment extends Fragment {
     private final String[] symbols = {"☻", "■", "●", "♥", "▲", "★"};
     private final String[] secret = new String[4];
     private String[] guess = new String[4];
+    private boolean roundEndTimerStarted = false;
 
     private int guessIndex = 0;
     private int attempt = 0;
@@ -58,6 +64,18 @@ public class SkockoFragment extends Fragment {
     private CountDownTimer timer;
     private CountDownTimer finishTimer;
 
+    private SkockoViewModel viewModel;
+    private boolean multiplayerMode = false;
+
+    private boolean myTurnNow = false;
+    private int lastRenderedRound = -1;
+    private int lastRenderedRowsCount = -1;
+    private boolean alreadyNavigated = false;
+
+    private boolean lastOpponentChance = false;
+
+    private boolean roundEndTransitionStarted = false;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
@@ -72,6 +90,31 @@ public class SkockoFragment extends Fragment {
 
         connectViews(view);
         setupClicks();
+
+        Bundle args = getArguments();
+
+        if (args != null && args.containsKey("sessionId")) {
+            String passedSessionId = args.getString("sessionId", "");
+            boolean passedIsHost = args.getBoolean("isHost", true);
+            String passedHostUid = args.getString("hostUid", "");
+
+            if (!passedSessionId.isEmpty()) {
+                multiplayerMode = true;
+
+                if (passedIsHost) {
+                    GameSessionManager.get().setupAsHost(passedSessionId);
+                } else {
+                    GameSessionManager.get().setupAsGuest(passedSessionId, passedHostUid);
+                }
+
+                viewModel = new ViewModelProvider(this).get(SkockoViewModel.class);
+                observeViewModel();
+                viewModel.init();
+                return;
+            }
+        }
+
+        multiplayerMode = false;
         startRound();
     }
 
@@ -81,6 +124,106 @@ public class SkockoFragment extends Fragment {
 
         if (timer != null) timer.cancel();
         if (finishTimer != null) finishTimer.cancel();
+    }
+
+    private void observeViewModel() {
+        viewModel.getState().observe(getViewLifecycleOwner(), state -> {
+            if (state == null) return;
+
+            round = state.round;
+            player1Score = state.player1Score;
+            player2Score = state.player2Score;
+            attempt = state.attempt;
+            opponentChance = state.opponentChance;
+            roundFinished = state.roundFinished;
+
+            currentPlayer = GameSessionManager.ROLE_PLAYER1.equals(state.activePlayerRole) ? 1 : 2;
+
+            String[] remoteSecret = state.secret.split(",");
+            if (remoteSecret.length == 4) {
+                for (int i = 0; i < 4; i++) {
+                    secret[i] = remoteSecret[i];
+                }
+            }
+
+            if (lastRenderedRound != round) {
+                lastRenderedRound = round;
+                resetLocalRoundUi();
+                lastRenderedRowsCount = -1;
+            }
+
+            renderRemoteRows(state);
+
+            if (state.opponentChance && !lastOpponentChance) {
+                lastOpponentChance = true;
+                clearGuess();
+                startTimer(10000);
+            }
+
+            if (!state.opponentChance) {
+                lastOpponentChance = false;
+            }
+
+
+            updateHeader();
+        });
+
+        viewModel.getPhase().observe(getViewLifecycleOwner(), phase -> {
+            if (phase == null) return;
+
+            if (phase == SkockoViewModel.Phase.WAITING_P2) {
+                enableGame(false);
+                tvInfo.setText("Čekamo drugog igrača da se pridruži...");
+            }
+
+
+            if (phase == SkockoViewModel.Phase.ROUND_END) {
+                enableGame(false);
+                currentGuess.setText(buildSolutionText());
+                startRoundEndTransition();
+            }
+
+            if (phase == SkockoViewModel.Phase.GAME_OVER) {
+                showEndGame();
+            }
+        });
+
+        viewModel.getMyTurn().observe(getViewLifecycleOwner(), isMyTurn -> {
+            if (isMyTurn == null) return;
+
+            myTurnNow = isMyTurn;
+
+            if (multiplayerMode) {
+                enableGame(myTurnNow && !roundFinished);
+
+                if (myTurnNow) {
+                    tvInfo.setText("Ti si na potezu.");
+                } else {
+                    tvInfo.setText("Čekaj, drugi igrač je na potezu.");
+                }
+            }
+        });
+    }
+
+    private void resetLocalRoundUi() {
+        roundEndTransitionStarted = false;
+        roundEndTimerStarted = false;
+        if (timer != null) timer.cancel();
+        if (finishTimer != null) finishTimer.cancel();
+
+        guessIndex = 0;
+        guess = new String[4];
+
+        for (TextView row : rows) {
+            row.setText("_  _  _  _     |     ○ ○ ○ ○");
+            row.setTextSize(18);
+        }
+
+        currentGuess.setText("_  _  _  _");
+        btnNextSkocko.setVisibility(View.GONE);
+
+        updateHeader();
+        startTimer(30000);
     }
 
     private void connectViews(View view) {
@@ -134,7 +277,9 @@ public class SkockoFragment extends Fragment {
         if (timer != null) timer.cancel();
         if (finishTimer != null) finishTimer.cancel();
 
-        generateSecret();
+        if (!multiplayerMode) {
+            generateSecret();
+        }
 
         attempt = 0;
         guessIndex = 0;
@@ -188,6 +333,7 @@ public class SkockoFragment extends Fragment {
     }
 
     private void checkGuess() {
+        if (multiplayerMode && !myTurnNow) return;
         if (roundFinished) return;
 
         if (guessIndex < 4) {
@@ -214,6 +360,18 @@ public class SkockoFragment extends Fragment {
 
         setAttemptRow(rows[attempt], correctPlace, correctSymbol);
 
+        if (multiplayerMode && viewModel != null) {
+            viewModel.saveAttempt(
+                    guessToString(guess),
+                    correctPlace,
+                    correctSymbol,
+                    attempt + 1
+            );
+        }
+
+
+
+
         if (correctPlace == 4) {
             int points = calculatePoints(attempt + 1);
             // Zapamti u kom pokušaju je igrač 1 pogodio (za statistiku)
@@ -233,12 +391,20 @@ public class SkockoFragment extends Fragment {
         clearGuess();
 
         if (attempt == 6) {
-            startOpponentChance();
+            if (multiplayerMode && viewModel != null) {
+                viewModel.startOpponentChance();
+            } else {
+                startOpponentChance();
+            }
         } else {
             tvInfo.setText("Pokušaj " + (attempt + 1) + "/6.");
         }
 
         updateHeader();
+    }
+
+    private String guessToString(String[] values) {
+        return values[0] + "," + values[1] + "," + values[2] + "," + values[3];
     }
 
     private int countCorrectPlace() {
@@ -285,7 +451,13 @@ public class SkockoFragment extends Fragment {
         if (timer != null) timer.cancel();
 
         opponentChance = true;
-        switchPlayer();
+
+        if (multiplayerMode && viewModel != null) {
+            viewModel.startOpponentChance();
+        } else {
+            switchPlayer();
+        }
+
         clearGuess();
 
         tvInfo.setText("Protivnik ima 10 sekundi za jedan pokušaj i 10 bodova.");
@@ -364,16 +536,28 @@ public class SkockoFragment extends Fragment {
         } else {
             player2Score += points;
         }
+
+        if (multiplayerMode && viewModel != null) {
+            viewModel.addPointsToActivePlayer(points);
+        }
     }
 
     private void finishRound() {
+        if (roundEndTimerStarted) return;
+        roundEndTimerStarted = true;
+
         if (timer != null) timer.cancel();
 
         roundFinished = true;
         enableGame(false);
         currentGuess.setText(buildSolutionText());
 
-        finishTimer = new CountDownTimer(3000, 1000) {
+        if (multiplayerMode && viewModel != null) {
+            viewModel.finishRound();
+            return;
+        }
+
+        finishTimer = new CountDownTimer(5000, 1000) {
             @Override
             public void onTick(long millisUntilFinished) {
                 long seconds = millisUntilFinished / 1000;
@@ -395,7 +579,32 @@ public class SkockoFragment extends Fragment {
         finishTimer.start();
         updateHeader();
     }
+    private void startRoundEndTransition() {
+        if (roundEndTransitionStarted) return;
+        roundEndTransitionStarted = true;
 
+        if (timer != null) timer.cancel();
+        if (finishTimer != null) finishTimer.cancel();
+
+        finishTimer = new CountDownTimer(5000, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                long seconds = millisUntilFinished / 1000;
+                tvInfo.setText("Runda završena! Sledeća za: " + seconds + "s");
+            }
+
+            @Override
+            public void onFinish() {
+                if (multiplayerMode && viewModel != null) {
+                    if (GameSessionManager.get().isPlayer1()) {
+                        viewModel.startNextRound();
+                    }
+                }
+            }
+        };
+
+        finishTimer.start();
+    }
     private SpannableString buildSolutionText() {
         String text = "Rešenje: ●  ●  ●  ●";
         SpannableString spannable = new SpannableString(text);
@@ -448,6 +657,11 @@ public class SkockoFragment extends Fragment {
 
             @Override
             public void onFinish() {
+
+                if (multiplayerMode && !myTurnNow) {
+                    return;
+                }
+
                 tvTimer.setText("00:00");
 
                 if (opponentChance) {
@@ -471,6 +685,10 @@ public class SkockoFragment extends Fragment {
 
     private void switchPlayer() {
         currentPlayer = currentPlayer == 1 ? 2 : 1;
+
+        if (multiplayerMode && viewModel != null) {
+            viewModel.switchPlayer();
+        }
     }
 
     private void updateHeader() {
@@ -480,6 +698,9 @@ public class SkockoFragment extends Fragment {
     }
 
     private void showEndGame() {
+
+        if (alreadyNavigated) return;
+        alreadyNavigated = true;
         String winner;
         if (player1Score > player2Score) {
             winner = "Pobednik igre Skočko je igrač 1!";
@@ -493,8 +714,16 @@ public class SkockoFragment extends Fragment {
         // Snimi statistiku za igrača 1 (player1Score i koji pokušaj)
         new StatsRepository().saveSkockoResult(player1Score, player1AttemptGroup);
 
+        Bundle args = new Bundle();
+
+        if (multiplayerMode) {
+            args.putString("sessionId", GameSessionManager.get().getSessionId());
+            args.putBoolean("isHost", GameSessionManager.get().isPlayer1());
+            args.putString("hostUid", GameSessionManager.get().getPlayer1Uid());
+        }
+
         NavHostFragment.findNavController(this)
-                .navigate(R.id.action_skocko_to_korak);
+                .navigate(R.id.action_skocko_to_korak, args);
     }
 
     private int getIconForSymbol(String symbol) {
@@ -554,6 +783,38 @@ public class SkockoFragment extends Fragment {
         return spannable;
     }
 
+    private void renderRemoteRows(SkockoGameState state) {
+        if (state.rows == null) return;
+        if (lastRenderedRowsCount == state.rows.size()) return;
+
+        lastRenderedRowsCount = state.rows.size();
+
+        for (int i = 0; i < rows.length; i++) {
+            rows[i].setText("_  _  _  _     |     ○ ○ ○ ○");
+            rows[i].setTextSize(18);
+        }
+
+        for (int i = 0; i < state.rows.size() && i < rows.length; i++) {
+            String rowData = state.rows.get(i);
+            String[] parts = rowData.split("\\|");
+
+            if (parts.length != 3) continue;
+
+            String[] rowGuess = parts[0].split(",");
+            int correctPlace = Integer.parseInt(parts[1]);
+            int correctSymbol = Integer.parseInt(parts[2]);
+
+            setAttemptRowWithGuess(rows[i], rowGuess, correctPlace, correctSymbol);
+        }
+    }
+
+    private void setAttemptRowWithGuess(TextView row, String[] rowGuess, int correctPlace, int correctSymbol) {
+        String[] oldGuess = guess;
+        guess = rowGuess;
+        setAttemptRow(row, correctPlace, correctSymbol);
+        guess = oldGuess;
+    }
+
     private void saveSkockoResult() {
         Map<String, Object> result = new HashMap<>();
         result.put("game", "skocko");
@@ -565,4 +826,6 @@ public class SkockoFragment extends Fragment {
                 .collection("gameResults")
                 .add(result);
     }
+
+
 }
