@@ -53,6 +53,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
 
     // ── UsedCount ─────────────────────────────────────────────────────
     private final int[] usedCount = new int[6];
+    private final java.util.ArrayDeque<Integer> clickOrder = new java.util.ArrayDeque<>();
 
     // ── ViewModel & timeri ────────────────────────────────────────────
     private MojBrojViewModel viewModel;
@@ -235,6 +236,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
 
         viewModel.getOfferedNumbers().observe(getViewLifecycleOwner(), nums -> {
             if (nums == null) { for (TextView tv : tvNums) tv.setText("?"); return; }
+            clickOrder.clear();
             for (int i = 0; i < 6; i++) {
                 usedCount[i] = 0;
                 tvNums[i].setText(String.valueOf(nums[i]));
@@ -355,6 +357,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
             etExpression.setText("");
             tvResult.setText("—");
             for (int i = 0; i < 6; i++) { usedCount[i] = 0; setNumUsed(i, false); }
+            clickOrder.clear();
         });
 
         btnBackspace.setOnClickListener(v -> handleBackspace());
@@ -389,6 +392,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
                 }
                 usedCount[idx]++;
                 setNumUsed(idx, true);
+                clickOrder.push(idx);
                 appendExpr(tvNums[idx].getText().toString());
             });
         }
@@ -494,19 +498,17 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         if (lastSpace == -1) { lastToken = trimmed; newExpr = ""; }
         else { lastToken = trimmed.substring(lastSpace + 1); newExpr = trimmed.substring(0, lastSpace); }
 
-        int[] offered = viewModel.getOfferedNumbers().getValue();
-        if (offered != null) {
-            try {
-                int tokenVal = Integer.parseInt(lastToken);
-                for (int i = 0; i < 6; i++) {
-                    if (usedCount[i] > 0 && offered[i] == tokenVal) {
-                        usedCount[i]--;
-                        if (usedCount[i] == 0) setNumUsed(i, false);
-                        break;
-                    }
+        try {
+            Integer.parseInt(lastToken); // samo provera da je broj, ne operator
+            if (!clickOrder.isEmpty()) {
+                int idx = clickOrder.pop();
+                if (usedCount[idx] > 0) {
+                    usedCount[idx]--;
+                    if (usedCount[idx] == 0) setNumUsed(idx, false);
                 }
-            } catch (NumberFormatException ignored) {}
-        }
+            }
+        } catch (NumberFormatException ignored) {}
+
         etExpression.setText(newExpr);
         etExpression.setSelection(newExpr.length());
     }
@@ -525,6 +527,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         tvResult.setText("—");
         tvTargetNumber.setText("???");
         tvMojBrojTimer.setText("01:00");
+        clickOrder.clear();
         for (int i = 0; i < 6; i++) {
             tvNums[i].setText("?"); usedCount[i] = 0; setNumUsed(i, false);
         }

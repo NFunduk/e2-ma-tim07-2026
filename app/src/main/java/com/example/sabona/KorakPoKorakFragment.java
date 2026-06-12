@@ -45,6 +45,7 @@ public class KorakPoKorakFragment extends Fragment {
 
     private KorakViewModel viewModel;
     private CountDownTimer activeTimer;
+    private int mainTimerStartedForRound = -1;
 
     @Nullable
     @Override
@@ -147,17 +148,32 @@ public class KorakPoKorakFragment extends Fragment {
                 case MAIN:
                     progressBar.setVisibility(View.GONE);
                     hideWaiting();
-                    etKorakAnswer.setText("");
                     tvKorakRound.setText("Runda " + viewModel.getRound()
                             + "/2  —  Igrač " + viewModel.getActivePlayerNumber());
-                    cancelTimer();
-                    startMainTimer();
+
+                    boolean myTurnMain = Boolean.TRUE.equals(viewModel.getIsMyTurn().getValue());
+                    etKorakAnswer.setEnabled(myTurnMain);
+                    btnKorakGuess.setEnabled(myTurnMain);
+
+                    // Tajmer se pokreće samo JEDNOM po rundi, ne na svaki otkriveni korak
+                    if (mainTimerStartedForRound != viewModel.getRound()) {
+                        mainTimerStartedForRound = viewModel.getRound();
+                        etKorakAnswer.setText("");
+                        cancelTimer();
+                        startMainTimer();
+                    }
                     break;
 
                 case BONUS:
                     hideWaiting();
                     cancelTimer();
                     etKorakAnswer.setText("");
+
+                    boolean myTurnBonus = Boolean.TRUE.equals(viewModel.getIsMyTurn().getValue());
+                    // U bonus fazi odgovara PROTIVNIK (suprotno od activePlayer)
+                    etKorakAnswer.setEnabled(!myTurnBonus);
+                    btnKorakGuess.setEnabled(!myTurnBonus);
+
                     startBonusTimer();
                     break;
 

@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
+
 import com.example.sabona.repository.SpojniceRepository;
 import com.example.sabona.repository.SpojniceRepository.SpojniceQuestion;
 import com.example.sabona.repository.StatsRepository;
@@ -666,10 +667,21 @@ public class SpojniceFragment extends Fragment {
     private void onLeftClick(int index) {
         if (!myTurn || roundFinished || connected[index]) return;
 
+        // Ako klikneš isti koji je već selektovan — deselektuj ga
+        if (selectedLeft == index) {
+            leftButtons[index].setBackgroundTintList(
+                    ContextCompat.getColorStateList(requireContext(), R.color.white));
+            selectedLeft = -1;
+            tvInfo.setText("🎯 Tvoj red! Klikni lijevo → desno.");
+            return;
+        }
+
+        // Deselektuj prethodni (ako postoji i nije spojen)
         if (selectedLeft != -1 && !connected[selectedLeft]) {
             leftButtons[selectedLeft].setBackgroundTintList(
                     ContextCompat.getColorStateList(requireContext(), R.color.white));
         }
+
         selectedLeft = index;
         leftButtons[index].setBackgroundTintList(
                 ContextCompat.getColorStateList(requireContext(), R.color.blue));
@@ -685,31 +697,42 @@ public class SpojniceFragment extends Fragment {
             return;
         }
 
+        // Provjeri da desni pojam nije već spojen
         int originalRightIndex = rightDisplayOrder[displayPos];
+        for (int i = 0; i < 5; i++) {
+            if (connected[i]) {
+                SpojniceQuestion qCheck = questions.get(round - 1);
+                if (qCheck.correctPairs[i] == originalRightIndex) {
+                    Toast.makeText(requireContext(), "Ovaj pojam je već spojen!", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+            }
+        }
+
         SpojniceQuestion q = questions.get(round - 1);
 
         if (q.correctPairs[selectedLeft] == originalRightIndex) {
             // ✓ Tačno
             int pairIndex = selectedLeft;
-            selectedLeft = -1;
+            selectedLeft = -1; // resetuj odmah — ne može se isti lijevi pojam ponovo koristiti
 
-            // Lokalno odmah
-            renderConnectedPair(pairIndex, activePlayer);
             connected[pairIndex]   = true;
             connectedBy[pairIndex] = activePlayer;
             connectedCount++;
 
+            if (activePlayer == 1) roundScore1 += 2;
+            else                   roundScore2 += 2;
+
+            renderConnectedPair(pairIndex, activePlayer);
             updateScoreViews();
             saveConnectionToFirestore(pairIndex);
 
         } else {
-            // ✗ Netačno
-            if (selectedLeft != -1) {
-                leftButtons[selectedLeft].setBackgroundTintList(
-                        ContextCompat.getColorStateList(requireContext(), R.color.white));
-            }
+            // ✗ Netačno — deselektuj lijevi, igrač mora početi iznova
+            leftButtons[selectedLeft].setBackgroundTintList(
+                    ContextCompat.getColorStateList(requireContext(), R.color.white));
             selectedLeft = -1;
-            tvInfo.setText("Netačno! Pokušaj ponovo.");
+            tvInfo.setText("❌ Netačno! Odaberi ponovo lijevi pojam.");
         }
     }
 
