@@ -9,6 +9,7 @@ import com.example.sabona.game.GameSessionRepository;
 import com.example.sabona.game.KorakGameState;
 import com.example.sabona.model.KorakGame;
 import com.example.sabona.repository.KorakRepository;
+import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ public class KorakViewModel extends ViewModel {
     private final KorakRepository       korakRepo   = new KorakRepository();
     private final GameSessionRepository sessionRepo = new GameSessionRepository();
     private final GameSessionManager    sessionMgr  = GameSessionManager.get();
+    private final StatsRepository       statsRepo   = new StatsRepository();
 
     private ListenerRegistration firestoreListener;
 
@@ -62,6 +64,9 @@ public class KorakViewModel extends ViewModel {
     public LiveData<int[]>   getFinalScores()     { return finalScores; }
     public LiveData<Boolean> getIsMyTurn()        { return isMyTurn; }
     public LiveData<String>  getAnswerFeedback()  { return answerFeedback; }
+
+    // Getter za statistiku (Student 2)
+    public int getPlayer1GuessedAtStep() { return remoteState.player1GuessedAtStep; }
 
     public KorakGame currentGame() {
         if (orderedGames == null || remoteState.gameIndex >= orderedGames.size()) return null;
@@ -117,17 +122,17 @@ public class KorakViewModel extends ViewModel {
         orderedGames.add(g1);
 
         KorakGameState initState = new KorakGameState();
-        initState.status          = "playing";
-        initState.round           = 1;
+        initState.status           = "playing";
+        initState.round            = 1;
         initState.activePlayerRole = GameSessionManager.ROLE_PLAYER1;
-        initState.phase           = "WAITING_P2";
-        initState.stepsRevealed   = 1;
-        initState.gameIndex       = 0;
-        initState.game0Id         = g0.docId;
-        initState.game1Id         = g1.docId;
-        initState.player1Score    = 0;
-        initState.player2Score    = 0;
-        initState.hostUid         = sessionMgr.getMyUid();
+        initState.phase            = "WAITING_P2";
+        initState.stepsRevealed    = 1;
+        initState.gameIndex        = 0;
+        initState.game0Id          = g0.docId;
+        initState.game1Id          = g1.docId;
+        initState.player1Score     = 0;
+        initState.player2Score     = 0;
+        initState.hostUid          = sessionMgr.getMyUid();
 
         sessionRepo.initKorakState(initState);
         startListening();
@@ -230,6 +235,12 @@ public class KorakViewModel extends ViewModel {
             case "GAME_OVER":
                 phase.postValue(Phase.GAME_OVER);
                 finalScores.postValue(new int[]{state.player1Score, state.player2Score});
+                // Spremi statistiku za tekućeg igrača (Student 2 funkcionalnost)
+                if (sessionMgr.isPlayer1()) {
+                    statsRepo.saveKorakResult(state.player1Score, state.player1GuessedAtStep);
+                } else {
+                    statsRepo.saveKorakResult(state.player2Score, state.player2GuessedAtStep);
+                }
                 break;
         }
     }
@@ -268,17 +279,24 @@ public class KorakViewModel extends ViewModel {
                 int pts = Math.max(20 - (current.stepsRevealed - 1) * 2, 0);
                 if (GameSessionManager.ROLE_PLAYER1.equals(current.activePlayerRole)) {
                     newState.player1Score += pts;
+                    // Statistika: pamtimo na kom koraku je player1 pogodio (Student 2)
+                    newState.player1GuessedAtStep = current.stepsRevealed;
                 } else {
                     newState.player2Score += pts;
+                    // Statistika: pamtimo na kom koraku je player2 pogodio (Student 2)
+                    newState.player2GuessedAtStep = current.stepsRevealed;
                 }
                 newState.lastPointsAwarded = pts;
                 newState.lastAnswerPlayer  = GameSessionManager.ROLE_PLAYER1.equals(current.activePlayerRole) ? 1 : 2;
             } else {
+                // Protivnik u bonus fazi
                 boolean activeIsP1 = GameSessionManager.ROLE_PLAYER1.equals(current.activePlayerRole);
                 if (activeIsP1) {
                     newState.player2Score += 5;
+                    newState.player2GuessedAtStep = current.stepsRevealed; // bonus korak
                 } else {
                     newState.player1Score += 5;
+                    newState.player1GuessedAtStep = current.stepsRevealed; // bonus korak
                 }
                 newState.lastPointsAwarded = 5;
                 newState.lastAnswerPlayer  = myPlayerNumber;
@@ -376,22 +394,24 @@ public class KorakViewModel extends ViewModel {
 
     private KorakGameState copyState(KorakGameState src) {
         KorakGameState copy = new KorakGameState();
-        copy.status            = src.status;
-        copy.round             = src.round;
-        copy.activePlayerRole  = src.activePlayerRole;
-        copy.phase             = src.phase;
-        copy.stepsRevealed     = src.stepsRevealed;
-        copy.gameIndex         = src.gameIndex;
-        copy.game0Id           = src.game0Id;
-        copy.game1Id           = src.game1Id;
-        copy.player1Score      = src.player1Score;
-        copy.player2Score      = src.player2Score;
-        copy.player1Answer     = src.player1Answer;
-        copy.player2Answer     = src.player2Answer;
-        copy.lastAnswerResult  = src.lastAnswerResult;
-        copy.lastAnswerPlayer  = src.lastAnswerPlayer;
-        copy.lastPointsAwarded = src.lastPointsAwarded;
-        copy.hostUid           = src.hostUid;
+        copy.status               = src.status;
+        copy.round                = src.round;
+        copy.activePlayerRole     = src.activePlayerRole;
+        copy.phase                = src.phase;
+        copy.stepsRevealed        = src.stepsRevealed;
+        copy.gameIndex            = src.gameIndex;
+        copy.game0Id              = src.game0Id;
+        copy.game1Id              = src.game1Id;
+        copy.player1Score         = src.player1Score;
+        copy.player2Score         = src.player2Score;
+        copy.player1Answer        = src.player1Answer;
+        copy.player2Answer        = src.player2Answer;
+        copy.lastAnswerResult     = src.lastAnswerResult;
+        copy.lastAnswerPlayer     = src.lastAnswerPlayer;
+        copy.lastPointsAwarded    = src.lastPointsAwarded;
+        copy.hostUid              = src.hostUid;
+        copy.player1GuessedAtStep = src.player1GuessedAtStep;
+        copy.player2GuessedAtStep = src.player2GuessedAtStep;
         return copy;
     }
 
