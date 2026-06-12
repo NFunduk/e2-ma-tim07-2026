@@ -36,6 +36,8 @@ import com.example.sabona.viewModel.AsocijacijeViewModel;
 public class AssociationsFragment extends Fragment {
 
     private TextView tvRound, tvPlayer, tvTimer, tvScore, tvInfo;
+
+    private boolean columnSolvedThisTurn = false;
     private Button[][] fieldButtons = new Button[4][4];
     private TextView[] columnSolutions = new TextView[4];
     private EditText[] columnInputs = new EditText[4];
@@ -260,6 +262,7 @@ public class AssociationsFragment extends Fragment {
                 fieldButtons[col][row].setEnabled(
                         canPlay &&
                                 !fieldOpenedThisTurn &&
+                                !columnSolvedThisTurn &&
                                 !opened[col][row] &&
                                 !columnSolved[col]
                 );
@@ -268,7 +271,7 @@ public class AssociationsFragment extends Fragment {
 
         finalInput.setEnabled(canPlay);
         btnGuessFinal.setEnabled(canPlay);
-        btnPassTurn.setEnabled(canPlay && fieldOpenedThisTurn);
+        btnPassTurn.setEnabled(canPlay && (fieldOpenedThisTurn || columnSolvedThisTurn));
     }
 
     private void resetRoundUiOnlyVisual() {
@@ -278,6 +281,7 @@ public class AssociationsFragment extends Fragment {
         fieldOpenedThisTurn = false;
         roundFinished = false;
         roundEndTimerStarted = false;
+        columnSolvedThisTurn = false;
 
         for (int col = 0; col < 4; col++) {
             columnSolved[col] = false;
@@ -452,8 +456,8 @@ public class AssociationsFragment extends Fragment {
         btnGuessFinal.setOnClickListener(v -> guessFinal());
 
         btnPassTurn.setOnClickListener(v -> {
-            if (!fieldOpenedThisTurn) {
-                Toast.makeText(requireContext(), "Prvo otvori jedno polje.", Toast.LENGTH_SHORT).show();
+            if (!fieldOpenedThisTurn && !columnSolvedThisTurn) {
+                Toast.makeText(requireContext(), "Prvo otvori polje ili pogodi kolonu.", Toast.LENGTH_SHORT).show();
                 return;
             }
 
@@ -466,6 +470,7 @@ public class AssociationsFragment extends Fragment {
 
         finalSolved = false;
         fieldOpenedThisTurn = false;
+        columnSolvedThisTurn = false;
         roundFinished = false;
 
         for (int col = 0; col < 4; col++) {
@@ -515,12 +520,15 @@ public class AssociationsFragment extends Fragment {
 
     private void passTurn() {
         if (multiplayerMode && viewModel != null) {
+            columnSolvedThisTurn = false;
+            fieldOpenedThisTurn = false;
             viewModel.passTurn();
             return;
         }
 
         switchPlayer();
         fieldOpenedThisTurn = false;
+        columnSolvedThisTurn = false;
         enableFieldOpening();
         tvInfo.setText("Na potezu je igrač " + currentPlayer + ". Otvori jedno polje.");
         updateHeader();
@@ -556,8 +564,12 @@ public class AssociationsFragment extends Fragment {
                 addPoints(points);
             }
 
+            columnSolvedThisTurn = true;
             revealColumn(col);
-            tvInfo.setText("Tačno! Dobijeno bodova za kolonu: " + points);
+            disableFieldOpening();
+            btnPassTurn.setEnabled(true);
+
+            tvInfo.setText("Tačno! Možeš da klikneš Dalje, pogodiš konačno rešenje ili pogađaš kolone koje imaju otvoreno polje.");
         } else {
             tvInfo.setText("Netačno. Igra drugi igrač.");
             Toast.makeText(requireContext(), "Netačno rešenje kolone", Toast.LENGTH_SHORT).show();
@@ -856,7 +868,7 @@ public class AssociationsFragment extends Fragment {
     }
 
     private boolean canGuessNow() {
-        return fieldOpenedThisTurn || !hasOpenableField();
+        return fieldOpenedThisTurn || columnSolvedThisTurn || !hasOpenableField();
     }
 
     private String normalize(String text) {
