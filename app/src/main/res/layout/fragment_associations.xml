@@ -114,6 +114,7 @@
                         android:background="@color/blue" />
                     <EditText
                         android:id="@+id/inputA"
+                        style="@style/DarkHintEditText"
                         android:layout_width="match_parent"
                         android:layout_height="36dp"
                         android:hint="Rešenje A"
@@ -155,6 +156,7 @@
 
                     <EditText
                         android:id="@+id/inputB"
+                        style="@style/DarkHintEditText"
                         android:layout_width="match_parent"
                         android:layout_height="36dp"
                         android:hint="Rešenje B"
@@ -198,6 +200,7 @@
 
                     <EditText
                         android:id="@+id/inputFinal"
+                        style="@style/DarkHintEditText"
                         android:layout_width="match_parent"
                         android:layout_height="36dp"
                         android:layout_marginTop="2dp"
@@ -257,6 +260,7 @@
 
                     <EditText
                         android:id="@+id/inputC"
+                        style="@style/DarkHintEditText"
                         android:layout_width="match_parent"
                         android:layout_height="36dp"
                         android:hint="Rešenje C"
@@ -299,6 +303,7 @@
 
                     <EditText
                         android:id="@+id/inputD"
+                        style="@style/DarkHintEditText"
                         android:layout_width="match_parent"
                         android:layout_height="36dp"
                         android:hint="Rešenje D"

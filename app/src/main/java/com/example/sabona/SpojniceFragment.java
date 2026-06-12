@@ -32,35 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Spojnice — 2 runde, 30s po fazi.
- *
- * BUGOVI KOJI SU ISPRAVLJENI:
- * 1. Različita tema — host upisuje "question0Id" i "question1Id" u Firestore,
- *    guest čita isti ID i mapira na svoja lokalno-učitana pitanja.
- *
- * 2. Crash pri spajanju para — Firestore NE podržava dot-notation za Array
- *    elemente ("connected.0"). Fix: uvijek piši CJELU listu kao niz.
- *    Primjer:  update.put("connected", Arrays.asList(true, false, ...))
- *              UMJESTO: update.put("connected.0", true)
- *
- * 3. Izlaz iz aplikacije (crash) — moguće NPE ili navigation exception,
- *    dodati try-catch oko navigate().
- *
- * Firestore: gameSessions/{sessionId}/games/spojnice
- * Polja:
- *   phase         : "waiting_p2" | "r1_phA" | "r1_phB" | "r2_phA" | "r2_phB" | "finished"
- *   p1Score       : int
- *   p2Score       : int
- *   connected     : List<Boolean> [5]  — svih 5 parova su li spojeni
- *   connectedBy   : List<Long> [5]     — 0=niko, 1=p1, 2=p2
- *   connectedCount: int
- *   round1Order   : List<Long> [5]     — shuffled indeksi desne kolone za rundu 1
- *   round2Order   : List<Long> [5]     — shuffled indeksi desne kolone za rundu 2
- *   question0Id   : String             — docId za rundu 1
- *   question1Id   : String             — docId za rundu 2
- *   hostUid       : String
- */
+
 public class SpojniceFragment extends Fragment {
 
     // ── Views ──────────────────────────────────────────────────────────────
@@ -122,6 +94,8 @@ public class SpojniceFragment extends Fragment {
 
     private CountDownTimer timer;
     private String currentPhaseStr = "";
+
+    private boolean[] attempted = new boolean[5]; // lijevi pojmovi koje je igrač već pokušao spojiti
 
     // ─────────────────────────────────────────────────────────────────────
     // Lifecycle
@@ -548,8 +522,14 @@ public class SpojniceFragment extends Fragment {
                     // Ovo rjesava slucaj kada guest spoji posljednji par:
                     // host prima ovaj snapshot i on poziva advancePhase
                     if (connectedCount == 5 && !roundFinished) {
+                        if (timer != null) timer.cancel();
+                        tvTimer.setText("00:00");
                         if (soloMode || isHost) {
                             advancePhase(true);
+                        } else {
+                            roundFinished = true;
+                            tvInfo.setText("Runda završena...");
+                            setAllButtonsEnabled(false);
                         }
                     }
                 }
@@ -567,6 +547,7 @@ public class SpojniceFragment extends Fragment {
         if (timer != null) timer.cancel();
         roundFinished = false;
         selectedLeft  = -1;
+        for (int i = 0; i < 5; i++) attempted[i] = false;
 
         round = ph.startsWith("r1") ? 1 : 2;
 
@@ -610,19 +591,19 @@ public class SpojniceFragment extends Fragment {
         tvCriteria.setText(q.criteria);
 
         // Lijeva kolona
+        // Zamijeni postojeću petlju za lijevu kolonu u setupRoundUI:
         for (int i = 0; i < 5; i++) {
             leftButtons[i].setText(q.leftItems.get(i));
-        }
 
-        // Desna kolona — prema rightDisplayOrder (isti na oba telefona)
-        for (int pos = 0; pos < 5; pos++) {
-            rightButtons[pos].setText(q.rightItems.get(rightDisplayOrder[pos]));
-        }
-
-        // Obnovi vizuelno stanje
-        for (int i = 0; i < 5; i++) {
             if (connected[i]) {
                 renderConnectedPair(i, connectedBy[i]);
+            } else if (attempted[i]) {
+                // Pogrešno pokušan — prikaži crveno i onemogući
+                leftButtons[i].setBackgroundTintList(
+                        ContextCompat.getColorStateList(requireContext(), android.R.color.holo_red_light));
+                leftButtons[i].setEnabled(false);
+                arrows[i].setText("✗");
+                arrows[i].setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_red_light));
             } else {
                 leftButtons[i].setBackgroundTintList(
                         ContextCompat.getColorStateList(requireContext(), R.color.white));
@@ -630,6 +611,11 @@ public class SpojniceFragment extends Fragment {
                 arrows[i].setText("→");
                 arrows[i].setTextColor(ContextCompat.getColor(requireContext(), R.color.dark_blue));
             }
+        }
+
+        // Desna kolona — prema rightDisplayOrder (isti na oba telefona)
+        for (int pos = 0; pos < 5; pos++) {
+            rightButtons[pos].setText(q.rightItems.get(rightDisplayOrder[pos]));
         }
 
         // Desna dugmad
@@ -650,7 +636,7 @@ public class SpojniceFragment extends Fragment {
         // Phase B — lijeva dugmad: samo nespojena su aktivna
         if (PHASE_R1_B.equals(currentPhaseStr) || PHASE_R2_B.equals(currentPhaseStr)) {
             for (int i = 0; i < 5; i++) {
-                leftButtons[i].setEnabled(!connected[i] && myTurn);
+                leftButtons[i].setEnabled(!connected[i] && !attempted[i] && myTurn);
             }
         }
 
@@ -664,12 +650,24 @@ public class SpojniceFragment extends Fragment {
     // ─────────────────────────────────────────────────────────────────────
 
     private void onLeftClick(int index) {
-        if (!myTurn || roundFinished || connected[index]) return;
+        if (!myTurn || roundFinished) return;
+        if (connected[index] || attempted[index]) return; // zaključan — spojen ili već pokušan
 
-        if (selectedLeft != -1 && !connected[selectedLeft]) {
+        // Deselekt istog
+        if (selectedLeft == index) {
+            leftButtons[index].setBackgroundTintList(
+                    ContextCompat.getColorStateList(requireContext(), R.color.white));
+            selectedLeft = -1;
+            tvInfo.setText("🎯 Tvoj red! Klikni lijevo → desno.");
+            return;
+        }
+
+        // Deselektuj prethodni ako postoji
+        if (selectedLeft != -1 && !connected[selectedLeft] && !attempted[selectedLeft]) {
             leftButtons[selectedLeft].setBackgroundTintList(
                     ContextCompat.getColorStateList(requireContext(), R.color.white));
         }
+
         selectedLeft = index;
         leftButtons[index].setBackgroundTintList(
                 ContextCompat.getColorStateList(requireContext(), R.color.blue));
@@ -688,28 +686,37 @@ public class SpojniceFragment extends Fragment {
         int originalRightIndex = rightDisplayOrder[displayPos];
         SpojniceQuestion q = questions.get(round - 1);
 
-        if (q.correctPairs[selectedLeft] == originalRightIndex) {
-            // ✓ Tačno
-            int pairIndex = selectedLeft;
-            selectedLeft = -1;
+        // Provjeri da desni pojam nije već spojen
+        for (int i = 0; i < 5; i++) {
+            if (connected[i] && q.correctPairs[i] == originalRightIndex) {
+                Toast.makeText(requireContext(), "Ovaj pojam je već spojen!", Toast.LENGTH_SHORT).show();
+                return;
+            }
+        }
 
-            // Lokalno odmah
-            renderConnectedPair(pairIndex, activePlayer);
+        int pairIndex = selectedLeft;
+        selectedLeft = -1; // uvijek resetuj odmah
+
+        if (q.correctPairs[pairIndex] == originalRightIndex) {
+            // ✓ Tačno — spoji
             connected[pairIndex]   = true;
             connectedBy[pairIndex] = activePlayer;
             connectedCount++;
 
+            if (activePlayer == 1) roundScore1 += 2;
+            else                   roundScore2 += 2;
+
+            renderConnectedPair(pairIndex, activePlayer);
             updateScoreViews();
             saveConnectionToFirestore(pairIndex);
 
         } else {
-            // ✗ Netačno
-            if (selectedLeft != -1) {
-                leftButtons[selectedLeft].setBackgroundTintList(
-                        ContextCompat.getColorStateList(requireContext(), R.color.white));
-            }
-            selectedLeft = -1;
-            tvInfo.setText("Netačno! Pokušaj ponovo.");
+            // ✗ Netačno — zaključaj taj lijevi pojam zauvijek
+            attempted[pairIndex] = true;
+            leftButtons[pairIndex].setBackgroundTintList(
+                    ContextCompat.getColorStateList(requireContext(), android.R.color.holo_red_light));
+            leftButtons[pairIndex].setEnabled(false);
+            tvInfo.setText("❌ Netačno! Taj pojam više nije dostupan.");
         }
     }
 
