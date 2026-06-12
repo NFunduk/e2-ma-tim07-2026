@@ -136,34 +136,44 @@ public class KorakViewModel extends ViewModel {
     // ── Guest inicijalizacija ─────────────────────────────────────────
 
     private void setupAsGuest() {
-        // Guest čita sesiju da dobije game0Id/game1Id — kao KoZnaZna
-        sessionRepo.getKorakOnce((snap, e) -> {
-            if (e != null || snap == null || !snap.exists()) {
-                error.postValue(true);
+        phase.setValue(Phase.LOADING);
+        infoText.setValue("Čekam host da kreira Korak po korak...");
+
+        sessionRepo.listenKorak((snap, e) -> {
+            if (e != null || snap == null) return;
+
+            if (!snap.exists()) {
                 return;
             }
 
             KorakGameState hostState = snap.toObject(KorakGameState.class);
-            if (hostState == null) { error.postValue(true); return; }
+            if (hostState == null) {
+                error.postValue(true);
+                return;
+            }
 
-            // Mapiraj igre prema ID-ovima koje je host upisao
             KorakGame g0 = gameIdMap.get(hostState.game0Id);
             KorakGame g1 = gameIdMap.get(hostState.game1Id);
-            if (g0 == null || g1 == null) { error.postValue(true); return; }
+
+            if (g0 == null || g1 == null) {
+                error.postValue(true);
+                return;
+            }
 
             orderedGames = new ArrayList<>();
             orderedGames.add(g0);
             orderedGames.add(g1);
 
-            // Prebaci fazu u MAIN (guest potvrđuje da je spreman)
             KorakGameState newState = copyState(hostState);
-            newState.phase = "MAIN";
-            sessionRepo.updateKorakState(newState);
+
+            if ("WAITING_P2".equals(newState.phase)) {
+                newState.phase = "MAIN";
+                sessionRepo.updateKorakState(newState);
+            }
 
             startListening();
         });
     }
-
     // ── Firestore listener ────────────────────────────────────────────
 
     private void startListening() {
