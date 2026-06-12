@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel;
 import com.example.sabona.game.GameSessionManager;
 import com.example.sabona.game.GameSessionRepository;
 import com.example.sabona.game.MojBrojGameState;
+import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.Random;
@@ -49,6 +50,7 @@ public class MojBrojViewModel extends ViewModel {
 
     private final GameSessionRepository sessionRepo = new GameSessionRepository();
     private final GameSessionManager    sessionMgr  = GameSessionManager.get();
+    private final StatsRepository       statsRepo   = new StatsRepository();
     private ListenerRegistration        firestoreListener;
 
     private final Random rng = new Random();
@@ -197,6 +199,16 @@ public class MojBrojViewModel extends ViewModel {
             case "GAME_OVER":
                 phase.postValue(Phase.GAME_OVER);
                 finalScores.postValue(new int[]{state.player1Score, state.player2Score});
+                // Spremi statistiku (Student 2 funkcionalnost)
+                if (sessionMgr.isPlayer1()) {
+                    boolean foundExact = (state.player1RoundResult == state.targetNumber
+                            && state.player1RoundResult != -1);
+                    statsRepo.saveMojBrojResult(state.player1Score, foundExact);
+                } else {
+                    boolean foundExact = (state.player2RoundResult == state.targetNumber
+                            && state.player2RoundResult != -1);
+                    statsRepo.saveMojBrojResult(state.player2Score, foundExact);
+                }
                 break;
         }
     }

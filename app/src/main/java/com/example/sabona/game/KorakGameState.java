@@ -32,6 +32,10 @@ public class KorakGameState {
     public int player1Score = 0;
     public int player2Score = 0;
 
+    // Na kom koraku je player1 pogodio (0 = nije pogodio, 1-7 = korak)
+    // Koristi se za statistiku profila (Student 2)
+    public int player1GuessedAtStep = 0;
+
     // null = nije odgovorio
     public String player1Answer = null;
     public String player2Answer = null;

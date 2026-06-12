@@ -9,6 +9,7 @@ import com.example.sabona.game.GameSessionRepository;
 import com.example.sabona.game.KorakGameState;
 import com.example.sabona.model.KorakGame;
 import com.example.sabona.repository.KorakRepository;
+import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ public class KorakViewModel extends ViewModel {
     private final KorakRepository       korakRepo   = new KorakRepository();
     private final GameSessionRepository sessionRepo = new GameSessionRepository();
     private final GameSessionManager    sessionMgr  = GameSessionManager.get();
+    private final StatsRepository       statsRepo   = new StatsRepository();
 
     private ListenerRegistration firestoreListener;
 
@@ -62,6 +64,9 @@ public class KorakViewModel extends ViewModel {
     public LiveData<int[]>   getFinalScores()     { return finalScores; }
     public LiveData<Boolean> getIsMyTurn()        { return isMyTurn; }
     public LiveData<String>  getAnswerFeedback()  { return answerFeedback; }
+
+    // Getter za statistiku (Student 2)
+    public int getPlayer1GuessedAtStep() { return remoteState.player1GuessedAtStep; }
 
     public KorakGame currentGame() {
         if (orderedGames == null || remoteState.gameIndex >= orderedGames.size()) return null;
@@ -220,6 +225,13 @@ public class KorakViewModel extends ViewModel {
             case "GAME_OVER":
                 phase.postValue(Phase.GAME_OVER);
                 finalScores.postValue(new int[]{state.player1Score, state.player2Score});
+                // Spremi statistiku za player1 (Student 2 funkcionalnost)
+                if (sessionMgr.isPlayer1()) {
+                    statsRepo.saveKorakResult(state.player1Score, state.player1GuessedAtStep);
+                } else {
+                    // player2 statistika — stepGuessed nije trackovan za p2, šaljemo 0
+                    statsRepo.saveKorakResult(state.player2Score, 0);
+                }
                 break;
         }
     }
@@ -251,6 +263,8 @@ public class KorakViewModel extends ViewModel {
             int pts = Math.max(20 - (remoteState.stepsRevealed - 1) * 2, 0);
             if (GameSessionManager.ROLE_PLAYER1.equals(remoteState.activePlayerRole)) {
                 newState.player1Score += pts;
+                // Statistika: pamtimo na kom koraku je player1 pogodio (Student 2)
+                newState.player1GuessedAtStep = remoteState.stepsRevealed;
             } else {
                 newState.player2Score += pts;
             }
@@ -354,6 +368,7 @@ public class KorakViewModel extends ViewModel {
         copy.lastAnswerPlayer  = src.lastAnswerPlayer;
         copy.lastPointsAwarded = src.lastPointsAwarded;
         copy.hostUid           = src.hostUid;
+        copy.player1GuessedAtStep = src.player1GuessedAtStep;
         return copy;
     }
 

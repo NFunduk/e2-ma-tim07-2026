@@ -15,6 +15,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.game.GameSessionManager;
 import com.example.sabona.repository.StatsRepository;
 
 import java.util.Random;
@@ -243,25 +244,30 @@ public class MojBrojFragment extends Fragment {
     }
 
     private void showEndGame() {
+        boolean isPlayer1 = GameSessionManager.get().isPlayer1();
+        int myScore  = isPlayer1 ? player1Score : player2Score;
+        int oppScore = isPlayer1 ? player2Score : player1Score;
+
         String winner;
-        boolean player1Won;
-        if (player1Score > player2Score) {
-            winner = "Pobedio igrač 1!";
-            player1Won = true;
-        } else if (player2Score > player1Score) {
-            winner = "Pobedio igrač 2!";
-            player1Won = false;
+        boolean iWon;
+        if (myScore > oppScore) {
+            winner = "Pobijedio si! (" + player1Score + " : " + player2Score + ")";
+            iWon = true;
+        } else if (oppScore > myScore) {
+            winner = "Izgubio si. (" + player1Score + " : " + player2Score + ")";
+            iWon = false;
         } else {
-            winner = "Nerešeno!";
-            player1Won = false;
+            winner = "Nerješeno! (" + player1Score + " : " + player2Score + ")";
+            iWon = false;
         }
 
-        // Snimi statistiku za igrača 1
-        new StatsRepository().saveMojBrojResult(player1Score, player1FoundExact);
+        // Snimi stats samo za registrovanog igrača (repo interno provjerava uid)
+        new StatsRepository().saveMojBrojResult(myScore, player1FoundExact);
+        new StatsRepository().incrementGamesPlayed(iWon);
 
         Bundle args = new Bundle();
         args.putString("winner", winner);
-        args.putBoolean("player1Won", player1Won);
+        args.putBoolean("player1Won", iWon);
         NavHostFragment.findNavController(this)
                 .navigate(R.id.action_mojbroj_to_gameover, args);
     }
