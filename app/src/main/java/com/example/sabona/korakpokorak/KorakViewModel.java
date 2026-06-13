@@ -1,4 +1,4 @@
-package com.example.sabona.viewModel;
+package com.example.sabona.korakpokorak;
 
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
@@ -8,7 +8,6 @@ import com.example.sabona.game.GameSessionManager;
 import com.example.sabona.game.GameSessionRepository;
 import com.example.sabona.game.KorakGameState;
 import com.example.sabona.model.KorakGame;
-import com.example.sabona.repository.KorakRepository;
 import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.firestore.ListenerRegistration;
 

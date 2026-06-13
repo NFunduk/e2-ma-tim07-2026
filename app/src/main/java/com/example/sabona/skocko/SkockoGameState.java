@@ -1,5 +1,6 @@
-package com.example.sabona.game;
+package com.example.sabona.skocko;
 
+import com.example.sabona.game.GameSessionManager;
 import com.google.firebase.Timestamp;
 import java.util.ArrayList;
 import java.util.List;

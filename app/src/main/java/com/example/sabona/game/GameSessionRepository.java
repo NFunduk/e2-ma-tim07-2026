@@ -1,13 +1,13 @@
 package com.example.sabona.game;
 
+import com.example.sabona.asocijacije.AsocijacijeGameState;
 import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
-import com.example.sabona.game.SkockoGameState;
-import com.example.sabona.game.AsocijacijeGameState;
+import com.example.sabona.skocko.SkockoGameState;
 
 import java.util.function.Function;
 

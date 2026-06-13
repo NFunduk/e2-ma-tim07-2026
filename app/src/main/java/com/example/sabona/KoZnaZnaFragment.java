@@ -18,7 +18,7 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
-import com.example.sabona.repository.KoZnaZnaRepository;
+import com.example.sabona.koznazna.KoZnaZnaRepository;
 import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;

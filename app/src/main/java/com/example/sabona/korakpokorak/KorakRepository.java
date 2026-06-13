@@ -1,4 +1,4 @@
-package com.example.sabona.repository;
+package com.example.sabona.korakpokorak;
 
 import com.example.sabona.model.KorakGame;
 import com.google.firebase.firestore.DocumentSnapshot;

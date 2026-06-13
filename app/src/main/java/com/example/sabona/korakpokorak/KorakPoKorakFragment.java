@@ -1,4 +1,4 @@
-package com.example.sabona;
+package com.example.sabona.korakpokorak;
 
 import android.os.Bundle;
 import android.os.CountDownTimer;
@@ -20,8 +20,8 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.R;
 import com.example.sabona.game.GameSessionManager;
-import com.example.sabona.viewModel.KorakViewModel;
 
 /**
  * Korak po Korak fragment.

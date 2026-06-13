@@ -1,4 +1,4 @@
-package com.example.sabona;
+package com.example.sabona.skocko;
 
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
@@ -23,14 +23,13 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.R;
 import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import androidx.lifecycle.ViewModelProvider;
 import com.example.sabona.game.GameSessionManager;
-import com.example.sabona.game.SkockoGameState;
-import com.example.sabona.viewModel.SkockoViewModel;
 
 import java.util.HashMap;
 import java.util.Map;

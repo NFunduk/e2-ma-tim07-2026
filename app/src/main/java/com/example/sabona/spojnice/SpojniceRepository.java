@@ -1,4 +1,4 @@
-package com.example.sabona.repository;
+package com.example.sabona.spojnice;
 
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;

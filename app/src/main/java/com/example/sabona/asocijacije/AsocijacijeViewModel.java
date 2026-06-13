@@ -1,4 +1,4 @@
-package com.example.sabona.viewModel;
+package com.example.sabona.asocijacije;
 
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
@@ -6,12 +6,13 @@ import androidx.lifecycle.ViewModel;
 
 import com.example.sabona.game.GameSessionManager;
 import com.example.sabona.game.GameSessionRepository;
-import com.example.sabona.game.SkockoGameState;
+import com.example.sabona.model.AssociationGame;
 import com.google.firebase.firestore.ListenerRegistration;
 
-import java.util.Random;
+import java.util.ArrayList;
+import java.util.List;
 
-public class SkockoViewModel extends ViewModel {
+public class AsocijacijeViewModel extends ViewModel {
 
     public enum Phase {
         LOADING,
@@ -22,22 +23,20 @@ public class SkockoViewModel extends ViewModel {
     }
 
     private final MutableLiveData<Phase> phase = new MutableLiveData<>(Phase.LOADING);
-    private final MutableLiveData<SkockoGameState> stateLiveData = new MutableLiveData<>();
+    private final MutableLiveData<AsocijacijeGameState> stateLiveData = new MutableLiveData<>();
     private final MutableLiveData<Boolean> myTurn = new MutableLiveData<>(false);
 
     private final GameSessionRepository sessionRepo = new GameSessionRepository();
     private final GameSessionManager sessionMgr = GameSessionManager.get();
 
     private ListenerRegistration listener;
-    private SkockoGameState remoteState;
-
-    private final String[] symbols = {"☻", "■", "●", "♥", "▲", "★"};
+    private AsocijacijeGameState remoteState;
 
     public LiveData<Phase> getPhase() {
         return phase;
     }
 
-    public LiveData<SkockoGameState> getState() {
+    public LiveData<AsocijacijeGameState> getState() {
         return stateLiveData;
     }
 
@@ -45,32 +44,42 @@ public class SkockoViewModel extends ViewModel {
         return myTurn;
     }
 
-    public void init() {
+    public void init(List<AssociationGame> games) {
         phase.setValue(Phase.LOADING);
 
         if (sessionMgr.isPlayer1()) {
-            setupAsHost();
+            setupAsHost(games);
         } else {
             setupAsGuest();
         }
     }
 
-    private void setupAsHost() {
-        SkockoGameState state = new SkockoGameState();
+    private void setupAsHost(List<AssociationGame> games) {
+        AsocijacijeGameState state = new AsocijacijeGameState();
 
         state.status = "playing";
         state.phase = "WAITING_P2";
         state.round = 1;
         state.activePlayerRole = GameSessionManager.ROLE_PLAYER1;
+
+        if (games != null && games.size() >= 2) {
+            state.game0Id = games.get(0).docId;
+            state.game1Id = games.get(1).docId;
+        }
+
         state.player1Score = 0;
         state.player2Score = 0;
-        state.secret = generateSecretAsString();
-        state.attempt = 0;
-        state.opponentChance = false;
+
+        state.opened = createBoolList(16, false);
+        state.columnSolved = createBoolList(4, false);
+
+        state.finalSolved = false;
+        state.fieldOpenedThisTurn = false;
         state.roundFinished = false;
+        state.phaseEndsAtMillis = System.currentTimeMillis() + 120000;
         state.hostUid = sessionMgr.getMyUid();
 
-        sessionRepo.initSkockoState(state);
+        sessionRepo.initAsocijacijeState(state);
         startListening();
     }
 
@@ -81,10 +90,10 @@ public class SkockoViewModel extends ViewModel {
     private void startListening() {
         if (listener != null) listener.remove();
 
-        listener = sessionRepo.listenSkocko((snapshot, e) -> {
+        listener = sessionRepo.listenAsocijacije((snapshot, e) -> {
             if (e != null || snapshot == null || !snapshot.exists()) return;
 
-            SkockoGameState state = snapshot.toObject(SkockoGameState.class);
+            AsocijacijeGameState state = snapshot.toObject(AsocijacijeGameState.class);
             if (state == null) return;
 
             remoteState = state;
@@ -93,7 +102,7 @@ public class SkockoViewModel extends ViewModel {
             if ("WAITING_P2".equals(state.phase)) {
                 if (!sessionMgr.isPlayer1()) {
                     state.phase = "PLAYING";
-                    sessionRepo.updateSkockoState(state);
+                    sessionRepo.updateAsocijacijeState(state);
                     return;
                 }
 
@@ -111,28 +120,45 @@ public class SkockoViewModel extends ViewModel {
         });
     }
 
-    public void updateAfterAttempt(int attempt, boolean opponentChance) {
+    public void openField(int col, int row) {
         if (remoteState == null) return;
 
-        remoteState.attempt = attempt;
-        remoteState.opponentChance = opponentChance;
+        int index = col * 4 + row;
+        remoteState.opened.set(index, true);
+        remoteState.fieldOpenedThisTurn = true;
 
-        sessionRepo.updateSkockoState(remoteState);
+        sessionRepo.updateAsocijacijeState(remoteState);
     }
 
-    public void addPointsToActivePlayer(int points) {
+    public void solveColumn(int col, int points) {
         if (remoteState == null) return;
 
-        if (GameSessionManager.ROLE_PLAYER1.equals(remoteState.activePlayerRole)) {
-            remoteState.player1Score += points;
-        } else {
-            remoteState.player2Score += points;
+        remoteState.columnSolved.set(col, true);
+
+        for (int row = 0; row < 4; row++) {
+            int index = col * 4 + row;
+            remoteState.opened.set(index, true);
         }
 
-        sessionRepo.updateSkockoState(remoteState);
+        addPointsLocal(points);
+        remoteState.fieldOpenedThisTurn = false;
+
+        sessionRepo.updateAsocijacijeState(remoteState);
     }
 
-    public void switchPlayer() {
+    public void solveFinal(int points) {
+        if (remoteState == null) return;
+
+        remoteState.finalSolved = true;
+        addPointsLocal(points);
+        remoteState.phase = "ROUND_END";
+        remoteState.roundFinished = true;
+        remoteState.phaseEndsAtMillis = System.currentTimeMillis() + 6000;
+
+        sessionRepo.updateAsocijacijeState(remoteState);
+    }
+
+    public void passTurn() {
         if (remoteState == null) return;
 
         if (GameSessionManager.ROLE_PLAYER1.equals(remoteState.activePlayerRole)) {
@@ -141,7 +167,8 @@ public class SkockoViewModel extends ViewModel {
             remoteState.activePlayerRole = GameSessionManager.ROLE_PLAYER1;
         }
 
-        sessionRepo.updateSkockoState(remoteState);
+        remoteState.fieldOpenedThisTurn = false;
+        sessionRepo.updateAsocijacijeState(remoteState);
     }
 
     public void finishRound() {
@@ -150,8 +177,11 @@ public class SkockoViewModel extends ViewModel {
 
         remoteState.phase = "ROUND_END";
         remoteState.roundFinished = true;
+        remoteState.fieldOpenedThisTurn = false;
 
-        sessionRepo.updateSkockoState(remoteState);
+        remoteState.phaseEndsAtMillis = System.currentTimeMillis() + 6000;
+
+        sessionRepo.updateAsocijacijeState(remoteState);
     }
 
     public void startNextRound() {
@@ -161,74 +191,46 @@ public class SkockoViewModel extends ViewModel {
             remoteState.round = 2;
             remoteState.phase = "PLAYING";
             remoteState.activePlayerRole = GameSessionManager.ROLE_PLAYER2;
-            remoteState.secret = generateSecretAsString();
-            remoteState.attempt = 0;
-            remoteState.opponentChance = false;
+
+            remoteState.opened = createBoolList(16, false);
+            remoteState.columnSolved = createBoolList(4, false);
+
+            remoteState.finalSolved = false;
+            remoteState.fieldOpenedThisTurn = false;
             remoteState.roundFinished = false;
-            remoteState.rows = new java.util.ArrayList<>();
-            remoteState.lastCorrectPlace = 0;
-            remoteState.lastCorrectSymbol = 0;
-            remoteState.currentGuess = "";
+            remoteState.phaseEndsAtMillis = System.currentTimeMillis() + 120000;
         } else {
             remoteState.phase = "GAME_OVER";
             remoteState.status = "finished";
         }
 
-        sessionRepo.updateSkockoState(remoteState);
+        sessionRepo.updateAsocijacijeState(remoteState);
     }
 
-    public String[] getSecretArray() {
-        if (remoteState == null || remoteState.secret == null) {
-            return new String[]{"", "", "", ""};
+    private void addPointsLocal(int points) {
+        if (GameSessionManager.ROLE_PLAYER1.equals(remoteState.activePlayerRole)) {
+            remoteState.player1Score += points;
+        } else {
+            remoteState.player2Score += points;
         }
-
-        return remoteState.secret.split(",");
     }
 
-    private String generateSecretAsString() {
-        Random random = new Random();
-        StringBuilder sb = new StringBuilder();
+    private List<Boolean> createBoolList(int size, boolean value) {
+        List<Boolean> list = new ArrayList<>();
 
-        for (int i = 0; i < 4; i++) {
-            if (i > 0) sb.append(",");
-            sb.append(symbols[random.nextInt(symbols.length)]);
+        for (int i = 0; i < size; i++) {
+            list.add(value);
         }
 
-        return sb.toString();
+        return list;
     }
 
     @Override
     protected void onCleared() {
         super.onCleared();
-        if (listener != null) listener.remove();
-    }
 
-    public void saveAttempt(String guess, int correctPlace, int correctSymbol, int nextAttempt) {
-        if (remoteState == null) return;
-
-        if (remoteState.rows == null) {
-            remoteState.rows = new java.util.ArrayList<>();
+        if (listener != null) {
+            listener.remove();
         }
-
-        remoteState.rows.add(guess + "|" + correctPlace + "|" + correctSymbol);
-        remoteState.attempt = nextAttempt;
-        remoteState.lastCorrectPlace = correctPlace;
-        remoteState.lastCorrectSymbol = correctSymbol;
-
-        sessionRepo.updateSkockoState(remoteState);
-    }
-
-    public void startOpponentChance() {
-        if (remoteState == null) return;
-
-        remoteState.opponentChance = true;
-
-        if (GameSessionManager.ROLE_PLAYER1.equals(remoteState.activePlayerRole)) {
-            remoteState.activePlayerRole = GameSessionManager.ROLE_PLAYER2;
-        } else {
-            remoteState.activePlayerRole = GameSessionManager.ROLE_PLAYER1;
-        }
-
-        sessionRepo.updateSkockoState(remoteState);
     }
 }

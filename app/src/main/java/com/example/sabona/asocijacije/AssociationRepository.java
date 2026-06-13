@@ -1,4 +1,4 @@
-package com.example.sabona.repository;
+package com.example.sabona.asocijacije;
 
 import com.example.sabona.model.AssociationGame;
 import com.google.firebase.firestore.DocumentSnapshot;

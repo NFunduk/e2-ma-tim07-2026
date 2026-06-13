@@ -1,4 +1,4 @@
-package com.example.sabona;
+package com.example.sabona.asocijacije;
 
 import android.os.Bundle;
 import android.os.CountDownTimer;
@@ -15,8 +15,8 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.R;
 import com.example.sabona.model.AssociationGame;
-import com.example.sabona.repository.AssociationRepository;
 
 import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.firestore.FieldValue;
@@ -29,9 +29,7 @@ import java.util.List;
 
 import androidx.lifecycle.ViewModelProvider;
 
-import com.example.sabona.game.AsocijacijeGameState;
 import com.example.sabona.game.GameSessionManager;
-import com.example.sabona.viewModel.AsocijacijeViewModel;
 
 public class AssociationsFragment extends Fragment {
 
