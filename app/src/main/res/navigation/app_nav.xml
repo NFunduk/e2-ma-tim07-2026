@@ -45,7 +45,7 @@
 
     <fragment
         android:id="@+id/koZnaZnaFragment"
-        android:name="com.example.sabona.KoZnaZnaFragment"
+        android:name="com.example.sabona.koznazna.KoZnaZnaFragment"
         android:label="KoZnaZna">
         <action android:id="@+id/action_kozna_to_spojnice"
             app:destination="@id/spojniceFragment"/>
@@ -53,7 +53,7 @@
 
     <fragment
         android:id="@+id/spojniceFragment"
-        android:name="com.example.sabona.SpojniceFragment"
+        android:name="com.example.sabona.spojnice.SpojniceFragment"
         android:label="Spojnice">
         <argument android:name="sessionId"
             app:argType="string" android:defaultValue=""/>
@@ -66,7 +66,7 @@
 
     <fragment
         android:id="@+id/associationsFragment"
-        android:name="com.example.sabona.AssociationsFragment"
+        android:name="com.example.sabona.asocijacije.AssociationsFragment"
         android:label="Associations">
         <action
             android:id="@+id/action_associations_to_skocko"
@@ -75,7 +75,7 @@
 
     <fragment
         android:id="@+id/skockoFragment"
-        android:name="com.example.sabona.SkockoFragment"
+        android:name="com.example.sabona.skocko.SkockoFragment"
         android:label="Skocko">
         <action
             android:id="@+id/action_skocko_to_korak"
@@ -84,7 +84,7 @@
 
     <fragment
         android:id="@+id/korakPoKorakFragment"
-        android:name="com.example.sabona.KorakPoKorakFragment"
+        android:name="com.example.sabona.korakpokorak.KorakPoKorakFragment"
         android:label="KorakPoKorak">
         <action android:id="@+id/action_korak_to_mojbroj"
             app:destination="@id/mojBrojFragment"/>

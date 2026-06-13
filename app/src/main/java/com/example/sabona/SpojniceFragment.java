@@ -18,8 +18,8 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
-import com.example.sabona.repository.SpojniceRepository;
-import com.example.sabona.repository.SpojniceRepository.SpojniceQuestion;
+import com.example.sabona.spojnice.SpojniceRepository;
+import com.example.sabona.spojnice.SpojniceRepository.SpojniceQuestion;
 import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
