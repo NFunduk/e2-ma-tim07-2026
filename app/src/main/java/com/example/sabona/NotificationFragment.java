@@ -14,6 +14,7 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.example.sabona.friends.FriendsRepository;
 import com.example.sabona.model.AppNotification;
 import com.example.sabona.repository.NotificationRepository;
 import com.example.sabona.utils.NotificationHelper;
@@ -41,6 +42,7 @@ public class NotificationFragment extends Fragment {
     private FirebaseFirestore db;
     private ListenerRegistration listenerRegistration;
     private NotificationRepository repository;
+    private FriendsRepository friendsRepository;
     private Button btnMarkAllRead;
 
     @Nullable
@@ -66,6 +68,7 @@ public class NotificationFragment extends Fragment {
 
         db = FirebaseFirestore.getInstance();
         repository = new NotificationRepository();
+        friendsRepository = new FriendsRepository();
 
         adapter = new NotificationAdapter(
                 requireContext(),
@@ -216,31 +219,84 @@ public class NotificationFragment extends Fragment {
 
     private void handleNotificationAction(AppNotification notification, boolean accepted) {
         if ("friend_game_invite".equals(notification.getType())) {
-            if (notification.getDataId() != null) {
-                db.collection("gameRequests")
-                        .document(notification.getDataId())
-                        .update("status", accepted ? "accepted" : "rejected");
+            if (notification.getDataId() == null) {
+                repository.markAsHandled(notification.getId());
+                return;
             }
 
-            repository.markAsHandled(notification.getId());
+            // Transakcija: status se menja samo ako je zahtev još "pending" —
+            // sprečava da prihvatanje/odbijanje "pobedi" auto-odbijanje koje je
+            // pošiljalac partije pokrenuo nakon 10 sekundi (race condition).
+            com.google.firebase.firestore.DocumentReference gameReqRef =
+                    db.collection("gameRequests").document(notification.getDataId());
 
-            Toast.makeText(
-                    requireContext(),
-                    accepted ? "Prihvatila si poziv za partiju" : "Odbila si poziv za partiju",
-                    Toast.LENGTH_SHORT
-            ).show();
+            db.runTransaction(transaction -> {
+                com.google.firebase.firestore.DocumentSnapshot snap = transaction.get(gameReqRef);
+                String currentStatus = snap.getString("status");
+                if ("pending".equals(currentStatus)) {
+                    transaction.update(gameReqRef, "status", accepted ? "accepted" : "rejected");
+                    return true; // uspešno promenjen status
+                }
+                return false; // zahtev je već istekao/otkazan — ne dirati
+            }).addOnSuccessListener(changed -> {
+                repository.markAsHandled(notification.getId());
+
+                if (Boolean.TRUE.equals(changed)) {
+                    Toast.makeText(
+                            requireContext(),
+                            accepted ? "Prihvatila si poziv za partiju" : "Odbila si poziv za partiju",
+                            Toast.LENGTH_SHORT
+                    ).show();
+                } else {
+                    Toast.makeText(requireContext(),
+                            "Poziv je već istekao ili otkazan.",
+                            Toast.LENGTH_SHORT).show();
+                }
+            }).addOnFailureListener(e ->
+                    Toast.makeText(requireContext(), "Greška pri obradi poziva", Toast.LENGTH_SHORT).show());
 
             return;
         }
 
         if ("friend_request".equals(notification.getType())) {
-            repository.markAsHandled(notification.getId());
+            String requestId = notification.getDataId();
 
-            Toast.makeText(
-                    requireContext(),
-                    accepted ? "Prihvatila si zahtev za prijatelja" : "Odbila si zahtev za prijatelja",
-                    Toast.LENGTH_SHORT
-            ).show();
+            if (requestId == null) {
+                repository.markAsHandled(notification.getId());
+                return;
+            }
+
+            if (accepted) {
+                friendsRepository.acceptFriendRequest(requestId, new FriendsRepository.Callback<Void>() {
+                    @Override
+                    public void onSuccess(Void result) {
+                        repository.markAsHandled(notification.getId());
+                        Toast.makeText(requireContext(),
+                                "Prihvatila si zahtev za prijatelja",
+                                Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } else {
+                friendsRepository.rejectFriendRequest(requestId, new FriendsRepository.Callback<Void>() {
+                    @Override
+                    public void onSuccess(Void result) {
+                        repository.markAsHandled(notification.getId());
+                        Toast.makeText(requireContext(),
+                                "Odbila si zahtev za prijatelja",
+                                Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
 
             return;
         }
