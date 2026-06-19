@@ -8,8 +8,9 @@ public class FriendUser {
     private String avatarRes;
     private int    stars;
     private int    league;
-    // monthlyRank se može dodati kad rang lista postoji
     private int    monthlyRank;
+    private boolean online;   // je li prijatelj trenutno ulogovan/aktivan u aplikaciji
+    private boolean inGame;   // je li prijatelj trenutno u nekoj partiji
 
     public FriendUser() {}
 
@@ -38,4 +39,15 @@ public class FriendUser {
 
     public int  getMonthlyRank()        { return monthlyRank; }
     public void setMonthlyRank(int v)   { this.monthlyRank = v; }
+
+    public boolean isOnline()       { return online; }
+    public void    setOnline(boolean v) { this.online = v; }
+
+    public boolean isInGame()       { return inGame; }
+    public void    setInGame(boolean v) { this.inGame = v; }
+
+    /** Igrač je dostupan za poziv na partiju ako je ulogovan i trenutno nije u partiji. */
+    public boolean isAvailableForGame() {
+        return online && !inGame;
+    }
 }

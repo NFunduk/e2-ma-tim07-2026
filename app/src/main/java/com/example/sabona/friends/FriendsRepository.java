@@ -45,6 +45,22 @@ public class FriendsRepository {
         return u != null ? u.getUid() : null;
     }
 
+    // ─── helper: parsiranje FriendUser iz Firestore dokumenta ───────────────
+
+    private FriendUser parseFriendUser(DocumentSnapshot doc) {
+        FriendUser fu = new FriendUser(
+                doc.getId(),
+                doc.getString("username"),
+                doc.getString("avatarRes"),
+                doc.getLong("stars") != null ? doc.getLong("stars").intValue() : 0,
+                doc.getLong("league") != null ? doc.getLong("league").intValue() : 0
+        );
+        fu.setMonthlyRank(doc.getLong("monthlyRank") != null ? doc.getLong("monthlyRank").intValue() : 0);
+        fu.setOnline(Boolean.TRUE.equals(doc.getBoolean("online")));
+        fu.setInGame(Boolean.TRUE.equals(doc.getBoolean("inGame")));
+        return fu;
+    }
+
     // ─── pretraga korisnika po username ─────────────────────────────────────
 
     public void searchByUsername(String query, Callback<List<FriendUser>> cb) {
@@ -64,14 +80,7 @@ public class FriendsRepository {
                     List<FriendUser> results = new ArrayList<>();
                     for (DocumentSnapshot doc : snap.getDocuments()) {
                         if (uid.equals(doc.getId())) continue; // preskoči sebe
-                        FriendUser fu = new FriendUser(
-                                doc.getId(),
-                                doc.getString("username"),
-                                doc.getString("avatarRes"),
-                                doc.getLong("stars") != null ? doc.getLong("stars").intValue() : 0,
-                                doc.getLong("league") != null ? doc.getLong("league").intValue() : 0
-                        );
-                        results.add(fu);
+                        results.add(parseFriendUser(doc));
                     }
                     cb.onSuccess(results);
                 })
@@ -80,6 +89,12 @@ public class FriendsRepository {
 
     // ─── učitaj listu prijatelja ─────────────────────────────────────────────
 
+    /**
+     * Učitava listu prijatelja. Lista UID-ova prijatelja se čuva u
+     * users/{uid}/friends (upisana jednom, pri prihvatanju zahteva), ali da bi
+     * status "online"/"u partiji"/zvezde/liga/rang bili AŽURNI u trenutku
+     * prikaza, svaki prijatelj se naknadno dohvata direktno iz users/{friendUid}.
+     */
     public void loadFriends(Callback<List<FriendUser>> cb) {
         String uid = myUid();
         if (uid == null) { cb.onError("Nije prijavljen"); return; }
@@ -87,20 +102,38 @@ public class FriendsRepository {
         db.collection("users").document(uid).collection("friends")
                 .get()
                 .addOnSuccessListener(snap -> {
-                    List<FriendUser> list = new ArrayList<>();
+                    List<String> friendUids = new ArrayList<>();
                     for (DocumentSnapshot doc : snap.getDocuments()) {
-                        FriendUser fu = new FriendUser(
-                                doc.getId(),
-                                doc.getString("username"),
-                                doc.getString("avatarRes"),
-                                doc.getLong("stars") != null ? doc.getLong("stars").intValue() : 0,
-                                doc.getLong("league") != null ? doc.getLong("league").intValue() : 0
-                        );
-                        list.add(fu);
+                        friendUids.add(doc.getId());
                     }
-                    cb.onSuccess(list);
+
+                    if (friendUids.isEmpty()) {
+                        cb.onSuccess(new ArrayList<>());
+                        return;
+                    }
+
+                    fetchFreshFriendData(friendUids, cb);
                 })
                 .addOnFailureListener(e -> cb.onError("Greška pri učitavanju prijatelja"));
+    }
+
+    /** Dohvata trenutne podatke (online/inGame/stars/league/rank) za svaki uid iz users kolekcije. */
+    private void fetchFreshFriendData(List<String> friendUids, Callback<List<FriendUser>> cb) {
+        List<FriendUser> list = new ArrayList<>();
+        int[] remaining = { friendUids.size() };
+
+        for (String friendUid : friendUids) {
+            db.collection("users").document(friendUid).get()
+                    .addOnCompleteListener(task -> {
+                        if (task.isSuccessful() && task.getResult() != null && task.getResult().exists()) {
+                            list.add(parseFriendUser(task.getResult()));
+                        }
+                        remaining[0]--;
+                        if (remaining[0] == 0) {
+                            cb.onSuccess(list);
+                        }
+                    });
+        }
     }
 
     // ─── pošalji zahtev za prijatelja ────────────────────────────────────────
@@ -246,16 +279,42 @@ public class FriendsRepository {
 
     // ─── pošalji poziv za partiju ────────────────────────────────────────────
 
+    /**
+     * Šalje poziv za partiju prijatelju. Prethodno provjerava da je prijatelj
+     * ulogovan (online) i da trenutno ne učestvuje u nekoj partiji (inGame),
+     * čitajući svežu kopiju iz users/{friendUid} (ne pouzdaje se u eventualno
+     * zastareo objekat dobijen iz liste prijatelja u UI-u).
+     */
     public void sendGameInvite(FriendUser friend, Callback<String> cb) {
         String uid = myUid();
         if (uid == null) { cb.onError("Nije prijavljen"); return; }
 
+        db.collection("users").document(friend.getUid()).get()
+                .addOnSuccessListener(friendDoc -> {
+
+                    boolean online = Boolean.TRUE.equals(friendDoc.getBoolean("online"));
+                    boolean inGame = Boolean.TRUE.equals(friendDoc.getBoolean("inGame"));
+
+                    if (!online) {
+                        cb.onError(friend.getUsername() + " trenutno nije ulogovan/a.");
+                        return;
+                    }
+                    if (inGame) {
+                        cb.onError(friend.getUsername() + " je trenutno u partiji.");
+                        return;
+                    }
+
+                    doSendGameInvite(uid, friend, cb);
+                })
+                .addOnFailureListener(e -> cb.onError("Greška pri proveri statusa prijatelja"));
+    }
+
+    private void doSendGameInvite(String uid, FriendUser friend, Callback<String> cb) {
         db.collection("users").document(uid).get()
                 .addOnSuccessListener(myDoc -> {
                     String myUsername = myDoc.getString("username");
                     if (myUsername == null) myUsername = "Igrač";
 
-                    // Provjeri da prijatelj nije trenutno u partiji
                     Map<String, Object> reqData = new HashMap<>();
                     reqData.put("fromUid",  uid);
                     reqData.put("toUid",    friend.getUid());
@@ -336,14 +395,7 @@ public class FriendsRepository {
         db.collection("users").document(uid).get()
                 .addOnSuccessListener(doc -> {
                     if (!doc.exists()) { cb.onError("Korisnik nije pronađen"); return; }
-                    FriendUser fu = new FriendUser(
-                            doc.getId(),
-                            doc.getString("username"),
-                            doc.getString("avatarRes"),
-                            doc.getLong("stars") != null ? doc.getLong("stars").intValue() : 0,
-                            doc.getLong("league") != null ? doc.getLong("league").intValue() : 0
-                    );
-                    cb.onSuccess(fu);
+                    cb.onSuccess(parseFriendUser(doc));
                 })
                 .addOnFailureListener(e -> cb.onError("Korisnik nije pronađen"));
     }

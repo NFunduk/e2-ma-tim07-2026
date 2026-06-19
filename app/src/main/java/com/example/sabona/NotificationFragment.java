@@ -219,19 +219,41 @@ public class NotificationFragment extends Fragment {
 
     private void handleNotificationAction(AppNotification notification, boolean accepted) {
         if ("friend_game_invite".equals(notification.getType())) {
-            if (notification.getDataId() != null) {
-                db.collection("gameRequests")
-                        .document(notification.getDataId())
-                        .update("status", accepted ? "accepted" : "rejected");
+            if (notification.getDataId() == null) {
+                repository.markAsHandled(notification.getId());
+                return;
             }
 
-            repository.markAsHandled(notification.getId());
+            // Transakcija: status se menja samo ako je zahtev još "pending" —
+            // sprečava da prihvatanje/odbijanje "pobedi" auto-odbijanje koje je
+            // pošiljalac partije pokrenuo nakon 10 sekundi (race condition).
+            com.google.firebase.firestore.DocumentReference gameReqRef =
+                    db.collection("gameRequests").document(notification.getDataId());
 
-            Toast.makeText(
-                    requireContext(),
-                    accepted ? "Prihvatila si poziv za partiju" : "Odbila si poziv za partiju",
-                    Toast.LENGTH_SHORT
-            ).show();
+            db.runTransaction(transaction -> {
+                com.google.firebase.firestore.DocumentSnapshot snap = transaction.get(gameReqRef);
+                String currentStatus = snap.getString("status");
+                if ("pending".equals(currentStatus)) {
+                    transaction.update(gameReqRef, "status", accepted ? "accepted" : "rejected");
+                    return true; // uspešno promenjen status
+                }
+                return false; // zahtev je već istekao/otkazan — ne dirati
+            }).addOnSuccessListener(changed -> {
+                repository.markAsHandled(notification.getId());
+
+                if (Boolean.TRUE.equals(changed)) {
+                    Toast.makeText(
+                            requireContext(),
+                            accepted ? "Prihvatila si poziv za partiju" : "Odbila si poziv za partiju",
+                            Toast.LENGTH_SHORT
+                    ).show();
+                } else {
+                    Toast.makeText(requireContext(),
+                            "Poziv je već istekao ili otkazan.",
+                            Toast.LENGTH_SHORT).show();
+                }
+            }).addOnFailureListener(e ->
+                    Toast.makeText(requireContext(), "Greška pri obradi poziva", Toast.LENGTH_SHORT).show());
 
             return;
         }

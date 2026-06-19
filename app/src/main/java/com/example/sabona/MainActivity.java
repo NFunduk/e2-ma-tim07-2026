@@ -18,6 +18,7 @@ import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
 
 import com.example.sabona.utils.NotificationHelper;
+import com.example.sabona.utils.PresenceManager;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import java.util.Arrays;
@@ -104,6 +105,10 @@ public class MainActivity extends AppCompatActivity {
             bottomNav.setVisibility((isAuth || isGame) ? View.GONE : View.VISIBLE);
 
             layoutStatsChip.setVisibility(isGame ? View.GONE : View.VISIBLE);
+
+            // Igrač je "u partiji" dok se nalazi na nekom od game ekrana —
+            // koristi se da prijatelji ne mogu pozvati igrača koji je već zauzet partijom.
+            PresenceManager.setInGame(isGame);
 
             //bottomNav.setVisibility(isAuth ? View.GONE : View.VISIBLE);
 
@@ -196,11 +201,22 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
+        // Aplikacija je u prvom planu → igrač je "online" i dostupan za poziv prijatelja.
+        PresenceManager.setOnline(true);
+
         if (notificationsListener == null &&
                 FirebaseAuth.getInstance().getCurrentUser() != null) {
             firstLoadNotifications = true;
             startListeningForSystemNotifications();
         }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+        // Aplikacija odlazi u pozadinu → igrač više nije dostupan za novi poziv na partiju.
+        PresenceManager.setOnline(false);
     }
 
     private void startListeningForSystemNotifications() {

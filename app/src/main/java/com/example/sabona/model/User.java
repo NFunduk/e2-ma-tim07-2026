@@ -8,6 +8,9 @@ public class User {
     private int tokens;
     private int stars;
     private int league;
+    private int monthlyRank;   // trenutni mesečni rang igrača
+    private boolean online;    // je li igrač trenutno ulogovan/aktivan u aplikaciji
+    private boolean inGame;    // je li igrač trenutno u nekoj partiji
 
 
     public User() {}
@@ -20,6 +23,9 @@ public class User {
         this.tokens = 5;   // 5 tokena pri registraciji
         this.stars = 0;
         this.league = 0;
+        this.monthlyRank = 0;
+        this.online = false;
+        this.inGame = false;
     }
 
     public String getUid()      { return uid; }
@@ -29,6 +35,9 @@ public class User {
     public int getTokens()      { return tokens; }
     public int getStars()       { return stars; }
     public int getLeague()      { return league; }
+    public int getMonthlyRank() { return monthlyRank; }
+    public boolean isOnline()   { return online; }
+    public boolean isInGame()   { return inGame; }
 
     public void setUid(String uid)         { this.uid = uid; }
     public void setEmail(String email)     { this.email = email; }
@@ -37,4 +46,7 @@ public class User {
     public void setTokens(int tokens)      { this.tokens = tokens; }
     public void setStars(int stars)        { this.stars = stars; }
     public void setLeague(int league)      { this.league = league; }
+    public void setMonthlyRank(int monthlyRank) { this.monthlyRank = monthlyRank; }
+    public void setOnline(boolean online)       { this.online = online; }
+    public void setInGame(boolean inGame)       { this.inGame = inGame; }
 }

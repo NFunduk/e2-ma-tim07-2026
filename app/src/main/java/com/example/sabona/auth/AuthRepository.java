@@ -1,5 +1,6 @@
 package com.example.sabona.auth;
 
+import com.example.sabona.utils.PresenceManager;
 import com.google.firebase.auth.EmailAuthProvider;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -113,7 +114,7 @@ public class AuthRepository {
             return;
         }
 
-         user.reload()
+        user.reload()
                 .addOnSuccessListener(unused -> {
                     FirebaseUser refreshed = auth.getCurrentUser();
                     if (refreshed != null && refreshed.isEmailVerified()) {
@@ -154,7 +155,8 @@ public class AuthRepository {
                         callback.onError("Stara lozinka nije ispravna"));
     }
 
-   public void logout() {
+    public void logout() {
+        PresenceManager.setOnline(false);
         auth.signOut();
     }
 
