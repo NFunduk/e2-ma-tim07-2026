@@ -14,6 +14,7 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.example.sabona.friends.FriendsRepository;
 import com.example.sabona.model.AppNotification;
 import com.example.sabona.repository.NotificationRepository;
 import com.example.sabona.utils.NotificationHelper;
@@ -41,6 +42,7 @@ public class NotificationFragment extends Fragment {
     private FirebaseFirestore db;
     private ListenerRegistration listenerRegistration;
     private NotificationRepository repository;
+    private FriendsRepository friendsRepository;
     private Button btnMarkAllRead;
 
     @Nullable
@@ -66,6 +68,7 @@ public class NotificationFragment extends Fragment {
 
         db = FirebaseFirestore.getInstance();
         repository = new NotificationRepository();
+        friendsRepository = new FriendsRepository();
 
         adapter = new NotificationAdapter(
                 requireContext(),
@@ -234,13 +237,44 @@ public class NotificationFragment extends Fragment {
         }
 
         if ("friend_request".equals(notification.getType())) {
-            repository.markAsHandled(notification.getId());
+            String requestId = notification.getDataId();
 
-            Toast.makeText(
-                    requireContext(),
-                    accepted ? "Prihvatila si zahtev za prijatelja" : "Odbila si zahtev za prijatelja",
-                    Toast.LENGTH_SHORT
-            ).show();
+            if (requestId == null) {
+                repository.markAsHandled(notification.getId());
+                return;
+            }
+
+            if (accepted) {
+                friendsRepository.acceptFriendRequest(requestId, new FriendsRepository.Callback<Void>() {
+                    @Override
+                    public void onSuccess(Void result) {
+                        repository.markAsHandled(notification.getId());
+                        Toast.makeText(requireContext(),
+                                "Prihvatila si zahtev za prijatelja",
+                                Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } else {
+                friendsRepository.rejectFriendRequest(requestId, new FriendsRepository.Callback<Void>() {
+                    @Override
+                    public void onSuccess(Void result) {
+                        repository.markAsHandled(notification.getId());
+                        Toast.makeText(requireContext(),
+                                "Odbila si zahtev za prijatelja",
+                                Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
 
             return;
         }

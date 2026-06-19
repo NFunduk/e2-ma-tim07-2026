@@ -148,6 +148,9 @@ public class MainActivity extends AppCompatActivity {
             } else if (id == R.id.play) {
                 navController.navigate(R.id.koZnaZnaFragment);
                 return true;
+            } else if (id == R.id.friends) {
+                navController.navigate(R.id.friendsFragment);
+                return true;
             } else if (id == R.id.profile) {
                 navController.navigate(R.id.profileFragment);
                 return true;

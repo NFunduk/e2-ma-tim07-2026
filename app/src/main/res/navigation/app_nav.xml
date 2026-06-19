@@ -130,4 +130,17 @@
         android:name="com.example.sabona.NotificationFragment"
         android:label="Notifications"/>
 
+    <fragment
+        android:id="@+id/friendsFragment"
+        android:name="com.example.sabona.friends.FriendsFragment"
+        android:label="Friends">
+        <action android:id="@+id/action_friends_to_qrScanner"
+            app:destination="@id/qrScannerFragment"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/qrScannerFragment"
+        android:name="com.example.sabona.friends.QrScannerFragment"
+        android:label="QrScanner"/>
+
 </navigation>

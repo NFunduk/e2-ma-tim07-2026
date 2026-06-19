@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/white"
+    android:padding="16dp">
+
+    <!-- Search bar + QR dugme -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <EditText
+            android:id="@+id/etSearchFriend"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:hint="Pretraži po korisničkom imenu..."
+            android:inputType="text"
+            android:background="@drawable/filter_unselected_bg"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:singleLine="true"/>
+
+        <ImageButton
+            android:id="@+id/btnQrScan"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/outline_capture_24"
+            android:background="@drawable/filter_unselected_bg"
+            android:contentDescription="Skeniraj QR kod"
+            android:padding="8dp"/>
+    </LinearLayout>
+
+    <!-- Hint kad nema rezultata -->
+    <TextView
+        android:id="@+id/tvSearchHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Nijedan korisnik nije pronađen."
+        android:textColor="#888888"
+        android:textSize="14sp"
+        android:gravity="center"
+        android:visibility="gone"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- Lista prijatelja (naslov) -->
+    <TextView
+        android:id="@+id/tvFriendsTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Prijatelji (0)"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="@color/dark_blue"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- RecyclerView prijatelja -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvFriends"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="visible"/>
+
+    <!-- RecyclerView rezultata pretrage (skrivena dok se ne pretražuje) -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvSearchResults"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"/>
+
+</LinearLayout>
