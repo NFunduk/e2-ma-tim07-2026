@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import android.os.Handler;
+import android.os.Looper;
 
 /**
  * Repository za funkcionalnost Prijatelji (tačka 7).
@@ -264,10 +266,39 @@ public class FriendsRepository {
 
                     db.collection("gameRequests").add(reqData)
                             .addOnSuccessListener(docRef -> {
+
                                 // Pošalji notifikaciju prijatelju
                                 AppNotification notif = NotificationFactory.gameInvite(
-                                        docRef.getId(), myUsernameFinal);
-                                notifRepo.createNotification(friend.getUid(), notif);
+                                        docRef.getId(),
+                                        myUsernameFinal);
+
+                                notifRepo.createNotification(
+                                        friend.getUid(),
+                                        notif
+                                );
+
+                                // Automatsko odbijanje nakon 10 sekundi
+                                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+
+                                    db.collection("gameRequests")
+                                            .document(docRef.getId())
+                                            .get()
+                                            .addOnSuccessListener(snapshot -> {
+
+                                                if (!snapshot.exists()) return;
+
+                                                String status = snapshot.getString("status");
+
+                                                if ("pending".equals(status)) {
+
+                                                    snapshot.getReference()
+                                                            .update("status", "rejected");
+
+                                                }
+
+                                            });
+
+                                }, 10000);
 
                                 cb.onSuccess(docRef.getId());
                             })
