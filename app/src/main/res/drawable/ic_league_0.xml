@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nulta liga – prazan prsten (krug), siva -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp" android:height="96dp"
+    android:viewportWidth="100" android:viewportHeight="100">
+    <path
+        android:fillColor="#9E9E9E"
+        android:pathData="M50,6 A44,44 0 1,1 49.99,6 Z"/>
+    <path
+        android:fillColor="#F5F5F5"
+        android:pathData="M50,22 A28,28 0 1,1 49.99,22 Z"/>
+    <path
+        android:fillColor="#BDBDBD"
+        android:pathData="M50,34 A16,16 0 1,1 49.99,34 Z"/>
+</vector>

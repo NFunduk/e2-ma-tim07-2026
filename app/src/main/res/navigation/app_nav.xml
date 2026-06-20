@@ -41,7 +41,12 @@
     <fragment
         android:id="@+id/homeFragment"
         android:name="com.example.sabona.home.HomeFragment"
-        android:label="Home"/>
+        android:label="Home">
+
+        <action
+            android:id="@+id/action_home_to_league"
+            app:destination="@id/leagueProgressFragment"/>
+    </fragment>
 
     <fragment
         android:id="@+id/koZnaZnaFragment"
@@ -118,11 +123,17 @@
         android:id="@+id/profileFragment"
         android:name="com.example.sabona.ProfileFragment"
         android:label="Profile">
+
         <action
             android:id="@+id/action_profile_to_login"
             app:destination="@id/loginFragment"
             app:popUpTo="@id/app_nav"
             app:popUpToInclusive="true" />
+
+        <action
+            android:id="@+id/action_profile_to_league"
+            app:destination="@id/leagueProgressFragment"/>
+
     </fragment>
 
     <fragment
@@ -142,5 +153,10 @@
         android:id="@+id/qrScannerFragment"
         android:name="com.example.sabona.friends.QrScannerFragment"
         android:label="QrScanner"/>
+
+    <fragment
+        android:id="@+id/leagueProgressFragment"
+        android:name="com.example.sabona.league.LeagueProgressFragment"
+        android:label="Napredak u ligi"/>
 
 </navigation>

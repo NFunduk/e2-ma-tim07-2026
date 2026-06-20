@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Zlatna liga – štit s krunom, zlatna boja -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp" android:height="96dp"
+    android:viewportWidth="100" android:viewportHeight="100">
+    <path
+        android:fillColor="#B8860B"
+        android:pathData="M50,4 L90,18 L90,52 Q90,80 50,96 Q10,80 10,52 L10,18 Z"/>
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M50,13 L82,24 L82,52 Q82,75 50,89 Q18,75 18,52 L18,24 Z"/>
+    <!-- Kruna -->
+    <path
+        android:fillColor="#B8860B"
+        android:pathData="M30,64 L30,46 L40,55 L50,36 L60,55 L70,46 L70,64 Z"/>
+    <path
+        android:fillColor="#FFF8DC"
+        android:pathData="M30,44 A4,4 0 1,1 29.99,44 Z"/>
+    <path
+        android:fillColor="#FFF8DC"
+        android:pathData="M50,34 A4,4 0 1,1 49.99,34 Z"/>
+    <path
+        android:fillColor="#FFF8DC"
+        android:pathData="M70,44 A4,4 0 1,1 69.99,44 Z"/>
+</vector>

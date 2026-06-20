@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bronzana liga – petougao, bronzana boja -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp" android:height="96dp"
+    android:viewportWidth="100" android:viewportHeight="100">
+    <path
+        android:fillColor="#8D5524"
+        android:pathData="M50,4 L93,36 L76,92 L24,92 L7,36 Z"/>
+    <path
+        android:fillColor="#CD7F32"
+        android:pathData="M50,16 L82,40 L69,82 L31,82 L18,40 Z"/>
+    <path
+        android:fillColor="#E8A765"
+        android:fillAlpha="0.55"
+        android:pathData="M50,16 L66,28 L50,40 L34,28 Z"/>
+</vector>

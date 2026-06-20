@@ -184,6 +184,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         NotificationHelper.createChannels(this);
+        com.example.sabona.league.DailyTokenWorker.scheduleIfNeeded(this);
 
         db = FirebaseFirestore.getInstance();
         startListeningForSystemNotifications();
