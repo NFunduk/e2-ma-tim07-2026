@@ -30,6 +30,10 @@ public class SkockoViewModel extends ViewModel {
     private ListenerRegistration listener;
     private SkockoGameState remoteState;
 
+    // nova polja
+    private boolean opponentHasLeft = false;
+    private ListenerRegistration abandonListener;
+
     private final String[] symbols = {"☻", "■", "●", "♥", "▲", "★"};
 
     public LiveData<Phase> getPhase() {
@@ -46,12 +50,26 @@ public class SkockoViewModel extends ViewModel {
 
     public void init() {
         phase.setValue(Phase.LOADING);
+        listenForAbandon();
 
         if (sessionMgr.isPlayer1()) {
             setupAsHost();
         } else {
             setupAsGuest();
         }
+    }
+
+    private void listenForAbandon() {
+        abandonListener = sessionRepo.listenRootSession((snap, e) -> {
+            if (snap == null || !snap.exists()) return;
+            String leftUid = snap.getString("leftByUid");
+            if (leftUid == null || sessionMgr.isMe(leftUid)) return;
+            opponentHasLeft = true;
+        });
+    }
+
+    public boolean amIAuthoritative() {
+        return sessionMgr.isPlayer1() || opponentHasLeft;
     }
 
     private void setupAsHost() {
@@ -105,7 +123,7 @@ public class SkockoViewModel extends ViewModel {
                 phase.setValue(Phase.GAME_OVER);
             }
 
-            boolean turn = state.activePlayerRole.equals(sessionMgr.getMyRole());
+            boolean turn = state.activePlayerRole.equals(sessionMgr.getMyRole()) || opponentHasLeft;
             myTurn.setValue(turn);
         });
     }
@@ -122,7 +140,8 @@ public class SkockoViewModel extends ViewModel {
     public void addPointsToActivePlayer(int points) {
         if (remoteState == null) return;
 
-        if (GameSessionManager.ROLE_PLAYER1.equals(remoteState.activePlayerRole)) {
+        String roleToCredit = opponentHasLeft ? sessionMgr.getMyRole() : remoteState.activePlayerRole;
+        if (GameSessionManager.ROLE_PLAYER1.equals(roleToCredit)) {
             remoteState.player1Score += points;
         } else {
             remoteState.player2Score += points;
@@ -200,6 +219,7 @@ public class SkockoViewModel extends ViewModel {
     protected void onCleared() {
         super.onCleared();
         if (listener != null) listener.remove();
+        if (abandonListener != null) abandonListener.remove();
     }
 
     public void saveAttempt(String guess, int correctPlace, int correctSymbol, int nextAttempt) {

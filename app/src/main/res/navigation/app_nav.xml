@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <navigation xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/app_nav"
     app:startDestination="@id/loginFragment">
 
@@ -39,9 +40,17 @@
     </fragment>
 
     <fragment
+        android:id="@+id/leaderboardFragment"
+        android:name="com.example.sabona.leaderboard.LeaderboardFragment"
+        android:label="Rang liste"/>
+
+    <fragment
         android:id="@+id/homeFragment"
         android:name="com.example.sabona.home.HomeFragment"
         android:label="Home">
+        <action
+            android:id="@+id/action_home_to_matchmaking"
+            app:destination="@id/matchmakingFragment" />
 
         <action
             android:id="@+id/action_home_to_league"
@@ -143,7 +152,11 @@
     <fragment
         android:id="@+id/notificationsFragment"
         android:name="com.example.sabona.NotificationFragment"
-        android:label="Notifications"/>
+        android:label="Notifications">
+        <action
+            android:id="@+id/action_notifications_to_koZnaZna"
+            app:destination="@id/koZnaZnaFragment" />
+    </fragment>
 
     <fragment
         android:id="@+id/friendsFragment"
@@ -151,6 +164,20 @@
         android:label="Friends">
         <action android:id="@+id/action_friends_to_qrScanner"
             app:destination="@id/qrScannerFragment"/>
+        <action
+            android:id="@+id/action_friends_to_koZnaZna"
+            app:destination="@id/koZnaZnaFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/matchmakingFragment"
+        android:name="com.example.sabona.matchmaking.MatchmakingFragment"
+        android:label="Matchmaking"
+        tools:layout="@layout/fragment_matchmaking">
+
+        <action
+            android:id="@+id/action_matchmaking_to_koZnaZna"
+            app:destination="@id/koZnaZnaFragment" />
     </fragment>
 
     <fragment

@@ -27,6 +27,11 @@ import com.google.firebase.firestore.Query;
 import java.util.ArrayList;
 import java.util.List;
 
+import androidx.navigation.Navigation;
+import com.google.firebase.firestore.FieldValue;
+import java.util.HashMap;
+import java.util.Map;
+
 public class NotificationFragment extends Fragment {
 
     private TextView filterAll, filterUnread, filterRead;
@@ -224,34 +229,39 @@ public class NotificationFragment extends Fragment {
                 return;
             }
 
-            // Transakcija: status se menja samo ako je zahtev još "pending" —
-            // sprečava da prihvatanje/odbijanje "pobedi" auto-odbijanje koje je
-            // pošiljalac partije pokrenuo nakon 10 sekundi (race condition).
-            com.google.firebase.firestore.DocumentReference gameReqRef =
-                    db.collection("gameRequests").document(notification.getDataId());
+            String myUid = FirebaseAuth.getInstance().getCurrentUser() != null
+                    ? FirebaseAuth.getInstance().getCurrentUser().getUid() : null;
 
+            String gameRequestId = notification.getDataId();
+            com.google.firebase.firestore.DocumentReference gameReqRef =
+                    db.collection("gameRequests").document(gameRequestId);
+
+            // Transakcija: status se menja samo ako je zahtev još "pending" — sprečava
+            // da prihvatanje/odbijanje "pobedi" auto-odbijanje nakon 10s. Vraća fromUid
+            // ako je promena uspela, null ako je zahtev već istekao/otkazan.
             db.runTransaction(transaction -> {
                 com.google.firebase.firestore.DocumentSnapshot snap = transaction.get(gameReqRef);
                 String currentStatus = snap.getString("status");
-                if ("pending".equals(currentStatus)) {
-                    transaction.update(gameReqRef, "status", accepted ? "accepted" : "rejected");
-                    return true; // uspešno promenjen status
+                if (!"pending".equals(currentStatus)) {
+                    return null;
                 }
-                return false; // zahtev je već istekao/otkazan — ne dirati
-            }).addOnSuccessListener(changed -> {
+                transaction.update(gameReqRef, "status", accepted ? "accepted" : "rejected");
+                return snap.getString("fromUid");
+            }).addOnSuccessListener(fromUidResult -> {
                 repository.markAsHandled(notification.getId());
 
-                if (Boolean.TRUE.equals(changed)) {
-                    Toast.makeText(
-                            requireContext(),
-                            accepted ? "Prihvatila si poziv za partiju" : "Odbila si poziv za partiju",
-                            Toast.LENGTH_SHORT
-                    ).show();
-                } else {
-                    Toast.makeText(requireContext(),
-                            "Poziv je već istekao ili otkazan.",
-                            Toast.LENGTH_SHORT).show();
+                if (fromUidResult == null) {
+                    Toast.makeText(requireContext(), "Poziv je već istekao ili otkazan.", Toast.LENGTH_SHORT).show();
+                    return;
                 }
+
+                if (!accepted) {
+                    Toast.makeText(requireContext(), "Odbila si poziv za partiju", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                startFriendlyMatchAsGuest((String) fromUidResult, myUid, gameRequestId);
+
             }).addOnFailureListener(e ->
                     Toast.makeText(requireContext(), "Greška pri obradi poziva", Toast.LENGTH_SHORT).show());
 
@@ -302,6 +312,44 @@ public class NotificationFragment extends Fragment {
         }
 
         repository.markAsRead(notification.getId());
+    }
+
+    private void startFriendlyMatchAsGuest(String fromUid, String myUid, String gameRequestId) {
+        if (fromUid == null || myUid == null || !isAdded()) return;
+
+        String sessionId = "F" + (System.currentTimeMillis() % 1000000) + (int) (Math.random() * 90 + 10);
+
+        Map<String, Object> sessionData = new HashMap<>();
+        sessionData.put("status", "active");
+        sessionData.put("isFriendlyMatch", true);
+        sessionData.put("player1Uid", fromUid);
+        sessionData.put("player2Uid", myUid);
+        sessionData.put("totalScoreP1", 0);
+        sessionData.put("totalScoreP2", 0);
+        sessionData.put("leftByUid", null);
+        sessionData.put("createdAt", FieldValue.serverTimestamp());
+
+        db.collection("gameSessions").document(sessionId).set(sessionData)
+                .addOnSuccessListener(v -> {
+                    db.collection("gameRequests").document(gameRequestId)
+                            .update("sessionId", sessionId);
+
+                    if (!isAdded()) return;
+
+                    Bundle args = new Bundle();
+                    args.putString("sessionId", sessionId);
+                    args.putBoolean("isHost", false);
+                    args.putString("hostUid", fromUid);
+
+                    try {
+                        Navigation.findNavController(requireView())
+                                .navigate(R.id.action_notifications_to_koZnaZna, args);
+                    } catch (Exception e) {
+                        Toast.makeText(requireContext(), "Greška pri pokretanju partije", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(requireContext(), "Greška pri kreiranju partije", Toast.LENGTH_SHORT).show());
     }
 
     private void selectFilter(TextView selected, TextView firstOther, TextView secondOther) {

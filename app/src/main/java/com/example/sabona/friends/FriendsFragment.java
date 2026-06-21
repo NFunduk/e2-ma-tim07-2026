@@ -176,9 +176,7 @@ public class FriendsFragment extends Fragment {
                     Toast.makeText(requireContext(),
                             "Prijatelj je prihvatio poziv! Partija počinje...",
                             Toast.LENGTH_LONG).show();
-                    // TODO (Student 1 – tačka 3): pokrenuti pravu prijateljsku partiju ovdje
-                    // npr. navController.navigate(R.id.action_friends_to_koZnaZna, args);
-                    viewModel.clearGameInviteStatus();
+                    // navigacija se dešava u matchSessionReady observeru ispod
                     break;
                 case "rejected":
                     Toast.makeText(requireContext(),
@@ -190,6 +188,20 @@ public class FriendsFragment extends Fragment {
                     viewModel.clearGameInviteStatus();
                     break;
             }
+        });
+
+        viewModel.getMatchSessionReady().observe(getViewLifecycleOwner(), sessionId -> {
+            if (sessionId == null) return;
+
+            Bundle args = new Bundle();
+            args.putString("sessionId", sessionId);
+            args.putBoolean("isHost", true); // pošiljalac poziva je uvek host prijateljske partije
+
+            viewModel.clearGameInviteStatus();
+            viewModel.clearMatchSessionReady();
+
+            Navigation.findNavController(requireView())
+                    .navigate(R.id.action_friends_to_koZnaZna, args);
         });
 
         // Učitaj prijatelje

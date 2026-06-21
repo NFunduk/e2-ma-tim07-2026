@@ -15,6 +15,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.MainActivity;
 import com.example.sabona.R;
 import com.example.sabona.model.AssociationGame;
 
@@ -106,37 +107,10 @@ public class AssociationsFragment extends Fragment {
             }
         }
 
-        multiplayerMode = false;
-
-        new AssociationRepository().getAssociations(
-                new AssociationRepository.Callback() {
-
-                    @Override
-                    public void onSuccess(List<AssociationGame> loadedGames) {
-
-                        if (loadedGames == null || loadedGames.size() < 2) {
-                            Toast.makeText(
-                                    requireContext(),
-                                    "U bazi moraju postojati bar 2 asocijacije.",
-                                    Toast.LENGTH_LONG
-                            ).show();
-                            return;
-                        }
-
-                        games = loadedGames;
-                        startRound();
-                    }
-
-                    @Override
-                    public void onError(Exception e) {
-                        Toast.makeText(
-                                requireContext(),
-                                "Greška pri učitavanju asocijacija",
-                                Toast.LENGTH_LONG
-                        ).show();
-                    }
-                }
-        );
+        // Nema sola — vrati se nazad
+        if (isAdded()) {
+            NavHostFragment.findNavController(this).navigateUp();
+        }
     }
 
     @Override
@@ -719,7 +693,7 @@ public class AssociationsFragment extends Fragment {
             tvTimer.setText("00:00");
 
             if (multiplayerMode && viewModel != null) {
-                if (GameSessionManager.get().isPlayer1()) {
+                if (viewModel.amIAuthoritative()) {
                     if ("ROUND_END".equals(currentRemotePhase)) {
                         viewModel.startNextRound();
                     } else if ("PLAYING".equals(currentRemotePhase)) {
@@ -748,7 +722,7 @@ public class AssociationsFragment extends Fragment {
                 tvTimer.setText("00:00");
 
                 if (multiplayerMode && viewModel != null) {
-                    if (GameSessionManager.get().isPlayer1()) {
+                    if (viewModel.amIAuthoritative()) {
                         if ("ROUND_END".equals(currentRemotePhase)) {
                             viewModel.startNextRound();
                         } else if ("PLAYING".equals(currentRemotePhase)) {
@@ -850,6 +824,9 @@ public class AssociationsFragment extends Fragment {
         tvRound.setText("Runda " + round + "/2");
         tvPlayer.setText("Na potezu: igrač " + currentPlayer);
         tvScore.setText(player1Score + " : " + player2Score);
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).updateGameScore(player1Score, player2Score, null, null);
+        }
     }
 
     private boolean hasOpenableField() {
@@ -891,6 +868,14 @@ public class AssociationsFragment extends Fragment {
                 .add(result);
 
         // snima statistiku za igrača 1
-        new StatsRepository().saveAsocijacijeResult(player1Score, finalSolved);
+        if (multiplayerMode) {
+            new com.example.sabona.game.GameSessionRepository().isFriendlyMatch((friendly, e) -> {
+                if (!Boolean.TRUE.equals(friendly)) {
+                    new StatsRepository().saveAsocijacijeResult(player1Score, finalSolved);
+                }
+            });
+        } else {
+            new StatsRepository().saveAsocijacijeResult(player1Score, finalSolved);
+        }
     }
 }

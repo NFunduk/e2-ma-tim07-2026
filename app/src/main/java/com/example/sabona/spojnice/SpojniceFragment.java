@@ -18,7 +18,9 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.MainActivity;
 import com.example.sabona.R;
+import com.example.sabona.game.GameSessionManager;
 import com.example.sabona.spojnice.SpojniceRepository.SpojniceQuestion;
 import com.google.firebase.auth.FirebaseAuth;
 
@@ -70,7 +72,7 @@ public class SpojniceFragment extends Fragment {
                 tvInfo.setText("Učitavanje pitanja...");
                 setAllButtonsEnabled(false);
                 vm.loadQuestions(() -> {
-                    if (!isAdded()) return;
+                    //if (!isAdded()) return;
                     if (passedIsHost) {
                         vm.createSessionSilent(passedSessionId);
                     } else {
@@ -135,6 +137,9 @@ public class SpojniceFragment extends Fragment {
             tvRound.setText("Runda " + state.round + "/2");
             tvPlayer.setText(state.playerLabel);
             tvScore.setText(state.p1Score + " : " + state.p2Score);
+            if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).updateGameScore(state.p1Score, state.p2Score, null, null);
+            }
         });
 
         // Board state — renderuj cijelu ploču
@@ -168,7 +173,7 @@ public class SpojniceFragment extends Fragment {
                 Bundle navArgs = new Bundle();
                 navArgs.putString("sessionId", vm.getSessionId());
                 navArgs.putBoolean("isHost",   vm.isHost());
-                navArgs.putString("hostUid",   vm.getMyUid());
+                navArgs.putString("hostUid", GameSessionManager.get().getPlayer1Uid());
                 NavHostFragment.findNavController(this)
                         .navigate(R.id.action_spojnice_to_associations, navArgs);
             } catch (Exception e) {
@@ -278,8 +283,6 @@ public class SpojniceFragment extends Fragment {
                 vm.createSession(input.getText().toString().trim().toUpperCase()));
         b.setNegativeButton("Pridruži se (Igrač 2)", (d, w) ->
                 vm.joinSession(input.getText().toString().trim().toUpperCase()));
-        b.setNeutralButton("Solo (1 uređaj)", (d, w) ->
-                vm.startSoloGame());
         b.setCancelable(false);
         b.show();
     }

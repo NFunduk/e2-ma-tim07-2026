@@ -10,6 +10,7 @@ import com.google.firebase.firestore.ListenerRegistration;
 import com.example.sabona.skocko.SkockoGameState;
 
 import java.util.function.Function;
+import com.google.firebase.firestore.FieldValue;
 
 /**
  * Pristup Firestoru za igre.
@@ -174,5 +175,51 @@ public class GameSessionRepository {
 
     public ListenerRegistration listenAsocijacije(EventListener<DocumentSnapshot> listener) {
         return asocijacijeRef().addSnapshotListener(listener);
+    }
+
+    private DocumentReference rootSessionRef() {
+        return db.collection(GameSessionManager.COL_GAME_SESSIONS)
+                .document(sessionMgr.getSessionId());
+    }
+
+    public void addToTotalScore(int p1Delta, int p2Delta) {
+        rootSessionRef().update(
+                "totalScoreP1", FieldValue.increment(p1Delta),
+                "totalScoreP2", FieldValue.increment(p2Delta));
+    }
+
+    public void commitMojBrojGameOver(MojBrojGameState finalState, int p1Delta, int p2Delta) {
+        DocumentReference mbRef   = mojBrojRef();
+        DocumentReference rootRef = rootSessionRef();
+        FirebaseFirestore.getInstance().runTransaction(transaction -> {
+            finalState.updatedAt = Timestamp.now();
+            transaction.set(mbRef, finalState);
+            transaction.update(rootRef,
+                    "totalScoreP1", FieldValue.increment(p1Delta),
+                    "totalScoreP2", FieldValue.increment(p2Delta));
+            return null;
+        });
+    }
+
+    public ListenerRegistration listenRootSession(EventListener<DocumentSnapshot> listener) {
+        return rootSessionRef().addSnapshotListener(listener);
+    }
+
+    public void getRootSessionOnce(EventListener<DocumentSnapshot> listener) {
+        rootSessionRef().get().addOnCompleteListener(task -> {
+            if (task.isSuccessful()) listener.onEvent(task.getResult(), null);
+        });
+    }
+
+    /** Igrač napušta partiju. */
+    public void markLeft(String myUid) {
+        rootSessionRef().update("leftByUid", myUid, "status", "abandoned");
+    }
+
+    public void isFriendlyMatch(com.google.firebase.firestore.EventListener<Boolean> callback) {
+        rootSessionRef().get().addOnSuccessListener(snap -> {
+            boolean friendly = snap.exists() && Boolean.TRUE.equals(snap.getBoolean("isFriendlyMatch"));
+            callback.onEvent(friendly, null);
+        });
     }
 }
