@@ -75,4 +75,29 @@ public class NotificationFactory {
                 true
         );
     }
+
+    public static AppNotification leaderboardReward(String cycleName, int position, int tokens) {
+        return new AppNotification(
+                "Nagrada za rang listu",
+                "Osvojila si " + position + ". mesto na " + cycleName +
+                        " rang listi i dobijaš " + tokens + " tokena.",
+                "Nagrade",
+                "leaderboard_reward",
+                null,
+                false,
+                false
+        );
+    }
+
+    public static AppNotification leaderboardPlacement(String cycleName, int position) {
+        return new AppNotification(
+                "Plasman na rang listi",
+                "Trenutno si na " + position + ". mestu na " + cycleName + " rang listi.",
+                "Rangiranje",
+                "leaderboard_position",
+                null,
+                false,
+                false
+        );
+    }
 }

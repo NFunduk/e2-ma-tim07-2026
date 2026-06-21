@@ -39,6 +39,11 @@
     </fragment>
 
     <fragment
+        android:id="@+id/leaderboardFragment"
+        android:name="com.example.sabona.leaderboard.LeaderboardFragment"
+        android:label="Rang liste"/>
+
+    <fragment
         android:id="@+id/homeFragment"
         android:name="com.example.sabona.home.HomeFragment"
         android:label="Home">

@@ -56,14 +56,7 @@ public class HomeFragment extends Fragment {
         // normalan klik – pokreni igru
         view.findViewById(R.id.btnHomePlay).setOnClickListener(v -> {
             if (FirebaseAuth.getInstance().getCurrentUser() == null) return;
-            String uid = FirebaseAuth.getInstance().getCurrentUser().getUid();
-            NotificationRepository repo = new NotificationRepository();
-            repo.createNotification(uid, NotificationFactory.reward("Dobila si 3 tokena kao nagradu."));
-            repo.createNotification(uid, NotificationFactory.rankingChanged(2));
-            repo.createNotification(uid, NotificationFactory.leagueChanged("Srebrna liga"));
-            repo.createNotification(uid, NotificationFactory.chatMessage("Marko"));
-            repo.createNotification(uid, NotificationFactory.friendRequest("friend_request_1", "Ana"));
-            repo.createNotification(uid, NotificationFactory.gameInvite("game_request_1", "Nikola"));
+            //String uid = FirebaseAuth.getInstance().getCurrentUser().getUid();
             BottomNavigationView bottomNav = requireActivity().findViewById(R.id.bottomNav);
             bottomNav.setSelectedItemId(R.id.play);
         });
