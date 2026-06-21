@@ -68,7 +68,12 @@ public class HomeFragment extends Fragment {
             bottomNav.setSelectedItemId(R.id.play);
         });
 
-        // Testovi za napredovanje kroz lige su premješteni: sada se pokreću
-        // dugim pritiskom na red lige u Profilu (com.example.sabona.league.LeagueTestMenu)
+        // Klik na karticu "Regioni Srbije" → otvori mapu regiona
+        View cardRegions = view.findViewById(R.id.cardRegions);
+        if (cardRegions != null) {
+            cardRegions.setOnClickListener(v ->
+                    androidx.navigation.Navigation.findNavController(v)
+                            .navigate(R.id.action_home_to_regions));
+        }
     }
 }

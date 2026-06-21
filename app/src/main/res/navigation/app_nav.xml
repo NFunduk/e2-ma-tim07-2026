@@ -46,6 +46,10 @@
         <action
             android:id="@+id/action_home_to_league"
             app:destination="@id/leagueProgressFragment"/>
+
+        <action
+            android:id="@+id/action_home_to_regions"
+            app:destination="@id/regionsMapFragment"/>
     </fragment>
 
     <fragment
@@ -158,5 +162,10 @@
         android:id="@+id/leagueProgressFragment"
         android:name="com.example.sabona.league.LeagueProgressFragment"
         android:label="Napredak u ligi"/>
+
+    <fragment
+        android:id="@+id/regionsMapFragment"
+        android:name="com.example.sabona.region.RegionsMapFragment"
+        android:label="Regioni"/>
 
 </navigation>
