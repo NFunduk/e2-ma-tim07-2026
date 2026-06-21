@@ -68,6 +68,10 @@ public class MainActivity extends AppCompatActivity {
             R.id.matchmakingFragment
     ));
 
+    private final Set<Integer> fullScreenInputDestinations = new HashSet<>(Arrays.asList(
+            R.id.chatFragment
+    ));
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -162,7 +166,8 @@ public class MainActivity extends AppCompatActivity {
 
             toolbar.setVisibility(isAuth ? View.GONE : View.VISIBLE);
 
-            bottomNav.setVisibility((isAuth || isGame) ? View.GONE : View.VISIBLE);
+            boolean isFullScreenInput = fullScreenInputDestinations.contains(id);
+            bottomNav.setVisibility((isAuth || isGame || isFullScreenInput) ? View.GONE : View.VISIBLE);
 
             layoutStatsChip.setVisibility(isGame ? View.GONE : View.VISIBLE);
 
@@ -417,6 +422,12 @@ public class MainActivity extends AppCompatActivity {
         tvMatchScore.setText(p1Score + " : " + p2Score);
         if (p1Name != null) tvPlayer1Name.setText(p1Name);
         if (p2Name != null) tvPlayer2Name.setText(p2Name);
+    }
+
+    public void setBottomNavVisible(boolean visible) {
+        if (bottomNav != null) {
+            bottomNav.setVisibility(visible ? View.VISIBLE : View.GONE);
+        }
     }
 
     @Override

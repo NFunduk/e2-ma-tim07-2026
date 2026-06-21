@@ -11,6 +11,9 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -49,6 +52,23 @@ public class ChatFragment extends Fragment {
         btnSend = view.findViewById(R.id.btnChatSend);
         tvChatRegion = view.findViewById(R.id.tvChatRegion);
 
+        View chatRoot = view.findViewById(R.id.chatRoot);
+        ViewCompat.setOnApplyWindowInsetsListener(chatRoot, (v, insets) -> {
+            int imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+            boolean imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
+
+            v.setPadding(v.getPaddingLeft(), v.getPaddingTop(), v.getPaddingRight(), imeBottom);
+
+            if (getActivity() instanceof com.example.sabona.MainActivity) {
+                ((com.example.sabona.MainActivity) getActivity()).setBottomNavVisible(!imeVisible);
+            }
+
+            if (adapter != null && adapter.getItemCount() > 0) {
+                recyclerView.post(() -> recyclerView.scrollToPosition(adapter.getItemCount() - 1));
+            }
+            return insets;
+        });
+
         adapter = new ChatAdapter(currentUid);
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
         recyclerView.setAdapter(adapter);
@@ -83,5 +103,13 @@ public class ChatFragment extends Fragment {
         });
 
         viewModel.start();
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (getActivity() instanceof com.example.sabona.MainActivity) {
+            ((com.example.sabona.MainActivity) getActivity()).setBottomNavVisible(true);
+        }
     }
 }
