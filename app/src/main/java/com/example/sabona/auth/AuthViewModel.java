@@ -94,6 +94,27 @@ public class AuthViewModel extends ViewModel {
 
     public void logout() {
         repo.logout();
+        // Resetuj sve "jednokratne" flagove vezane za login/registraciju.
+        // Bez ovoga, LoginFragment koji se ponovo prikaže nakon logout-a
+        // odmah dobija staru "true" vrednost od PRETHODNOG uspešnog logina
+        // (LiveData pamti poslednju vrednost i odmah je isporučuje novom
+        // observeru), pa korisnik biva trenutno prebačen nazad na Home
+        // kao da se upravo ponovo ulogovao – iako nije.
+        loginSuccess.setValue(null);
+        registerSuccess.setValue(null);
+        verifiedSuccess.setValue(null);
+    }
+
+    public void resetLoginSuccess() {
+        loginSuccess.setValue(null);
+    }
+
+    public void resetRegisterSuccess() {
+        registerSuccess.setValue(null);
+    }
+
+    public void resetVerifiedSuccess() {
+        verifiedSuccess.setValue(null);
     }
 
     public void changePassword(String oldPassword, String newPassword) {

@@ -151,18 +151,24 @@
                         </LinearLayout>
 
                         <LinearLayout
+                            android:id="@+id/layoutLeagueRow"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:orientation="horizontal"
                             android:gravity="center_vertical"
-                            android:layout_marginTop="4dp">
+                            android:layout_marginTop="6dp"
+                            android:paddingVertical="4dp"
+                            android:paddingHorizontal="6dp"
+                            android:background="?attr/selectableItemBackground"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:contentDescription="@string/league_row_content_description">
 
                             <ImageView
                                 android:id="@+id/imgLeagueIcon"
-                                android:layout_width="14dp"
-                                android:layout_height="14dp"
-                                android:src="@drawable/outline_atr_24"
-                                app:tint="@color/lavender" />
+                                android:layout_width="16dp"
+                                android:layout_height="16dp"
+                                android:src="@drawable/outline_atr_24" />
 
                             <TextView
                                 android:id="@+id/tvLeague"
@@ -173,6 +179,13 @@
                                 android:textColor="@color/white"
                                 android:textSize="13sp"
                                 android:textStyle="bold" />
+
+                            <ImageView
+                                android:layout_width="10dp"
+                                android:layout_height="10dp"
+                                android:layout_marginStart="2dp"
+                                android:src="@drawable/ic_chevron_right"
+                                app:tint="@color/lavender" />
                         </LinearLayout>
                     </LinearLayout>
 

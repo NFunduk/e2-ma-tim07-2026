@@ -69,12 +69,16 @@ public class ProfileSettingsTabFragment extends Fragment {
         btnSavePassword.setOnClickListener(v -> handlePasswordChange());
 
         btnLogout.setOnClickListener(v -> {
-            // Očisti kešovane podatke profila
+            // Očisti kešovane podatke profila pre odjave
             new ViewModelProvider(requireActivity())
                     .get(com.example.sabona.viewModel.ProfileViewModel.class)
                     .clearData();
             viewModel.logout();
-            // Navigiraj kroz Activity NavHostFragment (ViewPager2 child ne može sam)
+
+            // Navigiraj kroz Activity NavHostFragment (ViewPager2 child ne može sam).
+            // action_profile_to_login čisti čitav nav stack do korena grafa,
+            // pa logout uvek vodi direktno na login ekran, bez obzira odakle
+            // je profil otvoren (čak i preko bottom navigation-a).
             androidx.navigation.NavController navController =
                     androidx.navigation.Navigation.findNavController(
                             requireActivity(), R.id.navHostFragment);

@@ -48,6 +48,7 @@ public class VerifyEmailFragment extends Fragment {
 
         viewModel.getVerifiedSuccess().observe(getViewLifecycleOwner(), success -> {
             if (Boolean.TRUE.equals(success)) {
+                viewModel.resetVerifiedSuccess();
                 Toast.makeText(requireContext(),
                         "Email potvrđen! Možeš se prijaviti.",
                         Toast.LENGTH_SHORT).show();
