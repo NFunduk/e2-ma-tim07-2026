@@ -9,8 +9,11 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.navigation.Navigation;
 
 import android.widget.TextView;
+
+import com.example.sabona.auth.AuthRepository;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import com.example.sabona.model.AppNotification;
@@ -56,7 +59,7 @@ public class HomeFragment extends Fragment {
 
 
 
-        view.findViewById(R.id.btnHomePlay).setOnClickListener(v -> {
+        /*view.findViewById(R.id.btnHomePlay).setOnClickListener(v -> {
 
             String uid = FirebaseAuth.getInstance()
                     .getCurrentUser()
@@ -98,6 +101,14 @@ public class HomeFragment extends Fragment {
             // Pokretanje igre
             BottomNavigationView bottomNav = requireActivity().findViewById(R.id.bottomNav);
             bottomNav.setSelectedItemId(R.id.play);
+        });*/
+
+        new AuthRepository().grantDailyTokensIfNeeded(new AuthRepository.Callback() {
+            @Override public void onSuccess() { }
+            @Override public void onError(String message) { }
         });
+
+        view.findViewById(R.id.btnHomePlay).setOnClickListener(v ->
+                Navigation.findNavController(view).navigate(R.id.action_home_to_matchmaking));
     }
 }

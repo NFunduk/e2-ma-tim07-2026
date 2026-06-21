@@ -39,6 +39,8 @@ public class MainActivity extends AppCompatActivity {
     private ImageView btnNotifications;
     private TextView tvToolbarTitle;
 
+    private TextView tvPlayer1Score, tvPlayer2Score, tvMatchScore;
+    private TextView tvPlayer1Name, tvPlayer2Name;
     private FirebaseFirestore db;
     private ListenerRegistration notificationsListener;
     private boolean firstLoadNotifications = true;
@@ -55,7 +57,8 @@ public class MainActivity extends AppCompatActivity {
             R.id.associationsFragment,
             R.id.skockoFragment,
             R.id.korakPoKorakFragment,
-            R.id.mojBrojFragment
+            R.id.mojBrojFragment,
+            R.id.matchmakingFragment
     ));
 
     @Override
@@ -79,6 +82,12 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout layoutToolbarNormal = toolbar.findViewById(R.id.layoutToolbarNormal);
         LinearLayout layoutToolbarGame = toolbar.findViewById(R.id.layoutToolbarGame);
         TextView tvGameName = toolbar.findViewById(R.id.tvGameName);
+
+        tvPlayer1Score = toolbar.findViewById(R.id.tvPlayer1Score);
+        tvPlayer2Score = toolbar.findViewById(R.id.tvPlayer2Score);
+        tvMatchScore   = toolbar.findViewById(R.id.tvMatchScore);
+        tvPlayer1Name  = toolbar.findViewById(R.id.tvPlayer1Name);
+        tvPlayer2Name  = toolbar.findViewById(R.id.tvPlayer2Name);
 
         LinearLayout layoutStatsChip = toolbar.findViewById(R.id.layoutStatsChip);
 
@@ -142,6 +151,9 @@ public class MainActivity extends AppCompatActivity {
                 layoutToolbarNormal.setVisibility(View.VISIBLE);
                 layoutToolbarGame.setVisibility(View.GONE);
                 tvToolbarTitle.setText("SaBoNa");
+                if (tvPlayer1Score != null) tvPlayer1Score.setText("0 bod");
+                if (tvPlayer2Score != null) tvPlayer2Score.setText("0 bod");
+                if (tvMatchScore != null) tvMatchScore.setText("0 : 0");
             }
         });
 
@@ -172,8 +184,16 @@ public class MainActivity extends AppCompatActivity {
                         .setTitle("Odustajanje")
                         .setMessage("Da li želiš da odustaneš od partije?")
                         .setNegativeButton("Nastavi igru", null)
-                        .setPositiveButton("Odustani", (dialog, which) ->
-                                navController.navigate(R.id.homeFragment))
+                        .setPositiveButton("Odustani", (dialog, which) -> {
+                            String sessionId = com.example.sabona.game.GameSessionManager.get().getSessionId();
+                            if (sessionId != null && !sessionId.isEmpty()) {
+                                new com.example.sabona.game.GameSessionRepository().markLeft(
+                                        com.google.firebase.auth.FirebaseAuth.getInstance()
+                                                .getCurrentUser().getUid()
+                                );
+                            }
+                            navController.navigate(R.id.homeFragment);
+                        })
                         .show();
             } else {
                 if (navController.getCurrentDestination() != null &&
@@ -253,6 +273,15 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                 });
+    }
+
+    public void updateGameScore(int p1Score, int p2Score, String p1Name, String p2Name) {
+        if (tvPlayer1Score == null) return;
+        tvPlayer1Score.setText(p1Score + " bod");
+        tvPlayer2Score.setText(p2Score + " bod");
+        tvMatchScore.setText(p1Score + " : " + p2Score);
+        if (p1Name != null) tvPlayer1Name.setText(p1Name);
+        if (p2Name != null) tvPlayer2Name.setText(p2Name);
     }
 
     @Override

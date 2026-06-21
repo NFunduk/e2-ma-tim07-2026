@@ -119,6 +119,7 @@ public class SpojniceViewModel extends ViewModel {
     private final FirebaseAuth      auth = FirebaseAuth.getInstance();
     private DocumentReference    sessionRef;
     private ListenerRegistration sessionListener;
+    private ListenerRegistration rootListener;
 
     // ── Repository ────────────────────────────────────────────────────────────
     private final SpojniceRepository repository = new SpojniceRepository();
@@ -135,7 +136,7 @@ public class SpojniceViewModel extends ViewModel {
     private String  myUid;
     private String  sessionId;
     private boolean isHost;
-    private boolean soloMode  = false;
+    //private boolean soloMode  = false;
     private boolean gameEnded = false;
 
     // ── Pitanja ───────────────────────────────────────────────────────────────
@@ -201,7 +202,6 @@ public class SpojniceViewModel extends ViewModel {
     public void createSession(String sid) {
         sessionId = sid;
         isHost    = true;
-        soloMode  = false;
         sessionRef = sessionRef(sid);
 
         List<SpojniceQuestion> shuffled = new ArrayList<>(allQuestions);
@@ -233,14 +233,15 @@ public class SpojniceViewModel extends ViewModel {
                     waitingMsg.setValue("Čekam Igrača 2...\nKod: " + sessionId);
                     uiPhase.setValue(UiPhase.WAITING);
                     startListening();
+                    listenRootForAbandon();
                 })
                 .addOnFailureListener(e -> infoText.setValue("Greška: " + e.getMessage()));
+
     }
 
     public void joinSession(String sid) {
         sessionId = sid;
         isHost    = false;
-        soloMode  = false;
         sessionRef = sessionRef(sid);
 
         sessionRef.get().addOnSuccessListener(snap -> {
@@ -253,7 +254,6 @@ public class SpojniceViewModel extends ViewModel {
     public void createSessionSilent(String sid) {
         sessionId = sid;
         isHost    = true;
-        soloMode  = false;
         sessionRef = sessionRef(sid);
 
         List<SpojniceQuestion> shuffled = new ArrayList<>(allQuestions);
@@ -285,6 +285,7 @@ public class SpojniceViewModel extends ViewModel {
                     waitingMsg.setValue("Čekam Igrača 2... (Spojnice)");
                     uiPhase.setValue(UiPhase.WAITING);
                     startListening();
+                    listenRootForAbandon();
                 })
                 .addOnFailureListener(e -> infoText.setValue("Greška: " + e.getMessage()));
     }
@@ -293,14 +294,13 @@ public class SpojniceViewModel extends ViewModel {
     public void joinExistingSession(String sid, boolean hostSide) {
         sessionId = sid;
         isHost    = hostSide;
-        soloMode  = false;
         sessionRef = sessionRef(sid);
 
         infoText.setValue("Čekam host da kreira Spojnice...");
         waitForSessionThenJoin();
     }
 
-    public void startSoloGame() {
+    /*public void startSoloGame() {
         soloMode = true;
         isHost   = true;
         player1Score = 0;
@@ -320,7 +320,7 @@ public class SpojniceViewModel extends ViewModel {
         }
         currentPhaseStr = PHASE_R1_A;
         applyPhase(PHASE_R1_A);
-    }
+    }*/
 
     /** Klik na lijevo dugme */
     public void onLeftClick(int index) {
@@ -392,7 +392,7 @@ public class SpojniceViewModel extends ViewModel {
 
     public String getSessionId() { return sessionId; }
     public boolean isHost()      { return isHost; }
-    public boolean isSoloMode()  { return soloMode; }
+    //public boolean isSoloMode()  { return soloMode; }
 
     // ═════════════════════════════════════════════════════════════════════════
     // Firestore helpers
@@ -438,6 +438,7 @@ public class SpojniceViewModel extends ViewModel {
                 .addOnSuccessListener(v -> {
                     infoText.setValue("Pridružen! Počinjemo...");
                     startListening();
+                    listenRootForAbandon();
                 })
                 .addOnFailureListener(e -> infoText.setValue("Greška: " + e.getMessage()));
     }
@@ -513,7 +514,7 @@ public class SpojniceViewModel extends ViewModel {
                     if (connectedCount == 5 && !roundFinished) {
                         if (timer != null) timer.cancel();
                         timerText.setValue("00:00");
-                        if (soloMode || isHost) {
+                        if (isHost) {
                             advancePhase(true);
                         } else {
                             roundFinished = true;
@@ -526,6 +527,24 @@ public class SpojniceViewModel extends ViewModel {
         });
     }
 
+    private void listenRootForAbandon() {
+        if (sessionId == null) return;
+
+        rootListener = db.collection("gameSessions").document(sessionId)
+                .addSnapshotListener((snap, e) -> {
+                    if (snap == null || !snap.exists()) return;
+                    String leftUid = snap.getString("leftByUid");
+                    if (leftUid == null) return;
+                    if (leftUid.equals(myUid)) return;
+
+                    // Protivnik je otišao — preskoči timer odmah
+                    if (!roundFinished) {
+                        if (timer != null) timer.cancel();
+                        infoText.postValue("Protivnik je napustio partiju. Nastavljaš ti.");
+                        advancePhase(false);
+                    }
+                });
+    }
     // ═════════════════════════════════════════════════════════════════════════
     // Faze
     // ═════════════════════════════════════════════════════════════════════════
@@ -541,7 +560,7 @@ public class SpojniceViewModel extends ViewModel {
         if (PHASE_R1_A.equals(ph) || PHASE_R2_B.equals(ph)) activePlayer = 1;
         else                                                  activePlayer = 2;
 
-        myTurn = soloMode || (isHost && activePlayer == 1) || (!isHost && activePlayer == 2);
+        myTurn = (isHost && activePlayer == 1) || (!isHost && activePlayer == 2);
 
         if (PHASE_R1_A.equals(ph) || PHASE_R2_A.equals(ph)) {
             roundScore1    = 0;
@@ -587,33 +606,18 @@ public class SpojniceViewModel extends ViewModel {
 
         String finalNext = nextPhase;
 
-        if (soloMode) {
-            new CountDownTimer(2000, 1000) {
-                @Override public void onTick(long ms) { infoText.setValue("Nastavak za: " + (ms / 1000 + 1) + "s..."); }
-                @Override public void onFinish() {
-                    currentPhaseStr = finalNext;
-                    if (PHASE_DONE.equals(finalNext)) { triggerGameOver(); return; }
-                    if (PHASE_R2_A.equals(finalNext)) {
-                        connectedCount = 0;
-                        for (int i = 0; i < 5; i++) { connected[i] = false; connectedBy[i] = 0; }
-                        for (int i = 0; i < 5; i++) rightDisplayOrder[i] = savedRound2Order[i];
-                    }
-                    applyPhase(finalNext);
-                }
-            }.start();
-        } else {
-            if (isHost) {
-                Map<String, Object> update = new HashMap<>();
-                update.put("phase", nextPhase);
-                if (PHASE_R2_A.equals(nextPhase)) {
-                    update.put("connected",      buildFalseBoolList());
-                    update.put("connectedBy",    buildZeroIntList());
-                    update.put("connectedCount", 0);
-                }
-                sessionRef.update(update);
+        if (isHost) {
+            Map<String, Object> update = new HashMap<>();
+            update.put("phase", nextPhase);
+            if (PHASE_R2_A.equals(nextPhase)) {
+                update.put("connected",      buildFalseBoolList());
+                update.put("connectedBy",    buildZeroIntList());
+                update.put("connectedCount", 0);
             }
-            infoText.setValue("Runda završena...");
+            sessionRef.update(update);
         }
+        infoText.setValue("Runda završena...");
+
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -621,10 +625,10 @@ public class SpojniceViewModel extends ViewModel {
     // ═════════════════════════════════════════════════════════════════════════
 
     private void saveConnectionToFirestore(int pairIndex) {
-        if (soloMode) {
+        /*if (soloMode) {
             if (connectedCount == 5) onAllConnected();
             return;
-        }
+        }*/
 
         List<Boolean> newConnected   = new ArrayList<>();
         List<Integer> newConnectedBy = new ArrayList<>();
@@ -668,7 +672,7 @@ public class SpojniceViewModel extends ViewModel {
 
     private void onTimerExpired() {
         if (roundFinished) return;
-        if (!soloMode && !myTurn && !isHost) { infoText.setValue("Čekam..."); return; }
+        if (!myTurn && !isHost) { infoText.setValue("Čekam..."); return; }
         advancePhase(false);
     }
 
@@ -683,7 +687,22 @@ public class SpojniceViewModel extends ViewModel {
 
         int myScore     = isHost ? player1Score : player2Score;
         int myConnected = myScore / 2;
-        try { new StatsRepository().saveSpojniceResult(myConnected, 10, myScore); } catch (Exception ignored) {}
+
+        final int myScoreFinal = myScore;
+        final int myConnectedFinal = myConnected;
+        db.collection("gameSessions").document(sessionId).get()
+                .addOnSuccessListener(snap -> {
+                    boolean friendly = snap.exists() && Boolean.TRUE.equals(snap.getBoolean("isFriendlyMatch"));
+                    if (!friendly) {
+                        try { new StatsRepository().saveSpojniceResult(myConnectedFinal, 10, myScoreFinal); } catch (Exception ignored) {}
+                    }
+                });
+
+        if (isHost) {
+            db.collection("gameSessions").document(sessionId)
+                    .update("totalScoreP1", FieldValue.increment(player1Score),
+                            "totalScoreP2", FieldValue.increment(player2Score));
+        }
 
         String result;
         if (player1Score > player2Score)
@@ -728,6 +747,7 @@ public class SpojniceViewModel extends ViewModel {
         super.onCleared();
         if (timer != null) timer.cancel();
         if (sessionListener != null) sessionListener.remove();
+        if (rootListener != null) rootListener.remove();
     }
 
     // ═════════════════════════════════════════════════════════════════════════

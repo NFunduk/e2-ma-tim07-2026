@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import com.google.firebase.firestore.FieldValue;
 
 /**
  * ViewModel za Ko Zna Zna.
@@ -154,10 +155,19 @@ public class KoZnaZnaViewModel extends ViewModel {
     private CountDownTimer timer;
     private long questionStartTime = 0;
 
+    private String  pendingSessionId = null;
+    private boolean pendingIsHost    = false;
+    private final com.example.sabona.game.GameSessionRepository sessionRepo = new com.example.sabona.game.GameSessionRepository();
     // ═════════════════════════════════════════════════════════════════════════
     // Init
     // ═════════════════════════════════════════════════════════════════════════
 
+    public void initWithSession(String uid, String sessionId, boolean isHost) {
+        if (myUid != null) return; // rotation guard
+        this.pendingSessionId = sessionId;
+        this.pendingIsHost    = isHost;
+        init(uid);
+    }
     public void init(String uid) {
         if (myUid != null) return; // već inicijalizovan (rotation guard)
         myUid = uid != null ? uid : "unknown";
@@ -170,7 +180,15 @@ public class KoZnaZnaViewModel extends ViewModel {
             @Override
             public void onSuccess(List<KoZnaZnaRepository.Question> loaded) {
                 allQuestions = loaded;
-                phase.setValue(Phase.WAITING_P2); // Signal Fragmentu da prikaže dialog
+
+                if (pendingSessionId != null) {
+                    sessionId = pendingSessionId;
+                    isHost    = pendingIsHost;
+                    soloMode  = false;
+                    //if (isHost) createSession(pendingSessionId); else joinSession(pendingSessionId);
+                } else {
+                    phase.setValue(Phase.WAITING_P2); // Signal Fragmentu da prikaže dialog
+                }
             }
             @Override
             public void onError(Exception e) {
@@ -197,7 +215,7 @@ public class KoZnaZnaViewModel extends ViewModel {
     // Akcije koje Fragment poziva
     // ═════════════════════════════════════════════════════════════════════════
 
-    public void createSession(String sid) {
+    /*public void createSession(String sid) {
         sessionId = sid;
         isHost    = true;
         soloMode  = false;
@@ -303,7 +321,7 @@ public class KoZnaZnaViewModel extends ViewModel {
         player2Score.setValue(0);
 
         renderQuestion();
-    }
+    }*/
 
     /** Poziva Fragment kad korisnik klikne na odgovor */
     public void onAnswerClick(int answerIndex) {
@@ -319,22 +337,19 @@ public class KoZnaZnaViewModel extends ViewModel {
 
         if (correct) myCorrectCount++; else myWrongCount++;
 
-        if (soloMode) {
-            handleSoloAnswer(answerIndex, correct, elapsed, q);
+        Map<String, Object> update = new HashMap<>();
+        if (isHost) {
+            update.put("p1Answer",     answerIndex);
+            update.put("p1AnswerTime", elapsed);
         } else {
-            Map<String, Object> update = new HashMap<>();
-            if (isHost) {
-                update.put("p1Answer",     answerIndex);
-                update.put("p1AnswerTime", elapsed);
-            } else {
-                update.put("p2Answer",     answerIndex);
-                update.put("p2AnswerTime", elapsed);
-            }
-            sessionRef.update(update).addOnSuccessListener(v -> {
-                if (isHost) checkIfBothAnswered();
-            });
-            infoText.setValue("✅ Odgovoreno! Čekam protivnika...");
+            update.put("p2Answer",     answerIndex);
+            update.put("p2AnswerTime", elapsed);
         }
+        sessionRef.update(update).addOnSuccessListener(v -> {
+            if (isHost) checkIfBothAnswered();
+        });
+        infoText.setValue("✅ Odgovoreno! Čekam protivnika...");
+
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -415,8 +430,7 @@ public class KoZnaZnaViewModel extends ViewModel {
         soloWaitingP2     = false;
 
         if (currentQuestionIndex >= questions.size()) {
-            if (soloMode) triggerGameOver();
-            else if (isHost) sessionRef.update("phase", "finished");
+            if (isHost) sessionRef.update("phase", "finished");
             return;
         }
 
@@ -452,20 +466,16 @@ public class KoZnaZnaViewModel extends ViewModel {
                 timerText.setValue("00:00");
                 if (!iAnswered && !questionDone) {
                     iAnswered = true;
-                    if (soloMode) {
-                        handleSoloTimeout();
-                    } else {
-                        Map<String, Object> update = new HashMap<>();
-                        String answerField = isHost ? "p1Answer" : "p2Answer";
-                        String timeField   = isHost ? "p1AnswerTime" : "p2AnswerTime";
-                        update.put(answerField, -2);
-                        update.put(timeField,   99999L);
-                        sessionRef.update(update)
-                                .addOnSuccessListener(v -> {
-                                    if (isHost) checkIfBothAnswered();
-                                });
-                        infoText.setValue("⌛ Vrijeme isteklo!");
-                    }
+                    Map<String, Object> update = new HashMap<>();
+                    String answerField = isHost ? "p1Answer" : "p2Answer";
+                    String timeField   = isHost ? "p1AnswerTime" : "p2AnswerTime";
+                    update.put(answerField, -2);
+                    update.put(timeField,   99999L);
+                    sessionRef.update(update)
+                            .addOnSuccessListener(v -> {
+                                if (isHost) checkIfBothAnswered();
+                            });
+                    infoText.setValue("⌛ Vrijeme isteklo!");
                 }
             }
         }.start();
@@ -588,7 +598,7 @@ public class KoZnaZnaViewModel extends ViewModel {
     // Solo mod
     // ═════════════════════════════════════════════════════════════════════════
 
-    private void handleSoloAnswer(int answerIndex, boolean correct, long elapsed,
+    /*private void handleSoloAnswer(int answerIndex, boolean correct, long elapsed,
                                   KoZnaZnaRepository.Question q) {
         if (!soloWaitingP2) {
             soloP1Answer     = answerIndex;
@@ -670,7 +680,7 @@ public class KoZnaZnaViewModel extends ViewModel {
                 else triggerGameOver();
             }
         }.start();
-    }
+    }*/
 
     // ═════════════════════════════════════════════════════════════════════════
     // Kraj igre
@@ -682,7 +692,17 @@ public class KoZnaZnaViewModel extends ViewModel {
         if (timer != null) timer.cancel();
 
         int myScore = isHost ? p1Score : p2Score;
-        new StatsRepository().saveKoZnaZnaResult(myScore, myCorrectCount, myWrongCount);
+        sessionRepo.isFriendlyMatch((friendly, e) -> {
+            if (!Boolean.TRUE.equals(friendly)) {
+                new StatsRepository().saveKoZnaZnaResult(myScore, myCorrectCount, myWrongCount);
+            }
+        });
+
+        if (isHost) {
+            db.collection("gameSessions").document(sessionId)
+                    .update("totalScoreP1", FieldValue.increment(p1Score),
+                            "totalScoreP2", FieldValue.increment(p2Score));
+        }
 
         String summary;
         if (p1Score > p2Score)

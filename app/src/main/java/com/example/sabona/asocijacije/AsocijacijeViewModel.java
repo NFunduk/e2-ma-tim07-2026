@@ -44,6 +44,8 @@ public class AsocijacijeViewModel extends ViewModel {
         return myTurn;
     }
 
+    private boolean scoreCommitted = false;
+
     public void init(List<AssociationGame> games) {
         phase.setValue(Phase.LOADING);
 
@@ -113,6 +115,10 @@ public class AsocijacijeViewModel extends ViewModel {
                 phase.setValue(Phase.ROUND_END);
             } else if ("GAME_OVER".equals(state.phase)) {
                 phase.setValue(Phase.GAME_OVER);
+                if (sessionMgr.isPlayer1() && !scoreCommitted) {
+                    scoreCommitted = true;
+                    sessionRepo.addToTotalScore(state.player1Score, state.player2Score);
+                }
             }
 
             boolean turn = state.activePlayerRole.equals(sessionMgr.getMyRole());

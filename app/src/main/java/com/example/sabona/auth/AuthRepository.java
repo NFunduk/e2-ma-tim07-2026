@@ -9,6 +9,8 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Calendar;
+import com.google.firebase.firestore.DocumentSnapshot;
 
 public class AuthRepository {
 
@@ -60,6 +62,7 @@ public class AuthRepository {
         data.put("stars", 0);
         data.put("league", 0);
         data.put("createdAt", FieldValue.serverTimestamp());
+        data.put("lastTokenGrantDay", currentDayBucket());
 
         db.collection("users").document(uid)
                 .set(data)
@@ -180,5 +183,37 @@ public class AuthRepository {
         if (msg.contains("too many requests") || msg.contains("TOO_MANY_ATTEMPTS"))
             return "Previše pokušaja. Sačekaj malo pa pokušaj ponovo.";
         return "Greška: " + msg;
+    }
+
+    public void grantDailyTokensIfNeeded(Callback callback) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) { callback.onError("Nije prijavljen"); return; }
+        String uid = user.getUid();
+
+        db.runTransaction(transaction -> {
+                    DocumentSnapshot snap = transaction.get(db.collection("users").document(uid));
+
+                    long lastGrantDay = snap.contains("lastTokenGrantDay") && snap.getLong("lastTokenGrantDay") != null
+                            ? snap.getLong("lastTokenGrantDay") : 0L;
+                    long todayDay = currentDayBucket();
+
+                    if (lastGrantDay >= todayDay) return false; // već dobio danas
+
+                    long tokens = snap.contains("tokens") && snap.getLong("tokens") != null ? snap.getLong("tokens") : 0;
+                    transaction.update(db.collection("users").document(uid),
+                            "tokens", tokens + 5,
+                            "lastTokenGrantDay", todayDay);
+                    return true;
+                }).addOnSuccessListener(granted -> callback.onSuccess())
+                .addOnFailureListener(e -> callback.onError("Greška pri dodeli tokena"));
+    }
+
+    private long currentDayBucket() {
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        return cal.getTimeInMillis() / (24L * 60 * 60 * 1000);
     }
 }

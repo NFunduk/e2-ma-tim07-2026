@@ -26,6 +26,7 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.MainActivity;
 import com.example.sabona.R;
 import com.example.sabona.game.GameSessionManager;
 
@@ -70,6 +71,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
     private float gravX = 0f, gravY = 0f, gravZ = SensorManager.GRAVITY_EARTH;
     private static final float ALPHA = 0.8f;
 
+    private boolean navigated = false;
     // ── Lifecycle ─────────────────────────────────────────────────────
 
     @Nullable
@@ -109,7 +111,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         }
 
         // Nema prosleđene sesije — pokaži dialog (isti pattern kao KoZnaZna)
-        showJoinDialog();
+        //showJoinDialog();
     }
 
     @Override
@@ -134,7 +136,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
 
     // ── Join dialog ───────────────────────────────────────────────────
 
-    private void showJoinDialog() {
+    /*private void showJoinDialog() {
         GameSessionManager mgr = GameSessionManager.get();
         String suggested = mgr.getMyUid().length() >= 6
                 ? mgr.getMyUid().substring(0, 6).toUpperCase() : "MB001";
@@ -163,7 +165,7 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
 
         b.setCancelable(false);
         b.show();
-    }
+    }*/
 
     // ── Back press ────────────────────────────────────────────────────
 
@@ -342,19 +344,34 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
 
         viewModel.getFinalScores().observe(getViewLifecycleOwner(), scores -> {
             if (scores == null) return;
-            new CountDownTimer(3_000, 1_000) {
-                @Override public void onTick(long ms) { tvMojBrojTimer.setText(String.format("00:0%d", ms / 1000)); }
-                @Override public void onFinish() {
-                    if (!isAdded()) return;
-                    Bundle args = new Bundle();
-                    args.putInt("player1Score", scores[0]);
-                    args.putInt("player2Score", scores[1]);
-                    try {
-                        NavHostFragment.findNavController(MojBrojFragment.this)
-                                .navigate(R.id.action_mojbroj_to_gameover, args);
-                    } catch (Exception e) { /* fallback */ }
-                }
-            }.start();
+            // Čekamo matchResult pre navigacije
+        });
+
+        viewModel.getMatchResult().observe(getViewLifecycleOwner(), result -> {
+            if (result == null || navigated) return; // dodaj boolean navigated kao field
+            navigated = true;
+
+            Bundle args = new Bundle();
+            args.putInt("player1Score", viewModel.getFinalScores().getValue() != null
+                    ? viewModel.getFinalScores().getValue()[0] : 0);
+            args.putInt("player2Score", viewModel.getFinalScores().getValue() != null
+                    ? viewModel.getFinalScores().getValue()[1] : 0);
+            args.putBoolean("friendly", result.friendly);
+            args.putBoolean("won", result.won);
+            args.putInt("starsDelta", result.starsDelta);
+            args.putInt("tokensGained", result.tokensGained);
+            args.putInt("myTotalScore", result.myTotalScore);
+            args.putInt("opponentTotalScore", result.opponentTotalScore);
+
+            NavHostFragment.findNavController(MojBrojFragment.this)
+                    .navigate(R.id.action_mojbroj_to_gameover, args);
+        });
+
+        viewModel.getLiveScores().observe(getViewLifecycleOwner(), scores -> {
+            if (scores == null) return;
+            if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).updateGameScore(scores[0], scores[1], null, null);
+            }
         });
     }
 

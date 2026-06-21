@@ -39,6 +39,8 @@ public class KorakViewModel extends ViewModel {
     private final MutableLiveData<Boolean> isMyTurn       = new MutableLiveData<>(false);
     private final MutableLiveData<String>  answerFeedback = new MutableLiveData<>();
 
+    private final MutableLiveData<int[]> liveScores = new MutableLiveData<>(new int[]{0, 0});
+    public LiveData<int[]> getLiveScores() { return liveScores; }
     // ── Lokalno stanje ────────────────────────────────────────────────
     private List<KorakGame>        allGames;       // sve igre učitane iz Firestorea
     private Map<String, KorakGame> gameIdMap;      // docId → KorakGame
@@ -53,6 +55,8 @@ public class KorakViewModel extends ViewModel {
     private final StatsRepository       statsRepo   = new StatsRepository();
 
     private ListenerRegistration firestoreListener;
+
+    private boolean scoreCommitted = false;
 
     // ── Getteri ───────────────────────────────────────────────────────
     public LiveData<Phase>   getPhase()          { return phase; }
@@ -229,16 +233,23 @@ public class KorakViewModel extends ViewModel {
                 String feedback = buildFeedback(state);
                 answerFeedback.postValue(feedback);
                 infoText.postValue(feedback);
+                liveScores.postValue(new int[]{state.player1Score, state.player2Score});
                 break;
 
             case "GAME_OVER":
                 phase.postValue(Phase.GAME_OVER);
                 finalScores.postValue(new int[]{state.player1Score, state.player2Score});
-                // Spremi statistiku za tekućeg igrača (Student 2 funkcionalnost)
-                if (sessionMgr.isPlayer1()) {
-                    statsRepo.saveKorakResult(state.player1Score, state.player1GuessedAtStep);
-                } else {
-                    statsRepo.saveKorakResult(state.player2Score, state.player2GuessedAtStep);
+                liveScores.postValue(new int[]{state.player1Score, state.player2Score});
+                int myScoreKorak = sessionMgr.isPlayer1() ? state.player1Score : state.player2Score;
+                int myStep = sessionMgr.isPlayer1() ? state.player1GuessedAtStep : state.player2GuessedAtStep;
+                sessionRepo.isFriendlyMatch((friendly, e) -> {
+                    if (!Boolean.TRUE.equals(friendly)) {
+                        statsRepo.saveKorakResult(myScoreKorak, myStep);
+                    }
+                });
+                if (sessionMgr.isPlayer1() && !scoreCommitted) {
+                    scoreCommitted = true;
+                    sessionRepo.addToTotalScore(state.player1Score, state.player2Score);
                 }
                 break;
         }

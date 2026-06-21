@@ -19,6 +19,9 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class LoginFragment extends Fragment {
 
     private TextInputEditText etLoginIdentifier, etLoginPassword;
@@ -90,8 +93,34 @@ public class LoginFragment extends Fragment {
                 NavHostFragment.findNavController(this)
                         .navigate(R.id.action_login_to_register));
 
-        tvPlayAsGuest.setOnClickListener(v ->
-                NavHostFragment.findNavController(this)
-                        .navigate(R.id.action_login_to_home));
+        tvPlayAsGuest.setOnClickListener(v -> {
+            tvPlayAsGuest.setEnabled(false);
+            FirebaseAuth.getInstance().signInAnonymously()
+                    .addOnSuccessListener(result -> {
+                        String uid = result.getUser().getUid();
+                        Map<String, Object> data = new HashMap<>();
+                        data.put("uid", uid);
+                        data.put("username", "Gost" + uid.substring(0, Math.min(5, uid.length())));
+                        data.put("isGuest", true);
+                        data.put("tokens", 5);
+                        data.put("stars", 0);
+                        data.put("league", 0);
+                        data.put("lastTokenGrantDay", 0L);
+                        data.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
+
+                        com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                                .collection("users").document(uid).set(data)
+                                .addOnSuccessListener(x -> NavHostFragment.findNavController(this)
+                                        .navigate(R.id.action_login_to_home))
+                                .addOnFailureListener(e -> {
+                                    tvPlayAsGuest.setEnabled(true);
+                                    Toast.makeText(requireContext(), "Greška: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                                });
+                    })
+                    .addOnFailureListener(e -> {
+                        tvPlayAsGuest.setEnabled(true);
+                        Toast.makeText(requireContext(), "Greška pri anonimnoj prijavi", Toast.LENGTH_SHORT).show();
+                    });
+        });
     }
 }

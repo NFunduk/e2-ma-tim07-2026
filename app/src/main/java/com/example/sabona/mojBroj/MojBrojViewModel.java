@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel;
 
 import com.example.sabona.game.GameSessionManager;
 import com.example.sabona.game.GameSessionRepository;
+import com.example.sabona.game.MatchFinalizationRepository;
 import com.example.sabona.game.MojBrojGameState;
 import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.firestore.ListenerRegistration;
@@ -44,6 +45,12 @@ public class MojBrojViewModel extends ViewModel {
     private final MutableLiveData<String>  roundSummary   = new MutableLiveData<>();
     private final MutableLiveData<Boolean> iDoneLocal     = new MutableLiveData<>(false);
 
+    private final MutableLiveData<int[]> liveScores = new MutableLiveData<>(new int[]{0, 0});
+    public LiveData<int[]> getLiveScores() { return liveScores; }
+
+    private final MutableLiveData<MatchFinalizationRepository.Result> matchResult = new MutableLiveData<>();
+    public LiveData<MatchFinalizationRepository.Result> getMatchResult() { return matchResult; }
+
     // ── Lokalno stanje ────────────────────────────────────────────────
     private MojBrojGameState remoteState    = new MojBrojGameState();
     private boolean          gameInitialized = false;
@@ -54,6 +61,9 @@ public class MojBrojViewModel extends ViewModel {
     private ListenerRegistration        firestoreListener;
 
     private final Random rng = new Random();
+
+    private boolean scoreCommitted = false;
+    private boolean matchFinalized = false;
 
     // ── Getteri ───────────────────────────────────────────────────────
     public LiveData<Phase>   getPhase()          { return phase; }
@@ -194,24 +204,30 @@ public class MojBrojViewModel extends ViewModel {
                 String summary = buildRoundSummary(state);
                 roundSummary.postValue(summary);
                 infoText.postValue(summary);
+                liveScores.postValue(new int[]{state.player1Score, state.player2Score});
                 break;
 
             case "GAME_OVER":
                 phase.postValue(Phase.GAME_OVER);
                 finalScores.postValue(new int[]{state.player1Score, state.player2Score});
-                // Spremi statistiku (Student 2 funkcionalnost)
-                if (sessionMgr.isPlayer1()) {
-                    boolean foundExact = (state.player1RoundResult == state.targetNumber
-                            && state.player1RoundResult != -1);
-                    statsRepo.saveMojBrojResult(state.player1Score, foundExact);
-                    boolean iWon = state.player1Score > state.player2Score;
-                    statsRepo.incrementGamesPlayed(iWon);
-                } else {
-                    boolean foundExact = (state.player2RoundResult == state.targetNumber
-                            && state.player2RoundResult != -1);
-                    statsRepo.saveMojBrojResult(state.player2Score, foundExact);
-                    boolean iWon = state.player2Score > state.player1Score;
-                    statsRepo.incrementGamesPlayed(iWon);
+                liveScores.postValue(new int[]{state.player1Score, state.player2Score});
+
+                int myScoreMB = sessionMgr.isPlayer1() ? state.player1Score : state.player2Score;
+                boolean foundExactMB = sessionMgr.isPlayer1()
+                        ? (state.player1RoundResult == state.targetNumber && state.player1RoundResult != -1)
+                        : (state.player2RoundResult == state.targetNumber && state.player2RoundResult != -1);
+                sessionRepo.isFriendlyMatch((friendly, e) -> {
+                    if (!Boolean.TRUE.equals(friendly)) {
+                        statsRepo.saveMojBrojResult(myScoreMB, foundExactMB);
+                    }
+                });
+
+                if (!matchFinalized) {
+                    matchFinalized = true;
+                    new MatchFinalizationRepository().finalizeForMe(new MatchFinalizationRepository.Callback() {
+                        @Override public void onSuccess(MatchFinalizationRepository.Result r) { matchResult.postValue(r); }
+                        @Override public void onError(String msg) { /* log, ne blokiraj UI */ }
+                    });
                 }
                 break;
         }
@@ -354,11 +370,10 @@ public class MojBrojViewModel extends ViewModel {
         if (!"ROUND_END".equals(remoteState.phase)) return;
         if (!sessionMgr.isPlayer1()) return; // samo host napreduje
 
-        sessionRepo.runMojBrojTransaction(current -> {
-            if (!"ROUND_END".equals(current.phase)) return null;
-
-            MojBrojGameState newState = copyState(current);
-            if (current.round == 1) {
+        if (remoteState.round == 1) {
+            sessionRepo.runMojBrojTransaction(current -> {
+                if (!"ROUND_END".equals(current.phase)) return null;
+                MojBrojGameState newState = copyState(current);
                 newState.round              = 2;
                 newState.activePlayerRole   = GameSessionManager.ROLE_PLAYER2;
                 newState.phase              = "IDLE";
@@ -368,12 +383,15 @@ public class MojBrojViewModel extends ViewModel {
                 newState.player2RoundResult = -1;
                 newState.player1Done        = false;
                 newState.player2Done        = false;
-            } else {
-                newState.phase  = "GAME_OVER";
-                newState.status = "finished";
-            }
-            return newState;
-        });
+                return newState;
+            });
+        } else {
+            // Poslednja runda — atomski upiši GAME_OVER I konačan prirast u total partije
+            MojBrojGameState finalState = copyState(remoteState);
+            finalState.phase  = "GAME_OVER";
+            finalState.status = "finished";
+            sessionRepo.commitMojBrojGameOver(finalState, remoteState.player1Score, remoteState.player2Score);
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
