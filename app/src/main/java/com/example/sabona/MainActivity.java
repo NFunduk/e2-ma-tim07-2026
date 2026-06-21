@@ -237,8 +237,8 @@ public class MainActivity extends AppCompatActivity {
             if (id == R.id.home) {
                 navController.navigate(R.id.homeFragment);
                 return true;
-            } else if (id == R.id.play) {
-                navController.navigate(R.id.koZnaZnaFragment);
+            } else if (id == R.id.chat) {
+                navController.navigate(R.id.chatFragment);
                 return true;
             } else if (id == R.id.rank) {
                 navController.navigate(R.id.leaderboardFragment);
@@ -433,7 +433,7 @@ public class MainActivity extends AppCompatActivity {
         if (authStateListener != null) {
             FirebaseAuth.getInstance().removeAuthStateListener(authStateListener);
         }
-        
+
         stopMatchScoreListener();
 
     }
