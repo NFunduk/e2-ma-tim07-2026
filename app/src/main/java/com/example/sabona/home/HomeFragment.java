@@ -8,14 +8,15 @@ import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.navigation.Navigation;
 
 import android.widget.TextView;
-import com.google.firebase.firestore.FirebaseFirestore;
 
+import com.example.sabona.auth.AuthRepository;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.example.sabona.R;
-import com.google.android.material.bottomnavigation.BottomNavigationView;
 import android.widget.Toast;
 import com.example.sabona.daily.DailyMissionRepository;
 import com.google.firebase.firestore.ListenerRegistration;
@@ -62,6 +63,11 @@ public class HomeFragment extends Fragment {
                 .getUid();
         dailyMissionRepository.ensureTodayMissions(currentUid);
 
+        new AuthRepository().grantDailyTokensIfNeeded(new AuthRepository.Callback() {
+            @Override public void onSuccess() { }
+            @Override public void onError(String message) { }
+        });
+
         userListener = FirebaseFirestore.getInstance()
                 .collection("users")
                 .document(currentUid)
@@ -90,13 +96,9 @@ public class HomeFragment extends Fragment {
                     tvMissionBonus.setText(completed + "/4");
                 });
 
-        // normalan klik – pokreni igru
-        view.findViewById(R.id.btnHomePlay).setOnClickListener(v -> {
-            if (FirebaseAuth.getInstance().getCurrentUser() == null) return;
-            //String uid = FirebaseAuth.getInstance().getCurrentUser().getUid();
-            BottomNavigationView bottomNav = requireActivity().findViewById(R.id.bottomNav);
-            bottomNav.setSelectedItemId(R.id.play);
-        });
+        // klik – pokreni igru (Navigation Component umesto BottomNav selekcije)
+        view.findViewById(R.id.btnHomePlay).setOnClickListener(v ->
+                Navigation.findNavController(view).navigate(R.id.action_home_to_matchmaking));
 
         tvMission1Status.setOnLongClickListener(v -> {
             dailyMissionRepository.completeWinMatch(currentUid, null);

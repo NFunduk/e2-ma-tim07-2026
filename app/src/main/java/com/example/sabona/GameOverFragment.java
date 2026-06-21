@@ -12,6 +12,9 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+
 import com.example.sabona.league.LeagueChangeDialog;
 import com.example.sabona.league.LeagueManager;
 import com.example.sabona.league.LeagueRepository;
@@ -29,6 +32,7 @@ import com.example.sabona.repository.NotificationRepository;
  *
  * Zvezde i liga se NE mijenjaju za prijateljske partije.
  */
+
 public class GameOverFragment extends Fragment {
 
     private final LeagueRepository    leagueRepo    = new LeagueRepository();
@@ -45,30 +49,75 @@ public class GameOverFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        TextView tvWinner   = view.findViewById(R.id.tvGameOverWinner);
-        Button btnPlayAgain = view.findViewById(R.id.btnPlayAgain);
-        Button btnHome      = view.findViewById(R.id.btnGameOverHome);
+        TextView tvWinner      = view.findViewById(R.id.tvGameOverWinner);
+        TextView tvStars       = view.findViewById(R.id.tvGameOverStars);
+        TextView tvTokens      = view.findViewById(R.id.tvGameOverTokens);
+        TextView tvScores      = view.findViewById(R.id.tvGameOverScores);
+        Button   btnPlayAgain  = view.findViewById(R.id.btnPlayAgain);
+        Button   btnHome       = view.findViewById(R.id.btnGameOverHome);
 
-        boolean player1Won   = false;
-        int     totalScore   = 0;
-        boolean isFriendGame = false;
+        Bundle args = getArguments();
+        if (args != null) {
+            boolean friendly  = args.getBoolean("friendly", false);
+            boolean won       = args.getBoolean("won", false);
+            int starsDelta    = args.getInt("starsDelta", 0);
+            int tokensGained  = args.getInt("tokensGained", 0);
+            int myScore       = args.getInt("myTotalScore", 0);
+            int oppScore      = args.getInt("opponentTotalScore", 0);
 
-        if (getArguments() != null) {
-            String winnerText = getArguments().getString("winner", "");
+            // Pobjednik
+            String winnerText = won ? "Pobijedio/la si! 🏆" : "Izgubio/la si.";
+            if (friendly) {
+                winnerText += "\n(Prijateljska partija — bez zvijezda)";
+            }
             tvWinner.setText(winnerText);
-            player1Won   = getArguments().getBoolean("player1Won", false);
-            totalScore   = getArguments().getInt("totalScore", 0);
-            isFriendGame = getArguments().getBoolean("isFriendGame", false);
+
+            // Rezultat
+            tvScores.setText(
+                    "Tvoj ukupni skor: " + myScore +
+                    " | Protivnik: " + oppScore
+            );
+
+            // Zvijezde i tokeni
+            if (friendly) {
+                tvStars.setVisibility(View.GONE);
+                tvTokens.setVisibility(View.GONE);
+            } else {
+                tvStars.setVisibility(View.VISIBLE);
+
+                String starsText = starsDelta >= 0
+                        ? "Zvijezde: +" + starsDelta + " ⭐"
+                        : "Zvijezde: " + starsDelta + " ⭐";
+
+                tvStars.setText(starsText);
+
+                if (tokensGained > 0) {
+                    tvTokens.setVisibility(View.VISIBLE);
+                    tvTokens.setText(
+                            "Zaradio/la si " + tokensGained + " token(a)! 🎫"
+                    );
+                } else {
+                    tvTokens.setVisibility(View.GONE);
+                }
+
+                // Logika iz main grane
+                applyStarsAndLeague(starsDelta);
+            }
         }
 
-        // Ažuriraj zvezde i ligu (samo za regularne partije)
-        if (!isFriendGame) {
-            int starsDelta = calculateStarsDelta(player1Won, totalScore);
-            applyStarsAndLeague(starsDelta);
+        // Gost (anonimni igrač)
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        boolean isGuest = user != null && user.isAnonymous();
+
+        if (isGuest) {
+            btnPlayAgain.setText("Registruj se za još partija");
         }
 
-        // Navigacija
         btnPlayAgain.setOnClickListener(v ->
+                NavHostFragment.findNavController(this)
+                        .navigate(R.id.action_gameover_to_home));
+
+        btnHome.setOnClickListener(v ->
                 NavHostFragment.findNavController(this)
                         .navigate(R.id.action_gameover_to_home));
 

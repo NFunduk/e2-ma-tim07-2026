@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.MainActivity;
 import com.example.sabona.R;
 import com.example.sabona.repository.StatsRepository;
 import com.google.firebase.firestore.FieldValue;
@@ -30,6 +31,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 import androidx.lifecycle.ViewModelProvider;
 import com.example.sabona.game.GameSessionManager;
+import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -74,6 +76,7 @@ public class SkockoFragment extends Fragment {
     private boolean lastOpponentChance = false;
 
     private boolean roundEndTransitionStarted = false;
+    private ListenerRegistration abandonListener;
 
     @Nullable
     @Override
@@ -109,11 +112,15 @@ public class SkockoFragment extends Fragment {
                 viewModel = new ViewModelProvider(this).get(SkockoViewModel.class);
                 observeViewModel();
                 viewModel.init();
+                listenForOpponentLeave();
                 return;
             }
         }
 
-        multiplayerMode = false;
+        // Nema sola — vrati se nazad
+        if (isAdded()) {
+            NavHostFragment.findNavController(this).navigateUp();
+        }
         startRound();
     }
 
@@ -123,6 +130,10 @@ public class SkockoFragment extends Fragment {
 
         if (timer != null) timer.cancel();
         if (finishTimer != null) finishTimer.cancel();
+        if (abandonListener != null) {
+            abandonListener.remove();
+            abandonListener = null;
+        }
     }
 
     private void observeViewModel() {
@@ -595,7 +606,7 @@ public class SkockoFragment extends Fragment {
             @Override
             public void onFinish() {
                 if (multiplayerMode && viewModel != null) {
-                    if (GameSessionManager.get().isPlayer1()) {
+                    if (viewModel.amIAuthoritative()) {
                         viewModel.startNextRound();
                     }
                 }
@@ -694,6 +705,46 @@ public class SkockoFragment extends Fragment {
         tvRound.setText("Runda " + round + "/2");
         tvPlayer.setText("Na potezu: igrač " + currentPlayer);
         tvScore.setText(player1Score + " : " + player2Score);
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).updateGameScore(player1Score, player2Score, null, null);
+        }
+    }
+
+    private void listenForOpponentLeave() {
+        String sessionId = GameSessionManager.get().getSessionId();
+        if (sessionId == null || sessionId.isEmpty()) return;
+
+        abandonListener = new com.example.sabona.game.GameSessionRepository()
+                .listenRootSession((snap, e) -> {
+                    if (snap == null || !snap.exists()) return;
+                    String leftUid = snap.getString("leftByUid");
+                    if (leftUid == null) return;
+
+                    String myUid = com.google.firebase.auth.FirebaseAuth.getInstance()
+                            .getCurrentUser() != null
+                            ? com.google.firebase.auth.FirebaseAuth.getInstance()
+                            .getCurrentUser().getUid()
+                            : null;
+                    if (myUid == null || leftUid.equals(myUid)) return;
+
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> {
+                        Toast.makeText(requireContext(),
+                                "Protivnik je napustio partiju.", Toast.LENGTH_SHORT).show();
+
+                        if (!roundFinished) {
+                            // Preskoči timer i završi rundu odmah
+                            if (timer != null) timer.cancel();
+                            if (opponentChance) {
+                                // Protivnik je otišao tokom svog bonus pokušaja — završi rundu
+                                finishRound();
+                            } else {
+                                // Protivnik je otišao tokom svoje glavne runde — preskoči na opponent chance ili završi
+                                startOpponentChance();
+                            }
+                        }
+                    });
+                });
     }
 
     private void showEndGame() {
@@ -711,7 +762,15 @@ public class SkockoFragment extends Fragment {
         Toast.makeText(requireContext(), winner + " Sledi Korak po korak!", Toast.LENGTH_LONG).show();
 
         // Snimi statistiku za igrača 1 (player1Score i koji pokušaj)
-        new StatsRepository().saveSkockoResult(player1Score, player1AttemptGroup);
+        if (multiplayerMode) {
+            new com.example.sabona.game.GameSessionRepository().isFriendlyMatch((friendly, e) -> {
+                if (!Boolean.TRUE.equals(friendly)) {
+                    new StatsRepository().saveSkockoResult(player1Score, player1AttemptGroup);
+                }
+            });
+        } else {
+            new StatsRepository().saveSkockoResult(player1Score, player1AttemptGroup);
+        }
 
         Bundle args = new Bundle();
 

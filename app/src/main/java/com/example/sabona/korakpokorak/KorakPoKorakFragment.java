@@ -20,8 +20,10 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.sabona.MainActivity;
 import com.example.sabona.R;
 import com.example.sabona.game.GameSessionManager;
+import com.google.firebase.firestore.ListenerRegistration;
 
 /**
  * Korak po Korak fragment.
@@ -46,6 +48,8 @@ public class KorakPoKorakFragment extends Fragment {
     private KorakViewModel viewModel;
     private CountDownTimer activeTimer;
     private int mainTimerStartedForRound = -1;
+
+    private ListenerRegistration abandonListener;
 
     @Nullable
     @Override
@@ -78,23 +82,28 @@ public class KorakPoKorakFragment extends Fragment {
                     GameSessionManager.get().setupAsGuest(passedSessionId, passedHostUid);
                 }
                 viewModel.init();
+                listenForOpponentLeave();
                 return;
             }
         }
 
         // Nema prosleđene sesije — pokaži dialog (isti kao KoZnaZna)
-        showJoinDialog();
+        //showJoinDialog();
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
         cancelTimer();
+        if (abandonListener != null) {
+            abandonListener.remove();
+            abandonListener = null;
+        }
     }
 
     // ── Join dialog (isti pattern kao KoZnaZna) ───────────────────────
 
-    private void showJoinDialog() {
+    /*private void showJoinDialog() {
         GameSessionManager mgr = GameSessionManager.get();
         String suggested = mgr.getMyUid().length() >= 6
                 ? mgr.getMyUid().substring(0, 6).toUpperCase() : "KPK01";
@@ -113,6 +122,7 @@ public class KorakPoKorakFragment extends Fragment {
             String sessionId = input.getText().toString().trim().toUpperCase();
             GameSessionManager.get().setupAsHost(sessionId);
             viewModel.init();
+            listenForOpponentLeave();
         });
 
         b.setNegativeButton("Pridruži se (Igrač 2)", (d, w) -> {
@@ -120,11 +130,12 @@ public class KorakPoKorakFragment extends Fragment {
             // hostUid se čita iz Firestore u ViewModel-u (setupAsGuest se zove tamo)
             GameSessionManager.get().setupAsGuest(sessionId, ""); // hostUid popuniti iz Firestore
             viewModel.init();
+            listenForOpponentLeave();
         });
 
         b.setCancelable(false);
         b.show();
-    }
+    }*/
 
     // ── Observeri ─────────────────────────────────────────────────────
 
@@ -241,6 +252,13 @@ public class KorakPoKorakFragment extends Fragment {
                 // Navigation fallback
             }
         });
+
+        viewModel.getLiveScores().observe(getViewLifecycleOwner(), scores -> {
+            if (scores == null) return;
+            if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).updateGameScore(scores[0], scores[1], null, null);
+            }
+        });
     }
 
     // ── Click listeneri ───────────────────────────────────────────────
@@ -348,6 +366,40 @@ public class KorakPoKorakFragment extends Fragment {
     }
 
 
+    private void listenForOpponentLeave() {
+        String sessionId = GameSessionManager.get().getSessionId();
+        if (sessionId == null || sessionId.isEmpty()) return;
+
+        abandonListener = new com.example.sabona.game.GameSessionRepository()
+                .listenRootSession((snap, e) -> {
+                    if (snap == null || !snap.exists()) return;
+                    String leftUid = snap.getString("leftByUid");
+                    if (leftUid == null) return;
+
+                    String myUid = com.google.firebase.auth.FirebaseAuth.getInstance()
+                            .getCurrentUser() != null
+                            ? com.google.firebase.auth.FirebaseAuth.getInstance()
+                            .getCurrentUser().getUid()
+                            : null;
+                    if (myUid == null || leftUid.equals(myUid)) return;
+
+                    // Protivnik je otišao
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> {
+                        Toast.makeText(requireContext(),
+                                "Protivnik je napustio partiju.", Toast.LENGTH_SHORT).show();
+
+                        KorakViewModel.Phase currentPhase = viewModel.getPhase().getValue();
+                        if (currentPhase == KorakViewModel.Phase.MAIN) {
+                            cancelTimer();
+                            viewModel.onMainTimerFinished();
+                        } else if (currentPhase == KorakViewModel.Phase.BONUS) {
+                            cancelTimer();
+                            viewModel.onBonusTimerFinished();
+                        }
+                    });
+                });
+    }
 
     private void showWaiting(String msg) {
         if (layoutWaiting != null) {

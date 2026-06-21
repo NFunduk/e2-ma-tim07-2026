@@ -304,11 +304,12 @@
 
             <ImageView
                 android:id="@+id/btnNotifications"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
-                android:layout_marginStart="10dp"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginStart="6dp"
+                android:layout_gravity="top"
                 android:background="@drawable/profile_circle_bg"
-                android:padding="7dp"
+                android:padding="4dp"
                 android:src="@drawable/outline_notifications_24"
                 app:tint="@color/dark_blue" />
 

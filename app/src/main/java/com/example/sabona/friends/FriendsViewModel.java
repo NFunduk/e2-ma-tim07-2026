@@ -35,6 +35,10 @@ public class FriendsViewModel extends ViewModel {
 
     private ListenerRegistration gameRequestListener;
 
+    private final MutableLiveData<String> matchSessionReady = new MutableLiveData<>();
+    public LiveData<String> getMatchSessionReady() { return matchSessionReady; }
+    public void clearMatchSessionReady() { matchSessionReady.setValue(null); }
+
     // ─── učitaj prijatelje ───────────────────────────────────────────────────
 
     public void loadFriends() {
@@ -77,17 +81,26 @@ public class FriendsViewModel extends ViewModel {
             @Override
             public void onSuccess(String requestId) {
                 pendingGameRequestId.setValue(requestId);
-                // Slušaj na status
-                gameRequestListener = repo.listenGameRequest(requestId, new FriendsRepository.Callback<String>() {
-                    @Override
-                    public void onSuccess(String status) {
-                        if (!"pending".equals(status)) {
-                            gameInviteStatus.setValue(status);
-                            stopListeningGameRequest();
-                        }
-                    }
-                    @Override public void onError(String message) {}
-                });
+
+                gameRequestListener = repo.listenGameRequest(requestId,
+                        new FriendsRepository.Callback<FriendsRepository.GameRequestUpdate>() {
+                            @Override
+                            public void onSuccess(FriendsRepository.GameRequestUpdate update) {
+                                if ("accepted".equals(update.status)) {
+                                    if (update.sessionId != null) {
+                                        // Prijatelj je prihvatio I kreirao partiju — krećemo kao host
+                                        gameInviteStatus.setValue("accepted");
+                                        matchSessionReady.setValue(update.sessionId);
+                                        stopListeningGameRequest();
+                                    }
+                                    // ako sessionId još nije stigao, čekamo sledeći snapshot
+                                } else if (!"pending".equals(update.status)) {
+                                    gameInviteStatus.setValue(update.status);
+                                    stopListeningGameRequest();
+                                }
+                            }
+                            @Override public void onError(String message) {}
+                        });
             }
             @Override public void onError(String message) { messageLive.setValue(message); }
         });

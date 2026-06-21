@@ -44,14 +44,46 @@ public class AsocijacijeViewModel extends ViewModel {
         return myTurn;
     }
 
+    private boolean opponentHasLeft = false;
+    private List<AssociationGame> pendingGames;
+    private ListenerRegistration abandonListener;
+    private boolean scoreCommitted = false;
+
+
     public void init(List<AssociationGame> games) {
         phase.setValue(Phase.LOADING);
+        this.pendingGames = games;
+        listenForAbandon();
 
-        if (sessionMgr.isPlayer1()) {
-            setupAsHost(games);
-        } else {
-            setupAsGuest();
-        }
+        if (sessionMgr.isPlayer1()) setupAsHost(games);
+        else setupAsGuest();
+    }
+
+    private void listenForAbandon() {
+        abandonListener = sessionRepo.listenRootSession((snap, e) -> {
+            if (snap == null || !snap.exists()) return;
+            String leftUid = snap.getString("leftByUid");
+            if (leftUid == null || sessionMgr.isMe(leftUid)) return;
+
+            opponentHasLeft = true;
+
+            if (remoteState == null) {
+                // Host je otišao pre nego što je partija asocijacija i počela — preuzimam
+                setupAsHost(pendingGames);
+                return;
+            }
+
+            // Ako je trenutno red baš na otišlom igraču, preskoči odmah
+            String activeUid = sessionMgr.getUidForRole(remoteState.activePlayerRole);
+            if (leftUid.equals(activeUid) && !"GAME_OVER".equals(remoteState.phase)) {
+                passTurn();
+            }
+        });
+    }
+
+    /** Da Fragment zna da li trenutno JA imam pravo da pišem kraj runde/igre. */
+    public boolean amIAuthoritative() {
+        return sessionMgr.isPlayer1() || opponentHasLeft;
     }
 
     private void setupAsHost(List<AssociationGame> games) {
@@ -113,9 +145,13 @@ public class AsocijacijeViewModel extends ViewModel {
                 phase.setValue(Phase.ROUND_END);
             } else if ("GAME_OVER".equals(state.phase)) {
                 phase.setValue(Phase.GAME_OVER);
+                if (sessionMgr.isPlayer1() && !scoreCommitted) {
+                    scoreCommitted = true;
+                    sessionRepo.addToTotalScore(state.player1Score, state.player2Score);
+                }
             }
 
-            boolean turn = state.activePlayerRole.equals(sessionMgr.getMyRole());
+            boolean turn = state.activePlayerRole.equals(sessionMgr.getMyRole()) || opponentHasLeft;
             myTurn.setValue(turn);
         });
     }
@@ -208,7 +244,8 @@ public class AsocijacijeViewModel extends ViewModel {
     }
 
     private void addPointsLocal(int points) {
-        if (GameSessionManager.ROLE_PLAYER1.equals(remoteState.activePlayerRole)) {
+        String roleToCredit = opponentHasLeft ? sessionMgr.getMyRole() : remoteState.activePlayerRole;
+        if (GameSessionManager.ROLE_PLAYER1.equals(roleToCredit)) {
             remoteState.player1Score += points;
         } else {
             remoteState.player2Score += points;
@@ -228,9 +265,7 @@ public class AsocijacijeViewModel extends ViewModel {
     @Override
     protected void onCleared() {
         super.onCleared();
-
-        if (listener != null) {
-            listener.remove();
-        }
+        if (listener != null) listener.remove();
+        if (abandonListener != null) abandonListener.remove();
     }
 }

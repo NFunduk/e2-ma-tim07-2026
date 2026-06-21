@@ -17,6 +17,8 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
+
+import com.example.sabona.MainActivity;
 import com.example.sabona.R;
 
 import com.google.firebase.auth.FirebaseAuth;
@@ -96,7 +98,23 @@ public class KoZnaZnaFragment extends Fragment {
         String uid = FirebaseAuth.getInstance().getCurrentUser() != null
                 ? FirebaseAuth.getInstance().getCurrentUser().getUid()
                 : "unknown";
-        vm.init(uid);
+
+        Bundle passedArgs = getArguments();
+        if (passedArgs != null && !passedArgs.getString("sessionId", "").isEmpty()) {
+            String sessionId = passedArgs.getString("sessionId");
+            boolean isHost    = passedArgs.getBoolean("isHost", true);
+            String hostUid    = passedArgs.getString("hostUid", "");
+
+            if (isHost) {
+                com.example.sabona.game.GameSessionManager.get().setupAsHost(sessionId);
+            } else {
+                com.example.sabona.game.GameSessionManager.get().setupAsGuest(sessionId, hostUid);
+            }
+
+            vm.initWithSession(uid, sessionId, isHost);
+        } else {
+            vm.init(uid);
+        }
 
         observeViewModel();
     }
@@ -149,10 +167,12 @@ public class KoZnaZnaFragment extends Fragment {
         vm.getPlayer1Score().observe(getViewLifecycleOwner(), s -> {
             tvScore1.setText(s + " bod.");
             updateScoreBar();
+            updateToolbarScore();
         });
         vm.getPlayer2Score().observe(getViewLifecycleOwner(), s -> {
             tvScore2.setText(s + " bod.");
             updateScoreBar();
+            updateToolbarScore();
         });
 
         // Status igrača
@@ -178,13 +198,7 @@ public class KoZnaZnaFragment extends Fragment {
                     ContextCompat.getColorStateList(requireContext(),
                             feedback.correct ? android.R.color.holo_green_dark
                                     : android.R.color.holo_red_light));
-            // Onemogući sva dugmad (ako nije solo-p2-turn)
-            if (!vm.isSoloMode() || !vm.isSoloWaitingP2()) {
-                setButtonsEnabled(false);
-            } else {
-                // Solo: P1 je odgovorio, P2 nastavlja — onemogući samo pritisnuto dugme
-                answerButtons[feedback.index].setEnabled(false);
-            }
+            setButtonsEnabled(false);
         });
 
         // Tačan odgovor (prikaži zeleno dugme na kraju pitanja)
@@ -220,20 +234,24 @@ public class KoZnaZnaFragment extends Fragment {
 
         // Dialog za mod — pokreni kad pitanja budu učitana (WAITING_P2 po prvi put)
         // Koristimo jednom-okidajući observer
-        vm.getPhase().observe(getViewLifecycleOwner(), new androidx.lifecycle.Observer<KoZnaZnaViewModel.Phase>() {
+        /*vm.getPhase().observe(getViewLifecycleOwner(), new androidx.lifecycle.Observer<KoZnaZnaViewModel.Phase>() {
             boolean dialogShown = false;
             @Override
             public void onChanged(KoZnaZnaViewModel.Phase phase) {
                 if (!dialogShown && phase == KoZnaZnaViewModel.Phase.WAITING_P2) {
-                    // Provjeri da li je ovo inicijalni WAITING_P2 (još nema sesije)
-                    // ako nema sessionId → prikaži dialog
                     if (vm.getSessionId() == null || vm.getSessionId().isEmpty()) {
-                        dialogShown = true;
-                        showJoinDialog();
+                        // Proveri da nismo došli iz args (prijateljska partija ili matchmaking)
+                        Bundle args = getArguments();
+                        boolean hasSessionFromArgs = args != null &&
+                                !args.getString("sessionId", "").isEmpty();
+                        if (!hasSessionFromArgs) {
+                            dialogShown = true;
+                            showJoinDialog();
+                        }
                     }
                 }
             }
-        });
+        });*/
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -256,24 +274,14 @@ public class KoZnaZnaFragment extends Fragment {
             resetButtonStyle(i);
         }
 
-        // U solo modu kad je P2 na redu — dugmad su već postavljeni handlerom u VM,
-        // ali ih trebamo vizualno resetovati osim pritisnute
-        if (vm.isSoloWaitingP2()) {
-            // P1 dugme je pritisnuto — ostaje obojeno, ostalo je enabled
-            setButtonsEnabled(true);
-            if (myPressedButtonIndex >= 0) {
-                answerButtons[myPressedButtonIndex].setEnabled(false);
-            }
-        } else {
-            setButtonsEnabled(true);
-        }
+        setButtonsEnabled(true);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
     // Dialog za mod
     // ═══════════════════════════════════════════════════════════════════════
 
-    private void showJoinDialog() {
+    /*private void showJoinDialog() {
         String uid = vm.getMyUid();
         String suggested = uid.length() >= 6
                 ? uid.substring(0, 6).toUpperCase() : "TEST01";
@@ -299,7 +307,7 @@ public class KoZnaZnaFragment extends Fragment {
                 vm.startSoloGame());
         builder.setCancelable(false);
         builder.show();
-    }
+    }*/
 
     // ═══════════════════════════════════════════════════════════════════════
     // Helpers
@@ -331,5 +339,13 @@ public class KoZnaZnaFragment extends Fragment {
                 ContextCompat.getColorStateList(requireContext(), android.R.color.holo_green_dark));
         answerButtons[idx].setTextColor(
                 ContextCompat.getColor(requireContext(), R.color.white));
+    }
+
+    private void updateToolbarScore() {
+        Integer s1 = vm.getPlayer1Score().getValue();
+        Integer s2 = vm.getPlayer2Score().getValue();
+        if (s1 != null && s2 != null && getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).updateGameScore(s1, s2, null, null);
+        }
     }
 }

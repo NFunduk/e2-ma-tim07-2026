@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import com.google.firebase.firestore.FieldValue;
 
 /**
  * ViewModel za Ko Zna Zna.
@@ -124,6 +125,10 @@ public class KoZnaZnaViewModel extends ViewModel {
     private boolean soloMode  = false;
     private boolean gameEnded = false;
 
+    // ── Napuštanje partije ──────────────────────────────────────────────────
+    private boolean opponentHasLeft = false;
+    private ListenerRegistration abandonListener;
+
     // ── Pitanja ──────────────────────────────────────────────────────────────
     private List<KoZnaZnaRepository.Question> allQuestions;
     private List<String>                      orderedQuestionIds = new ArrayList<>();
@@ -154,14 +159,75 @@ public class KoZnaZnaViewModel extends ViewModel {
     private CountDownTimer timer;
     private long questionStartTime = 0;
 
+    private String  pendingSessionId = null;
+    private boolean pendingIsHost    = false;
+    private final com.example.sabona.game.GameSessionRepository sessionRepo = new com.example.sabona.game.GameSessionRepository();
     // ═════════════════════════════════════════════════════════════════════════
     // Init
     // ═════════════════════════════════════════════════════════════════════════
 
+    public void initWithSession(String uid, String sessionId, boolean isHost) {
+        if (myUid != null) return; // rotation guard
+        this.pendingSessionId = sessionId;
+        this.pendingIsHost    = isHost;
+        init(uid);
+    }
     public void init(String uid) {
-        if (myUid != null) return; // već inicijalizovan (rotation guard)
+        if (myUid != null) return;
         myUid = uid != null ? uid : "unknown";
+        listenForAbandon();
         loadQuestions();
+    }
+
+    private void listenForAbandon() {
+        abandonListener = sessionRepo.listenRootSession((snap, e) -> {
+            if (snap == null || !snap.exists()) return;
+            String leftUid = snap.getString("leftByUid");
+            if (leftUid == null || leftUid.equals(myUid) || opponentHasLeft || soloMode) return;
+            opponentHasLeft = true;
+            onOpponentLeft();
+        });
+    }
+
+    private boolean amOrchestrator() {
+        return isHost || opponentHasLeft;
+    }
+
+    private void onOpponentLeft() {
+        if (gameEnded) return;
+        infoText.setValue("Protivnik je napustio partiju. Nastavljaš sam/a.");
+
+        if (isHost && sessionRef != null && Phase.WAITING_P2.equals(phase.getValue())) {
+            autoStartAlone();
+        } else if (amOrchestrator() && Phase.QUESTION.equals(phase.getValue())) {
+            forceOpponentTimeoutIfWaiting();
+        }
+    }
+
+    private void autoStartAlone() {
+        if (sessionRef == null) return;
+        sessionRef.update("phase", "question");
+    }
+
+    private void forceOpponentTimeoutIfWaiting() {
+        if (!amOrchestrator() || sessionRef == null || questionDone) return;
+        String answerField = isHost ? "p2Answer" : "p1Answer";
+        String timeField   = isHost ? "p2AnswerTime" : "p1AnswerTime";
+
+        sessionRef.get().addOnSuccessListener(snap -> {
+            if (snap == null || !snap.exists()) return;
+            if (!"question".equals(snap.getString("phase"))) return;
+
+            int oppAns = toInt(snap.get(answerField));
+            if (oppAns == -1) {
+                Map<String, Object> update = new HashMap<>();
+                update.put(answerField, -2);
+                update.put(timeField,   99999L);
+                sessionRef.update(update).addOnSuccessListener(v -> checkIfBothAnswered());
+            } else {
+                checkIfBothAnswered();
+            }
+        });
     }
 
     private void loadQuestions() {
@@ -170,7 +236,19 @@ public class KoZnaZnaViewModel extends ViewModel {
             @Override
             public void onSuccess(List<KoZnaZnaRepository.Question> loaded) {
                 allQuestions = loaded;
-                phase.setValue(Phase.WAITING_P2); // Signal Fragmentu da prikaže dialog
+
+                if (pendingSessionId != null) {
+                    sessionId = pendingSessionId;
+                    isHost    = pendingIsHost;
+                    soloMode  = false;
+                    if (isHost) {
+                        createSessionSilent(pendingSessionId);
+                    } else {
+                        joinExistingSession(pendingSessionId);
+                    }
+                } else {
+                    phase.setValue(Phase.WAITING_P2); // Signal Fragmentu da prikaže dialog
+                }
             }
             @Override
             public void onError(Exception e) {
@@ -197,7 +275,7 @@ public class KoZnaZnaViewModel extends ViewModel {
     // Akcije koje Fragment poziva
     // ═════════════════════════════════════════════════════════════════════════
 
-    public void createSession(String sid) {
+    /*public void createSession(String sid) {
         sessionId = sid;
         isHost    = true;
         soloMode  = false;
@@ -303,7 +381,7 @@ public class KoZnaZnaViewModel extends ViewModel {
         player2Score.setValue(0);
 
         renderQuestion();
-    }
+    }*/
 
     /** Poziva Fragment kad korisnik klikne na odgovor */
     public void onAnswerClick(int answerIndex) {
@@ -319,22 +397,19 @@ public class KoZnaZnaViewModel extends ViewModel {
 
         if (correct) myCorrectCount++; else myWrongCount++;
 
-        if (soloMode) {
-            handleSoloAnswer(answerIndex, correct, elapsed, q);
+        Map<String, Object> update = new HashMap<>();
+        if (isHost) {
+            update.put("p1Answer",     answerIndex);
+            update.put("p1AnswerTime", elapsed);
         } else {
-            Map<String, Object> update = new HashMap<>();
-            if (isHost) {
-                update.put("p1Answer",     answerIndex);
-                update.put("p1AnswerTime", elapsed);
-            } else {
-                update.put("p2Answer",     answerIndex);
-                update.put("p2AnswerTime", elapsed);
-            }
-            sessionRef.update(update).addOnSuccessListener(v -> {
-                if (isHost) checkIfBothAnswered();
-            });
-            infoText.setValue("✅ Odgovoreno! Čekam protivnika...");
+            update.put("p2Answer",     answerIndex);
+            update.put("p2AnswerTime", elapsed);
         }
+        sessionRef.update(update).addOnSuccessListener(v -> {
+            if (amOrchestrator()) checkIfBothAnswered();
+        });
+        infoText.setValue("✅ Odgovoreno! Čekam protivnika...");
+
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -373,7 +448,7 @@ public class KoZnaZnaViewModel extends ViewModel {
                         int p1Ans = toInt(snap.get("p1Answer"));
                         int p2Ans = toInt(snap.get("p2Answer"));
                         updateAnswerStatus(p1Ans, p2Ans);
-                        if (isHost && iAnswered && !questionDone) {
+                        if (amOrchestrator() && iAnswered && !questionDone) {
                             checkIfBothAnswered();
                         }
                     }
@@ -387,7 +462,7 @@ public class KoZnaZnaViewModel extends ViewModel {
                         int p1Ans = toInt(snap.get("p1Answer"));
                         int p2Ans = toInt(snap.get("p2Answer"));
                         showQuestionResult(winner, p1Ans, p2Ans);
-                        if (isHost) {
+                        if (amOrchestrator()) {
                             new CountDownTimer(2000, 2000) {
                                 @Override public void onTick(long ms) {}
                                 @Override public void onFinish() { advanceToNextQuestion(); }
@@ -415,8 +490,7 @@ public class KoZnaZnaViewModel extends ViewModel {
         soloWaitingP2     = false;
 
         if (currentQuestionIndex >= questions.size()) {
-            if (soloMode) triggerGameOver();
-            else if (isHost) sessionRef.update("phase", "finished");
+            if (amOrchestrator()) sessionRef.update("phase", "finished");
             return;
         }
 
@@ -452,20 +526,16 @@ public class KoZnaZnaViewModel extends ViewModel {
                 timerText.setValue("00:00");
                 if (!iAnswered && !questionDone) {
                     iAnswered = true;
-                    if (soloMode) {
-                        handleSoloTimeout();
-                    } else {
-                        Map<String, Object> update = new HashMap<>();
-                        String answerField = isHost ? "p1Answer" : "p2Answer";
-                        String timeField   = isHost ? "p1AnswerTime" : "p2AnswerTime";
-                        update.put(answerField, -2);
-                        update.put(timeField,   99999L);
-                        sessionRef.update(update)
-                                .addOnSuccessListener(v -> {
-                                    if (isHost) checkIfBothAnswered();
-                                });
-                        infoText.setValue("⌛ Vrijeme isteklo!");
-                    }
+                    Map<String, Object> update = new HashMap<>();
+                    String answerField = isHost ? "p1Answer" : "p2Answer";
+                    String timeField   = isHost ? "p1AnswerTime" : "p2AnswerTime";
+                    update.put(answerField, -2);
+                    update.put(timeField,   99999L);
+                    sessionRef.update(update)
+                            .addOnSuccessListener(v -> {
+                                if (amOrchestrator()) checkIfBothAnswered();
+                            });
+                    infoText.setValue("⌛ Vrijeme isteklo!");
                 }
             }
         }.start();
@@ -476,7 +546,7 @@ public class KoZnaZnaViewModel extends ViewModel {
     // ═════════════════════════════════════════════════════════════════════════
 
     private void checkIfBothAnswered() {
-        if (!isHost || questionDone || calculatingResult) return;
+        if (!amOrchestrator() || questionDone || calculatingResult) return;
         calculatingResult = true;
 
         sessionRef.get().addOnSuccessListener(snap -> {
@@ -571,7 +641,7 @@ public class KoZnaZnaViewModel extends ViewModel {
     // ═════════════════════════════════════════════════════════════════════════
 
     private void advanceToNextQuestion() {
-        if (!isHost) return;
+        if (!amOrchestrator()) return;
         int nextQ = currentQuestionIndex + 1;
         Map<String, Object> update = new HashMap<>();
         update.put("questionIndex", nextQ);
@@ -585,94 +655,6 @@ public class KoZnaZnaViewModel extends ViewModel {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // Solo mod
-    // ═════════════════════════════════════════════════════════════════════════
-
-    private void handleSoloAnswer(int answerIndex, boolean correct, long elapsed,
-                                  KoZnaZnaRepository.Question q) {
-        if (!soloWaitingP2) {
-            soloP1Answer     = answerIndex;
-            soloP1AnswerTime = elapsed;
-            soloWaitingP2    = true;
-
-            p1Status.setValue(correct ? "Igrač 1 ✅" : "Igrač 1 ❌");
-            infoText.setValue(correct
-                    ? "🎯 Igrač 1 tačno! Igrač 2, tvoj red!"
-                    : "🎯 Igrač 2 bira odgovor!");
-            // Fragment treba da reaguje na soloWaitingP2=true i omogući dugmad za P2
-            questionEvent.setValue(new Event<>(currentQuestionIndex)); // re-signal za P2 turn
-        } else {
-            soloP2Answer     = answerIndex;
-            soloP2AnswerTime = elapsed;
-            soloWaitingP2    = false;
-            p2Status.setValue(correct ? "Igrač 2 ✅" : "Igrač 2 ❌");
-            soloFinishQuestion(q);
-        }
-    }
-
-    private void handleSoloTimeout() {
-        KoZnaZnaRepository.Question q = questions.get(currentQuestionIndex);
-        if (!soloWaitingP2) {
-            soloP1Answer     = -2;
-            soloP1AnswerTime = 99999;
-            soloWaitingP2    = true;
-            p1Status.setValue("Igrač 1 ⌛");
-            infoText.setValue("🎯 Igrač 2 bira odgovor!");
-            // Fragment ponovo omogući dugmad i restart timer za P2
-            questionEvent.setValue(new Event<>(currentQuestionIndex));
-            startTimer();
-        } else {
-            soloP2Answer  = -2;
-            soloWaitingP2 = false;
-            p2Status.setValue("Igrač 2 ⌛");
-            soloFinishQuestion(q);
-        }
-    }
-
-    private void soloFinishQuestion(KoZnaZnaRepository.Question q) {
-        if (timer != null) timer.cancel();
-
-        boolean p1Correct = (soloP1Answer != -2) && (soloP1Answer == q.correctIndex);
-        boolean p2Correct = (soloP2Answer != -2) && (soloP2Answer == q.correctIndex);
-
-        if (p1Correct && p2Correct) {
-            if (soloP1AnswerTime <= soloP2AnswerTime) { p1Score += 10; infoText.setValue("🏆 Igrač 1 bio brži! +10"); }
-            else                                       { p2Score += 10; infoText.setValue("🏆 Igrač 2 bio brži! +10"); }
-        } else if (p1Correct) {
-            p1Score += 10;
-            if (soloP2Answer != -2) p2Score -= 5;
-            infoText.setValue("🏆 Igrač 1 tačno! +10");
-        } else if (p2Correct) {
-            p2Score += 10;
-            if (soloP1Answer != -2) p1Score -= 5;
-            infoText.setValue("🏆 Igrač 2 tačno! +10");
-        } else {
-            if (soloP1Answer != -2) p1Score -= 5;
-            if (soloP2Answer != -2) p2Score -= 5;
-            infoText.setValue("❌ Niko nije tačno odgovorio.");
-        }
-
-        correctIndex.setValue(q.correctIndex);
-        player1Score.setValue(p1Score);
-        player2Score.setValue(p2Score);
-        phase.setValue(Phase.RESULT);
-        resultEvent.setValue(new Event<>("solo_done"));
-
-        soloP1Answer = soloP2Answer = -1;
-        soloP1AnswerTime = soloP2AnswerTime = 0;
-
-        new CountDownTimer(2000, 2000) {
-            @Override public void onTick(long ms) {}
-            @Override public void onFinish() {
-                currentQuestionIndex++;
-                lastRenderedQIndex = -1;
-                if (currentQuestionIndex < questions.size()) renderQuestion();
-                else triggerGameOver();
-            }
-        }.start();
-    }
-
-    // ═════════════════════════════════════════════════════════════════════════
     // Kraj igre
     // ═════════════════════════════════════════════════════════════════════════
 
@@ -682,7 +664,17 @@ public class KoZnaZnaViewModel extends ViewModel {
         if (timer != null) timer.cancel();
 
         int myScore = isHost ? p1Score : p2Score;
-        new StatsRepository().saveKoZnaZnaResult(myScore, myCorrectCount, myWrongCount);
+        sessionRepo.isFriendlyMatch((friendly, e) -> {
+            if (!Boolean.TRUE.equals(friendly)) {
+                new StatsRepository().saveKoZnaZnaResult(myScore, myCorrectCount, myWrongCount);
+            }
+        });
+
+        if (amOrchestrator()) {
+            db.collection("gameSessions").document(sessionId)
+                    .update("totalScoreP1", FieldValue.increment(p1Score),
+                            "totalScoreP2", FieldValue.increment(p2Score));
+        }
 
         String summary;
         if (p1Score > p2Score)
@@ -712,6 +704,7 @@ public class KoZnaZnaViewModel extends ViewModel {
         super.onCleared();
         if (timer != null) timer.cancel();
         if (sessionListener != null) sessionListener.remove();
+        if (abandonListener != null) abandonListener.remove();   
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -737,5 +730,105 @@ public class KoZnaZnaViewModel extends ViewModel {
         if (v instanceof Long)    return (Long) v;
         if (v instanceof Integer) return ((Integer) v).longValue();
         return 0L;
+    }
+
+    /** Host strana — kreira Firestore sesiju kad je sessionId već prosleđen (prijateljska partija / matchmaking) */
+    private void createSessionSilent(String sid) {
+        sessionId = sid;
+        isHost    = true;
+
+        sessionRef = db.collection("gameSessions")
+                .document(sessionId)
+                .collection("games")
+                .document("kzz");
+
+        List<KoZnaZnaRepository.Question> shuffled = new ArrayList<>(allQuestions);
+        Collections.shuffle(shuffled);
+        List<KoZnaZnaRepository.Question> picked = shuffled.size() > 5
+                ? shuffled.subList(0, 5) : shuffled;
+
+        List<String> ids = new ArrayList<>();
+        for (KoZnaZnaRepository.Question q : picked) {
+            if (q.docId != null) ids.add(q.docId);
+        }
+        orderedQuestionIds = ids;
+        questions = new ArrayList<>(picked);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("phase",         "waiting_p2");
+        data.put("questionIndex", 0);
+        data.put("questionIds",   ids);
+        data.put("p1Score",       0);
+        data.put("p2Score",       0);
+        data.put("p1Answer",      -1);
+        data.put("p2Answer",      -1);
+        data.put("p1AnswerTime",  0L);
+        data.put("p2AnswerTime",  0L);
+        data.put("winner",        "");
+        data.put("hostUid",       myUid);
+
+        sessionRef.set(data)
+                .addOnSuccessListener(v -> {
+                    waitingMsg.setValue("Čekam Igrača 2...");
+                    phase.setValue(Phase.WAITING_P2);
+                    startListening();
+                    if (opponentHasLeft) {
+                        infoText.setValue("Protivnik je napustio partiju. Nastavljaš sam/a.");
+                        autoStartAlone();
+                    }
+                })
+                .addOnFailureListener(e ->
+                        infoText.setValue("Greška: " + e.getMessage()));
+    }
+
+    /** Guest strana — pridružuje se Firestore sesiji koju je host (ili guest preko KoZnaZnaFragment) već kreirao/kreira */
+    private void joinExistingSession(String sid) {
+        sessionId = sid;
+        isHost    = false;
+
+        sessionRef = db.collection("gameSessions")
+                .document(sessionId)
+                .collection("games")
+                .document("kzz");
+
+        waitingMsg.setValue("Čekam host da kreira partiju...");
+        phase.setValue(Phase.WAITING_P2);
+        waitForSessionThenJoin();
+    }
+
+    private void waitForSessionThenJoin() {
+        sessionRef.get().addOnSuccessListener(snap -> {
+            if (snap.exists()) {
+                doJoinSession(snap);
+            } else {
+                new android.os.Handler(android.os.Looper.getMainLooper())
+                        .postDelayed(this::waitForSessionThenJoin, 1000);
+            }
+        }).addOnFailureListener(e -> infoText.setValue("Greška spajanja: " + e.getMessage()));
+    }
+
+    private void doJoinSession(com.google.firebase.firestore.DocumentSnapshot snap) {
+        List<?> rawIds = (List<?>) snap.get("questionIds");
+        if (rawIds != null) {
+            orderedQuestionIds.clear();
+            for (Object o : rawIds) orderedQuestionIds.add(String.valueOf(o));
+        }
+
+        if (!buildOrderedQuestions()) {
+            infoText.setValue("Greška mapiranja pitanja!");
+            return;
+        }
+
+        Map<String, Object> update = new HashMap<>();
+        update.put("phase",    "question");
+        update.put("guestUid", myUid);
+
+        sessionRef.update(update)
+                .addOnSuccessListener(v -> {
+                    waitingMsg.setValue("Pridružen! Počinjemo...");
+                    startListening();
+                })
+                .addOnFailureListener(e ->
+                        infoText.setValue("Greška: " + e.getMessage()));
     }
 }

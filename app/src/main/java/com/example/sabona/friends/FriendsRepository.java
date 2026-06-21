@@ -377,15 +377,25 @@ public class FriendsRepository {
 
     // ─── slušaj na status game request-a ─────────────────────────────────────
 
+    public static class GameRequestUpdate {
+        public final String status;
+        public final String sessionId;
+        public GameRequestUpdate(String status, String sessionId) {
+            this.status = status;
+            this.sessionId = sessionId;
+        }
+    }
+
     public com.google.firebase.firestore.ListenerRegistration listenGameRequest(
             String gameRequestId,
-            Callback<String> statusCallback) {
+            Callback<GameRequestUpdate> statusCallback) {
 
         return db.collection("gameRequests").document(gameRequestId)
                 .addSnapshotListener((snap, err) -> {
                     if (err != null || snap == null || !snap.exists()) return;
                     String status = snap.getString("status");
-                    if (status != null) statusCallback.onSuccess(status);
+                    String sessionId = snap.getString("sessionId");
+                    if (status != null) statusCallback.onSuccess(new GameRequestUpdate(status, sessionId));
                 });
     }
 
