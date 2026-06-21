@@ -206,6 +206,9 @@ public class MainActivity extends AppCompatActivity {
             } else if (id == R.id.play) {
                 navController.navigate(R.id.koZnaZnaFragment);
                 return true;
+            } else if (id == R.id.rank) {
+                navController.navigate(R.id.leaderboardFragment);
+                return true;
             } else if (id == R.id.friends) {
                 navController.navigate(R.id.friendsFragment);
                 return true;
@@ -347,7 +350,7 @@ public class MainActivity extends AppCompatActivity {
 
                             notification.setId(change.getDocument().getId());
 
-                            if (!notification.isRead()) {
+                            if (!firstLoadNotifications && !notification.isRead()) {
                                 NotificationHelper.showNotification(
                                         MainActivity.this,
                                         notification
@@ -355,6 +358,7 @@ public class MainActivity extends AppCompatActivity {
                             }
                         }
                     }
+                    firstLoadNotifications = false;
                 });
     }
 
