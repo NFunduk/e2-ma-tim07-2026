@@ -77,6 +77,10 @@ public class MojBrojViewModel extends ViewModel {
     public LiveData<String>  getRoundSummary()    { return roundSummary; }
     public LiveData<Boolean> getIDoneLocal()      { return iDoneLocal; }
 
+    // nova polja
+    private boolean opponentHasLeft = false;
+    private ListenerRegistration abandonListener;
+
     public int getActivePlayerNumber() {
         return GameSessionManager.ROLE_PLAYER1.equals(remoteState.activePlayerRole) ? 1 : 2;
     }
@@ -85,15 +89,30 @@ public class MojBrojViewModel extends ViewModel {
 
     public void init() {
         phase.setValue(Phase.LOADING);
+        listenForAbandon();
 
-        if (sessionMgr.isPlayer1() && !gameInitialized) {
+        if ((sessionMgr.isPlayer1() || opponentHasLeft) && !gameInitialized) {
             gameInitialized = true;
             setupAsHost();
-        } else if (!sessionMgr.isPlayer1()) {
+        } else if (!sessionMgr.isPlayer1() && !opponentHasLeft) {
             setupAsGuest();
         } else {
             startListening();
         }
+    }
+
+    private void listenForAbandon() {
+        abandonListener = sessionRepo.listenRootSession((snap, e) -> {
+            if (snap == null || !snap.exists()) return;
+            String leftUid = snap.getString("leftByUid");
+            if (leftUid == null || sessionMgr.isMe(leftUid) || opponentHasLeft) return;
+            opponentHasLeft = true;
+
+            if (!gameInitialized) {
+                gameInitialized = true;
+                setupAsHost();
+            }
+        });
     }
 
     private void setupAsHost() {
@@ -234,6 +253,7 @@ public class MojBrojViewModel extends ViewModel {
     }
 
     private boolean isMyActiveRole(String role) {
+        if (opponentHasLeft) return true;
         return sessionMgr.isPlayer1()
                 ? GameSessionManager.ROLE_PLAYER1.equals(role)
                 : GameSessionManager.ROLE_PLAYER2.equals(role);
@@ -323,6 +343,11 @@ public class MojBrojViewModel extends ViewModel {
                 newState.player2Done = true;
             }
 
+            if (opponentHasLeft) {
+                if (isP1) { newState.player2RoundResult = -1; newState.player2Done = true; }
+                else      { newState.player1RoundResult = -1; newState.player1Done = true; }
+            }
+
             boolean bothDone = newState.player1Done && newState.player2Done;
             if (bothDone) {
                 applyScoring(newState);
@@ -368,7 +393,7 @@ public class MojBrojViewModel extends ViewModel {
 
     public void onRoundEndCountdownFinished() {
         if (!"ROUND_END".equals(remoteState.phase)) return;
-        if (!sessionMgr.isPlayer1()) return; // samo host napreduje
+        if (!sessionMgr.isPlayer1() && !opponentHasLeft) return; // samo host napreduje (ili preostali, ako je host otišao)
 
         if (remoteState.round == 1) {
             sessionRepo.runMojBrojTransaction(current -> {
@@ -457,5 +482,6 @@ public class MojBrojViewModel extends ViewModel {
     protected void onCleared() {
         super.onCleared();
         if (firestoreListener != null) firestoreListener.remove();
+        if (abandonListener != null) abandonListener.remove();
     }
 }

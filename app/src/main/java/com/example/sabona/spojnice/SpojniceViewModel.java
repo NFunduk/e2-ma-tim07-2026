@@ -114,6 +114,7 @@ public class SpojniceViewModel extends ViewModel {
     public LiveData<Event<Integer>> getConnectionEvent(){ return connectionEvent; }
     public LiveData<Event<String>>  getGameOverEvent()  { return gameOverEvent; }
 
+    private boolean opponentHasLeft = false;
     // ── Firestore ─────────────────────────────────────────────────────────────
     private final FirebaseFirestore db   = FirebaseFirestore.getInstance();
     private final FirebaseAuth      auth = FirebaseAuth.getInstance();
@@ -529,7 +530,6 @@ public class SpojniceViewModel extends ViewModel {
 
     private void listenRootForAbandon() {
         if (sessionId == null) return;
-
         rootListener = db.collection("gameSessions").document(sessionId)
                 .addSnapshotListener((snap, e) -> {
                     if (snap == null || !snap.exists()) return;
@@ -537,7 +537,8 @@ public class SpojniceViewModel extends ViewModel {
                     if (leftUid == null) return;
                     if (leftUid.equals(myUid)) return;
 
-                    // Protivnik je otišao — preskoči timer odmah
+                    opponentHasLeft = true; // pamtimo trajno, ne samo za ovaj event
+
                     if (!roundFinished) {
                         if (timer != null) timer.cancel();
                         infoText.postValue("Protivnik je napustio partiju. Nastavljaš ti.");
@@ -586,6 +587,15 @@ public class SpojniceViewModel extends ViewModel {
         infoText.setValue(myTurn ? "🎯 Tvoj red! Klikni lijevo → desno." : "⏳ Čekam protivnika...");
         emitHeader();
         emitBoard();
+
+        if (opponentHasLeft && !myTurn) {
+            // Red je na igraču koji je napustio — ne čekaj, odmah dalje
+            roundFinished = true;
+            infoText.setValue("Protivnik je napustio partiju. Nastavljaš ti.");
+            advancePhase(false, true);
+            return;
+        }
+
         startTimer(30);
     }
 
@@ -608,7 +618,7 @@ public class SpojniceViewModel extends ViewModel {
             default:         nextPhase = PHASE_DONE; break;
         }
 
-        boolean shouldWrite = isHost || opponentAbandoned;
+        boolean shouldWrite = isHost || opponentAbandoned || opponentHasLeft;
 
         if (shouldWrite) {
             Map<String, Object> update = new HashMap<>();
@@ -791,4 +801,6 @@ public class SpojniceViewModel extends ViewModel {
         if (v instanceof Boolean) return Boolean.TRUE.equals(v) ? 1L : 0L;
         return 0L;
     }
+
+
 }

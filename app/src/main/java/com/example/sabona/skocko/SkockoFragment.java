@@ -606,7 +606,7 @@ public class SkockoFragment extends Fragment {
             @Override
             public void onFinish() {
                 if (multiplayerMode && viewModel != null) {
-                    if (GameSessionManager.get().isPlayer1()) {
+                    if (viewModel.amIAuthoritative()) {
                         viewModel.startNextRound();
                     }
                 }

@@ -56,6 +56,10 @@ public class KorakViewModel extends ViewModel {
 
     private ListenerRegistration firestoreListener;
 
+
+    // nova polja
+    private boolean opponentHasLeft = false;
+    private ListenerRegistration abandonListener;
     private boolean scoreCommitted = false;
 
     // ── Getteri ───────────────────────────────────────────────────────
@@ -86,20 +90,21 @@ public class KorakViewModel extends ViewModel {
 
     public void init() {
         phase.setValue(Phase.LOADING);
+        listenForAbandon();
 
         korakRepo.getGamesWithIds(new KorakRepository.CallbackWithIds() {
             @Override
             public void onSuccess(List<KorakGame> games) {
-                allGames   = games;
-                gameIdMap  = new HashMap<>();
+                allGames  = games;
+                gameIdMap = new HashMap<>();
                 for (KorakGame g : games) {
                     if (g.docId != null) gameIdMap.put(g.docId, g);
                 }
 
-                if (sessionMgr.isPlayer1() && !gameInitialized) {
+                if ((sessionMgr.isPlayer1() || opponentHasLeft) && !gameInitialized) {
                     gameInitialized = true;
                     setupAsHost();
-                } else if (!sessionMgr.isPlayer1()) {
+                } else if (!sessionMgr.isPlayer1() && !opponentHasLeft) {
                     setupAsGuest();
                 }
             }
@@ -107,6 +112,20 @@ public class KorakViewModel extends ViewModel {
             @Override
             public void onError(Exception e) {
                 error.postValue(true);
+            }
+        });
+    }
+
+    private void listenForAbandon() {
+        abandonListener = sessionRepo.listenRootSession((snap, e) -> {
+            if (snap == null || !snap.exists()) return;
+            String leftUid = snap.getString("leftByUid");
+            if (leftUid == null || sessionMgr.isMe(leftUid) || opponentHasLeft) return;
+            opponentHasLeft = true;
+
+            if (!gameInitialized && allGames != null) {
+                gameInitialized = true;
+                setupAsHost();
             }
         });
     }
@@ -256,6 +275,7 @@ public class KorakViewModel extends ViewModel {
     }
 
     private boolean isMyActiveRole(String role) {
+        if (opponentHasLeft) return true;
         return sessionMgr.isPlayer1()
                 ? GameSessionManager.ROLE_PLAYER1.equals(role)
                 : GameSessionManager.ROLE_PLAYER2.equals(role);
@@ -338,13 +358,13 @@ public class KorakViewModel extends ViewModel {
         if (!"BONUS".equals(remoteState.phase)) return;
         boolean activeIsP1 = GameSessionManager.ROLE_PLAYER1.equals(remoteState.activePlayerRole);
         boolean iAmOpponent = sessionMgr.isPlayer1() != activeIsP1;
-        if (!iAmOpponent) return;
+        if (!iAmOpponent && !opponentHasLeft) return;
 
         sessionRepo.runKorakTransaction(current -> {
             if (!"BONUS".equals(current.phase)) return null;
             boolean currentActiveIsP1 = GameSessionManager.ROLE_PLAYER1.equals(current.activePlayerRole);
             boolean currentIAmOpponent = sessionMgr.isPlayer1() != currentActiveIsP1;
-            if (!currentIAmOpponent) return null;
+            if (!currentIAmOpponent && !opponentHasLeft) return null;
 
             KorakGameState newState = copyState(current);
             newState.lastAnswerResult  = "wrong";
@@ -357,7 +377,7 @@ public class KorakViewModel extends ViewModel {
 
     public void onRoundEndCountdownFinished() {
         if (!"ROUND_END".equals(remoteState.phase)) return;
-        if (!sessionMgr.isPlayer1()) return; // samo host napreduje
+        if (!sessionMgr.isPlayer1() && !opponentHasLeft) return; // samo host napreduje (ili preostali, ako je host otišao)
 
         sessionRepo.runKorakTransaction(current -> {
             if (!"ROUND_END".equals(current.phase)) return null;
@@ -400,6 +420,7 @@ public class KorakViewModel extends ViewModel {
     protected void onCleared() {
         super.onCleared();
         if (firestoreListener != null) firestoreListener.remove();
+        if (abandonListener != null) abandonListener.remove();
     }
 
     private KorakGameState copyState(KorakGameState src) {

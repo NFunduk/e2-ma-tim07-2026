@@ -693,7 +693,7 @@ public class AssociationsFragment extends Fragment {
             tvTimer.setText("00:00");
 
             if (multiplayerMode && viewModel != null) {
-                if (GameSessionManager.get().isPlayer1()) {
+                if (viewModel.amIAuthoritative()) {
                     if ("ROUND_END".equals(currentRemotePhase)) {
                         viewModel.startNextRound();
                     } else if ("PLAYING".equals(currentRemotePhase)) {
@@ -722,7 +722,7 @@ public class AssociationsFragment extends Fragment {
                 tvTimer.setText("00:00");
 
                 if (multiplayerMode && viewModel != null) {
-                    if (GameSessionManager.get().isPlayer1()) {
+                    if (viewModel.amIAuthoritative()) {
                         if ("ROUND_END".equals(currentRemotePhase)) {
                             viewModel.startNextRound();
                         } else if ("PLAYING".equals(currentRemotePhase)) {
