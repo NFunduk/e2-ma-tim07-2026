@@ -68,6 +68,10 @@ public class MainActivity extends AppCompatActivity {
             R.id.matchmakingFragment
     ));
 
+    private final Set<Integer> fullScreenInputDestinations = new HashSet<>(Arrays.asList(
+            R.id.chatFragment
+    ));
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -162,7 +166,8 @@ public class MainActivity extends AppCompatActivity {
 
             toolbar.setVisibility(isAuth ? View.GONE : View.VISIBLE);
 
-            bottomNav.setVisibility((isAuth || isGame) ? View.GONE : View.VISIBLE);
+            boolean isFullScreenInput = fullScreenInputDestinations.contains(id);
+            bottomNav.setVisibility((isAuth || isGame || isFullScreenInput) ? View.GONE : View.VISIBLE);
 
             layoutStatsChip.setVisibility(isGame ? View.GONE : View.VISIBLE);
 
@@ -237,8 +242,8 @@ public class MainActivity extends AppCompatActivity {
             if (id == R.id.home) {
                 navController.navigate(R.id.homeFragment);
                 return true;
-            } else if (id == R.id.play) {
-                navController.navigate(R.id.koZnaZnaFragment);
+            } else if (id == R.id.chat) {
+                navController.navigate(R.id.chatFragment);
                 return true;
             } else if (id == R.id.rank) {
                 navController.navigate(R.id.leaderboardFragment);
@@ -419,6 +424,12 @@ public class MainActivity extends AppCompatActivity {
         if (p2Name != null) tvPlayer2Name.setText(p2Name);
     }
 
+    public void setBottomNavVisible(boolean visible) {
+        if (bottomNav != null) {
+            bottomNav.setVisibility(visible ? View.VISIBLE : View.GONE);
+        }
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -433,7 +444,7 @@ public class MainActivity extends AppCompatActivity {
         if (authStateListener != null) {
             FirebaseAuth.getInstance().removeAuthStateListener(authStateListener);
         }
-        
+
         stopMatchScoreListener();
 
     }
