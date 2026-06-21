@@ -81,6 +81,23 @@ public class LeaderboardFragment extends Fragment {
                 repo.distributeWeeklyRewards();
                 Toast.makeText(requireContext(), "Test: podeljene nedeljne nagrade", Toast.LENGTH_SHORT).show();
             } else {
+                // Specifikacija 5.e (Prikaz regiona) zahteva da znamo koji je
+                // region bio 1./2./3. na PRETHODNOM mesečnom ciklusu — taj
+                // podatak se gubi čim resetMonthlyCycle() postavi monthlyStars
+                // na 0. Zato OBAVEZNO snimamo snapshot regiona PRE deljenja
+                // mesečnih nagrada (koje obično prati reset ciklusa).
+                new com.example.sabona.region.RegionCycleService().snapshotAndArchive(
+                        new com.example.sabona.region.RegionCycleService.SnapshotCallback() {
+                            @Override
+                            public void onSuccess(java.util.List<com.example.sabona.region.RegionCycleResult> top3) {
+
+                            }
+                            @Override
+                            public void onError(String message) {
+
+                            }
+                        });
+
                 repo.distributeMonthlyRewards();
                 Toast.makeText(requireContext(), "Test: podeljene mesečne nagrade", Toast.LENGTH_SHORT).show();
             }

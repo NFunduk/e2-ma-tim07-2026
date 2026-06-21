@@ -35,16 +35,16 @@ import java.util.Map;
  * Ekran "Prikaz regiona" (specifikacija, zadatak 5):
  *  a) PRAVA OpenStreetMap mapa sa nasumičnom GPS tačkom za svakog
  *     registrovanog igrača unutar njegovog regiona
+ *  b) mesečna rang lista regiona po ukupnom broju osvojenih zvezda u
+ *     tekućem ciklusu, sa posebno označenim "tvojim" regionom
  *  c) svaki region ima svoju ikonicu (vidi {@link SerbianRegion})
  *  d) klik na region (poligon na mapi, ili stavka u listi ispod) prikazuje
- *     statistiku regiona (aktivni / ukupno registrovanih igrača) — broj
- *     1./2./3. mesta na rang listi je namerno isključen, dolazi naknadno
- *     (vidi {@link RegionStats})
+ *     statistiku regiona: aktivni/ukupno igrača, zvezde u tekućem ciklusu,
+ *     i kumulativni broj 1./2./3. mesta kroz sve odigrane cikluse
  *
- * Tačke b) i e) (mesečna rang lista po regionima i zlatni/srebrni/
- * bronzani okvir avatara za igrače iz top regiona) NISU implementirane
- * ovde — zavise od mesečne rang liste po regionima koju radi student
- * zadužen za "4. Rang lista", i biće dodate kada taj deo postoji.
+ * Tačka e) (zlatni/srebrni/bronzani okvir avatara za igrače čiji je
+ * region bio 1./2./3. na PRETHODNOM ciklusu) je implementirana u
+ * {@code ProfileFragment} (gde se avatar zapravo prikazuje), ne ovde.
  *
  * Koristi osmdroid (OpenStreetMap) — besplatna biblioteka, ne zahteva
  * API key, samo internet konekciju za preuzimanje tile-ova mape.
@@ -58,6 +58,7 @@ public class RegionsMapFragment extends Fragment {
     private MapView mapView;
     private ProgressBar progressMap;
     private LinearLayout layoutRegionList;
+    private LinearLayout layoutMonthlyRanking;
     private RegionViewModel viewModel;
 
     private SerbianRegion myRegion;
@@ -87,6 +88,7 @@ public class RegionsMapFragment extends Fragment {
         mapView          = view.findViewById(R.id.osmMapView);
         progressMap      = view.findViewById(R.id.progressMap);
         layoutRegionList = view.findViewById(R.id.layoutRegionList);
+        layoutMonthlyRanking = view.findViewById(R.id.layoutMonthlyRanking);
 
         setupMap();
 
@@ -119,8 +121,58 @@ public class RegionsMapFragment extends Fragment {
             }
         });
 
+        // Mesečna rang lista regiona po zvezdama (5.b)
+        viewModel.getMonthlyRanking().observe(getViewLifecycleOwner(), this::buildMonthlyRanking);
+
         viewModel.loadMapPoints();
+        viewModel.loadMonthlyRanking();
         loadMyRegion(currentUid);
+    }
+
+    /** Izgradi prikaz mesečne rang liste regiona (5.b), sa istaknutim "tvojim" regionom. */
+    private void buildMonthlyRanking(List<RegionMonthlyRankEntry> ranking) {
+        if (layoutMonthlyRanking == null || ranking == null) return;
+        layoutMonthlyRanking.removeAllViews();
+
+        for (int i = 0; i < ranking.size(); i++) {
+            RegionMonthlyRankEntry entry = ranking.get(i);
+            View row = LayoutInflater.from(requireContext())
+                    .inflate(R.layout.item_region_monthly_rank, layoutMonthlyRanking, false);
+
+            TextView tvPosition   = row.findViewById(R.id.tvRankPosition);
+            TextView tvIcon       = row.findViewById(R.id.tvRankIcon);
+            TextView tvRegionName = row.findViewById(R.id.tvRankRegionName);
+            TextView tvStars      = row.findViewById(R.id.tvRankStars);
+
+            int position = i + 1;
+            tvPosition.setText(position + ".");
+            tvIcon.setText(entry.region.icon);
+            tvStars.setText(entry.totalStars + " ⭐");
+
+            boolean isMine = entry.region == myRegion;
+            String label = isMine
+                    ? entry.region.displayName + "  (tvoj region)"
+                    : entry.region.displayName;
+            tvRegionName.setText(label);
+            tvRegionName.setTypeface(null, isMine
+                    ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+
+            if (isMine) {
+                row.setBackgroundColor(0x30426BC2); // blago plavo isticanje reda
+            }
+
+            layoutMonthlyRanking.addView(row);
+
+            if (i < ranking.size() - 1) {
+                View separator = new View(requireContext());
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, 1);
+                params.setMargins(dp(12), 0, dp(12), 0);
+                separator.setLayoutParams(params);
+                separator.setBackgroundColor(0xFFEEEEEE);
+                layoutMonthlyRanking.addView(separator);
+            }
+        }
     }
 
     /** Inicijalizuj OpenStreetMap podlogu i nacrtaj granice 6 regiona kao poligone. */
@@ -222,9 +274,12 @@ public class RegionsMapFragment extends Fragment {
                 .addOnSuccessListener(doc -> {
                     if (!isAdded()) return; // Fragment je u međuvremenu uklonjen sa ekrana
                     myRegion = SerbianRegion.fromDisplayName(doc.getString("region"));
-                    // Ponovo izgradi legendu da se oznaka "tvoj region" prikaže
-                    // i ako je ovaj odgovor stigao posle prvog crtanja liste.
+                    // Ponovo izgradi legendu i mesečni rang da se oznaka "tvoj
+                    // region" prikaže i ako je ovaj odgovor stigao posle prvog
+                    // crtanja tih lista.
                     buildRegionLegend();
+                    List<RegionMonthlyRankEntry> cachedRanking = viewModel.getMonthlyRanking().getValue();
+                    if (cachedRanking != null) buildMonthlyRanking(cachedRanking);
                 });
     }
 

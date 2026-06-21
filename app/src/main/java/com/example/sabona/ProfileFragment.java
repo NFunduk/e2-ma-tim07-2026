@@ -28,6 +28,7 @@ public class ProfileFragment extends Fragment {
 
     // Header views
     private ImageView imgAvatar;
+    private ImageView imgAvatarBorder;
     private TextView tvUsername, tvEmail, tvRegion, tvTokens, tvStars, tvLeague;
     private ImageView imgLeagueIcon;
     private View layoutLeagueRow;
@@ -112,6 +113,7 @@ public class ProfileFragment extends Fragment {
 
     private void initHeaderViews(View view) {
         imgAvatar    = view.findViewById(R.id.imgAvatar);
+        imgAvatarBorder = view.findViewById(R.id.imgAvatarBorder);
         tvUsername   = view.findViewById(R.id.tvUsername);
         tvEmail      = view.findViewById(R.id.tvEmail);
         tvRegion     = view.findViewById(R.id.tvRegion);
@@ -151,6 +153,11 @@ public class ProfileFragment extends Fragment {
             if (tvUsername != null) tvUsername.setText(getStr(data, "username", "—"));
             if (tvEmail    != null) tvEmail.setText(getStr(data, "email", "—"));
             if (tvRegion   != null) tvRegion.setText(getStr(data, "region", "—"));
+
+            // Specifikacija 5.e — okvir avatara u zlatnoj/srebrnoj/bronzanoj
+            // boji ako je region igrača bio 1./2./3. na PRETHODNOM (najskorije
+            // arhiviranom) mesečnom ciklusu regiona.
+            applyAvatarBorderForRegion(getStr(data, "region", null));
 
             long tokens = getLong(data, "tokens", 0);
             long stars  = getLong(data, "stars", 0);
@@ -212,6 +219,53 @@ public class ProfileFragment extends Fragment {
             case 5:  return 0xFFCE93D8; // Dijamantska
             default: return 0xFFBDBDBD; // Nulta
         }
+    }
+
+    // ─── Okvir avatara po regionu (specifikacija 5.e) ───────────────────────────
+    /**
+     * Ako je region igrača bio 1./2./3. na PRETHODNOM (poslednjem
+     * arhiviranom) mesečnom ciklusu rang liste regiona, oboji
+     * {@code imgAvatarBorder} zlatnom/srebrnom/bronzanom bojom. Ako region
+     * nije bio u top 3 (ili arhiva ne postoji još, npr. nijedan ciklus
+     * još nije završen), vrati okvir na neutralnu boju.
+     */
+    private void applyAvatarBorderForRegion(String regionName) {
+        if (imgAvatarBorder == null) return;
+
+        com.example.sabona.region.SerbianRegion region =
+                com.example.sabona.region.SerbianRegion.fromDisplayName(regionName);
+        if (region == null) {
+            imgAvatarBorder.setColorFilter(0xFFBDBDBD); // nema region → neutralna boja
+            return;
+        }
+
+        new com.example.sabona.region.RegionRepository().loadLastCycleResultForRegion(
+                region,
+                new com.example.sabona.region.RegionRepository.LastCycleResultCallback() {
+                    @Override
+                    public void onSuccess(com.example.sabona.region.RegionCycleResult result) {
+                        if (!isAdded() || imgAvatarBorder == null) return; // fragment je u međuvremenu uklonjen
+
+                        if (result == null) {
+                            imgAvatarBorder.setColorFilter(0xFFBDBDBD); // region nije bio u top 3
+                            return;
+                        }
+
+                        switch (result.position) {
+                            case 1: imgAvatarBorder.setColorFilter(0xFFFFD700); break; // zlatna
+                            case 2: imgAvatarBorder.setColorFilter(0xFFC0C0C0); break; // srebrna
+                            case 3: imgAvatarBorder.setColorFilter(0xFFCD7F32); break; // bronzana
+                            default: imgAvatarBorder.setColorFilter(0xFFBDBDBD);
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        // Tiho zadrži postojeću/neutralnu boju — okvir avatara
+                        // nije kritična funkcionalnost da bismo prekidali korisnika
+                        // toast porukom zbog greške u učitavanju.
+                    }
+                });
     }
 
     // ─── Avatar ────────────────────────────────────────────────────────────────

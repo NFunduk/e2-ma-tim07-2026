@@ -14,12 +14,14 @@ import java.util.Map;
  *  - listu tačaka za mapu (jedna po registrovanom igraču)
  *  - statistiku po regionu (za dijalog prikazan na klik na region)
  *  - trenutni region ulogovanog igrača (da se njegova zona posebno označi)
+ *  - mesečnu rang listu regiona po zvezdama (5.b)
  */
 public class RegionViewModel extends ViewModel {
 
     private final MutableLiveData<List<RegionMapPoint>> mapPoints = new MutableLiveData<>();
     private final MutableLiveData<Map<SerbianRegion, RegionStats>> statsByRegion = new MutableLiveData<>();
     private final MutableLiveData<SerbianRegion> myRegion = new MutableLiveData<>();
+    private final MutableLiveData<List<RegionMonthlyRankEntry>> monthlyRanking = new MutableLiveData<>();
     private final MutableLiveData<String> error = new MutableLiveData<>();
     private final MutableLiveData<Boolean> loading = new MutableLiveData<>(false);
 
@@ -28,6 +30,7 @@ public class RegionViewModel extends ViewModel {
     public LiveData<List<RegionMapPoint>> getMapPoints()          { return mapPoints; }
     public LiveData<Map<SerbianRegion, RegionStats>> getStatsByRegion() { return statsByRegion; }
     public LiveData<SerbianRegion> getMyRegion()                  { return myRegion; }
+    public LiveData<List<RegionMonthlyRankEntry>> getMonthlyRanking() { return monthlyRanking; }
     public LiveData<String> getError()                            { return error; }
     public LiveData<Boolean> getLoading()                         { return loading; }
 
@@ -53,12 +56,27 @@ public class RegionViewModel extends ViewModel {
         });
     }
 
-    /** Učitaj statistiku (aktivni / ukupno) za svaki region. */
+    /** Učitaj statistiku (aktivni / ukupno / mesečne zvezde / kumulativni plasmani) za svaki region. */
     public void loadRegionStats() {
         repository.loadRegionStats(new RegionRepository.StatsCallback() {
             @Override
             public void onSuccess(Map<SerbianRegion, RegionStats> stats) {
                 statsByRegion.setValue(stats);
+            }
+
+            @Override
+            public void onError(String message) {
+                error.setValue(message);
+            }
+        });
+    }
+
+    /** Učitaj mesečnu rang listu regiona po zvezdama (5.b). */
+    public void loadMonthlyRanking() {
+        repository.loadMonthlyRegionRanking(new RegionRepository.MonthlyRankingCallback() {
+            @Override
+            public void onSuccess(List<RegionMonthlyRankEntry> ranking) {
+                monthlyRanking.setValue(ranking);
             }
 
             @Override
