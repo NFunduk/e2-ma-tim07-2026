@@ -147,6 +147,11 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        if (FirebaseAuth.getInstance().getCurrentUser() != null) {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken()
+                    .addOnSuccessListener(com.example.sabona.utils.MyFirebaseMessagingService::saveTokenToFirestore);
+        }
+
         if (getIntent() != null &&
                 getIntent().getBooleanExtra("open_notifications", false)) {
             if (navController.getCurrentDestination() != null &&
