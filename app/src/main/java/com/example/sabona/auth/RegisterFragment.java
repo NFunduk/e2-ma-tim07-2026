@@ -74,6 +74,7 @@ public class RegisterFragment extends Fragment {
 
         viewModel.getRegisterSuccess().observe(getViewLifecycleOwner(), success -> {
             if (Boolean.TRUE.equals(success)) {
+                viewModel.resetRegisterSuccess();
                 Toast.makeText(requireContext(),
                         "Registracija uspešna! Proveri email.",
                         Toast.LENGTH_LONG).show();

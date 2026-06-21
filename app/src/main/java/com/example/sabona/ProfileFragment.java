@@ -93,10 +93,18 @@ public class ProfileFragment extends Fragment {
             android.widget.Button btnGuestLogin = layoutGuest.findViewById(R.id.btnGuestLogin);
             if (btnGuestLogin != null) {
                 btnGuestLogin.setOnClickListener(v -> {
-                    androidx.navigation.NavController navController =
-                            androidx.navigation.Navigation.findNavController(
-                                    requireActivity(), R.id.navHostFragment);
-                    navController.navigate(R.id.action_profile_to_login);
+                    try {
+                        androidx.navigation.NavController navController =
+                                androidx.navigation.Navigation.findNavController(
+                                        requireActivity(), R.id.navHostFragment);
+                        navController.navigate(R.id.action_profile_to_login);
+                    } catch (Exception e) {
+                        // Ako navigacija ne uspe (npr. nepredviđeno stanje back stacka),
+                        // bar obavesti korisnika umesto da dugme izgleda "mrtvo".
+                        Toast.makeText(requireContext(),
+                                "Greška pri otvaranju prijave, pokušaj ponovo.",
+                                Toast.LENGTH_SHORT).show();
+                    }
                 });
             }
         }

@@ -16,8 +16,6 @@ import androidx.navigation.fragment.NavHostFragment;
 
 import com.example.sabona.R;
 import com.google.android.material.textfield.TextInputEditText;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
 
 public class LoginFragment extends Fragment {
 
@@ -37,12 +35,16 @@ public class LoginFragment extends Fragment {
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        FirebaseUser current = FirebaseAuth.getInstance().getCurrentUser();
-        if (current != null && current.isEmailVerified()) {
-            NavHostFragment.findNavController(this)
-                    .navigate(R.id.action_login_to_home);
-            return;
-        }
+        // NAPOMENA: Namjerno NEMA auto-redirect na home čak i ako je korisnik
+        // već ulogovan. Ta provjera je ranije izazivala bug – kad bi se
+        // LoginFragment ponovo kreirao odmah nakon logout-a (npr. iz
+        // ViewPager2 djeteta u Profilu), Firebase Auth state ponekad još
+        // nije stigao da se ažurira na svim slušaocima, pa bi
+        // getCurrentUser() kratko vratio "starog" korisnika i odmah
+        // preusmjerio nazad na Home – kao da logout uopšte nije uspio.
+        //
+        // Provjera "već ulogovan → idi na home" sada se radi JEDNOM,
+        // samo pri startu aplikacije, u MainActivity.onCreate().
 
         viewModel = new ViewModelProvider(requireActivity()).get(AuthViewModel.class);
 
@@ -66,6 +68,7 @@ public class LoginFragment extends Fragment {
 
         viewModel.getLoginSuccess().observe(getViewLifecycleOwner(), success -> {
             if (Boolean.TRUE.equals(success)) {
+                viewModel.resetLoginSuccess();
                 NavHostFragment.findNavController(this)
                         .navigate(R.id.action_login_to_home);
             }
