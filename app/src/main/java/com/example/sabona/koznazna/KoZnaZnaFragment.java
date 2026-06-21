@@ -101,8 +101,17 @@ public class KoZnaZnaFragment extends Fragment {
 
         Bundle passedArgs = getArguments();
         if (passedArgs != null && !passedArgs.getString("sessionId", "").isEmpty()) {
-            vm.initWithSession(uid, passedArgs.getString("sessionId"),
-                    passedArgs.getBoolean("isHost", true));
+            String sessionId = passedArgs.getString("sessionId");
+            boolean isHost    = passedArgs.getBoolean("isHost", true);
+            String hostUid    = passedArgs.getString("hostUid", "");
+
+            if (isHost) {
+                com.example.sabona.game.GameSessionManager.get().setupAsHost(sessionId);
+            } else {
+                com.example.sabona.game.GameSessionManager.get().setupAsGuest(sessionId, hostUid);
+            }
+
+            vm.initWithSession(uid, sessionId, isHost);
         } else {
             vm.init(uid);
         }

@@ -185,7 +185,11 @@ public class KoZnaZnaViewModel extends ViewModel {
                     sessionId = pendingSessionId;
                     isHost    = pendingIsHost;
                     soloMode  = false;
-                    //if (isHost) createSession(pendingSessionId); else joinSession(pendingSessionId);
+                    if (isHost) {
+                        createSessionSilent(pendingSessionId);
+                    } else {
+                        joinExistingSession(pendingSessionId);
+                    }
                 } else {
                     phase.setValue(Phase.WAITING_P2); // Signal Fragmentu da prikaže dialog
                 }
@@ -595,94 +599,6 @@ public class KoZnaZnaViewModel extends ViewModel {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // Solo mod
-    // ═════════════════════════════════════════════════════════════════════════
-
-    /*private void handleSoloAnswer(int answerIndex, boolean correct, long elapsed,
-                                  KoZnaZnaRepository.Question q) {
-        if (!soloWaitingP2) {
-            soloP1Answer     = answerIndex;
-            soloP1AnswerTime = elapsed;
-            soloWaitingP2    = true;
-
-            p1Status.setValue(correct ? "Igrač 1 ✅" : "Igrač 1 ❌");
-            infoText.setValue(correct
-                    ? "🎯 Igrač 1 tačno! Igrač 2, tvoj red!"
-                    : "🎯 Igrač 2 bira odgovor!");
-            // Fragment treba da reaguje na soloWaitingP2=true i omogući dugmad za P2
-            questionEvent.setValue(new Event<>(currentQuestionIndex)); // re-signal za P2 turn
-        } else {
-            soloP2Answer     = answerIndex;
-            soloP2AnswerTime = elapsed;
-            soloWaitingP2    = false;
-            p2Status.setValue(correct ? "Igrač 2 ✅" : "Igrač 2 ❌");
-            soloFinishQuestion(q);
-        }
-    }
-
-    private void handleSoloTimeout() {
-        KoZnaZnaRepository.Question q = questions.get(currentQuestionIndex);
-        if (!soloWaitingP2) {
-            soloP1Answer     = -2;
-            soloP1AnswerTime = 99999;
-            soloWaitingP2    = true;
-            p1Status.setValue("Igrač 1 ⌛");
-            infoText.setValue("🎯 Igrač 2 bira odgovor!");
-            // Fragment ponovo omogući dugmad i restart timer za P2
-            questionEvent.setValue(new Event<>(currentQuestionIndex));
-            startTimer();
-        } else {
-            soloP2Answer  = -2;
-            soloWaitingP2 = false;
-            p2Status.setValue("Igrač 2 ⌛");
-            soloFinishQuestion(q);
-        }
-    }
-
-    private void soloFinishQuestion(KoZnaZnaRepository.Question q) {
-        if (timer != null) timer.cancel();
-
-        boolean p1Correct = (soloP1Answer != -2) && (soloP1Answer == q.correctIndex);
-        boolean p2Correct = (soloP2Answer != -2) && (soloP2Answer == q.correctIndex);
-
-        if (p1Correct && p2Correct) {
-            if (soloP1AnswerTime <= soloP2AnswerTime) { p1Score += 10; infoText.setValue("🏆 Igrač 1 bio brži! +10"); }
-            else                                       { p2Score += 10; infoText.setValue("🏆 Igrač 2 bio brži! +10"); }
-        } else if (p1Correct) {
-            p1Score += 10;
-            if (soloP2Answer != -2) p2Score -= 5;
-            infoText.setValue("🏆 Igrač 1 tačno! +10");
-        } else if (p2Correct) {
-            p2Score += 10;
-            if (soloP1Answer != -2) p1Score -= 5;
-            infoText.setValue("🏆 Igrač 2 tačno! +10");
-        } else {
-            if (soloP1Answer != -2) p1Score -= 5;
-            if (soloP2Answer != -2) p2Score -= 5;
-            infoText.setValue("❌ Niko nije tačno odgovorio.");
-        }
-
-        correctIndex.setValue(q.correctIndex);
-        player1Score.setValue(p1Score);
-        player2Score.setValue(p2Score);
-        phase.setValue(Phase.RESULT);
-        resultEvent.setValue(new Event<>("solo_done"));
-
-        soloP1Answer = soloP2Answer = -1;
-        soloP1AnswerTime = soloP2AnswerTime = 0;
-
-        new CountDownTimer(2000, 2000) {
-            @Override public void onTick(long ms) {}
-            @Override public void onFinish() {
-                currentQuestionIndex++;
-                lastRenderedQIndex = -1;
-                if (currentQuestionIndex < questions.size()) renderQuestion();
-                else triggerGameOver();
-            }
-        }.start();
-    }*/
-
-    // ═════════════════════════════════════════════════════════════════════════
     // Kraj igre
     // ═════════════════════════════════════════════════════════════════════════
 
@@ -757,5 +673,101 @@ public class KoZnaZnaViewModel extends ViewModel {
         if (v instanceof Long)    return (Long) v;
         if (v instanceof Integer) return ((Integer) v).longValue();
         return 0L;
+    }
+
+    /** Host strana — kreira Firestore sesiju kad je sessionId već prosleđen (prijateljska partija / matchmaking) */
+    private void createSessionSilent(String sid) {
+        sessionId = sid;
+        isHost    = true;
+
+        sessionRef = db.collection("gameSessions")
+                .document(sessionId)
+                .collection("games")
+                .document("kzz");
+
+        List<KoZnaZnaRepository.Question> shuffled = new ArrayList<>(allQuestions);
+        Collections.shuffle(shuffled);
+        List<KoZnaZnaRepository.Question> picked = shuffled.size() > 5
+                ? shuffled.subList(0, 5) : shuffled;
+
+        List<String> ids = new ArrayList<>();
+        for (KoZnaZnaRepository.Question q : picked) {
+            if (q.docId != null) ids.add(q.docId);
+        }
+        orderedQuestionIds = ids;
+        questions = new ArrayList<>(picked);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("phase",         "waiting_p2");
+        data.put("questionIndex", 0);
+        data.put("questionIds",   ids);
+        data.put("p1Score",       0);
+        data.put("p2Score",       0);
+        data.put("p1Answer",      -1);
+        data.put("p2Answer",      -1);
+        data.put("p1AnswerTime",  0L);
+        data.put("p2AnswerTime",  0L);
+        data.put("winner",        "");
+        data.put("hostUid",       myUid);
+
+        sessionRef.set(data)
+                .addOnSuccessListener(v -> {
+                    waitingMsg.setValue("Čekam Igrača 2...");
+                    phase.setValue(Phase.WAITING_P2);
+                    startListening();
+                })
+                .addOnFailureListener(e ->
+                        infoText.setValue("Greška: " + e.getMessage()));
+    }
+
+    /** Guest strana — pridružuje se Firestore sesiji koju je host (ili guest preko KoZnaZnaFragment) već kreirao/kreira */
+    private void joinExistingSession(String sid) {
+        sessionId = sid;
+        isHost    = false;
+
+        sessionRef = db.collection("gameSessions")
+                .document(sessionId)
+                .collection("games")
+                .document("kzz");
+
+        waitingMsg.setValue("Čekam host da kreira partiju...");
+        phase.setValue(Phase.WAITING_P2);
+        waitForSessionThenJoin();
+    }
+
+    private void waitForSessionThenJoin() {
+        sessionRef.get().addOnSuccessListener(snap -> {
+            if (snap.exists()) {
+                doJoinSession(snap);
+            } else {
+                new android.os.Handler(android.os.Looper.getMainLooper())
+                        .postDelayed(this::waitForSessionThenJoin, 1000);
+            }
+        }).addOnFailureListener(e -> infoText.setValue("Greška spajanja: " + e.getMessage()));
+    }
+
+    private void doJoinSession(com.google.firebase.firestore.DocumentSnapshot snap) {
+        List<?> rawIds = (List<?>) snap.get("questionIds");
+        if (rawIds != null) {
+            orderedQuestionIds.clear();
+            for (Object o : rawIds) orderedQuestionIds.add(String.valueOf(o));
+        }
+
+        if (!buildOrderedQuestions()) {
+            infoText.setValue("Greška mapiranja pitanja!");
+            return;
+        }
+
+        Map<String, Object> update = new HashMap<>();
+        update.put("phase",    "question");
+        update.put("guestUid", myUid);
+
+        sessionRef.update(update)
+                .addOnSuccessListener(v -> {
+                    waitingMsg.setValue("Pridružen! Počinjemo...");
+                    startListening();
+                })
+                .addOnFailureListener(e ->
+                        infoText.setValue("Greška: " + e.getMessage()));
     }
 }

@@ -541,7 +541,7 @@ public class SpojniceViewModel extends ViewModel {
                     if (!roundFinished) {
                         if (timer != null) timer.cancel();
                         infoText.postValue("Protivnik je napustio partiju. Nastavljaš ti.");
-                        advancePhase(false);
+                        advancePhase(false, true);
                     }
                 });
     }
@@ -590,6 +590,10 @@ public class SpojniceViewModel extends ViewModel {
     }
 
     private void advancePhase(boolean allConnected) {
+        advancePhase(allConnected, false);
+    }
+
+    private void advancePhase(boolean allConnected, boolean opponentAbandoned) {
         if (timer != null) timer.cancel();
         roundFinished = true;
 
@@ -604,9 +608,9 @@ public class SpojniceViewModel extends ViewModel {
             default:         nextPhase = PHASE_DONE; break;
         }
 
-        String finalNext = nextPhase;
+        boolean shouldWrite = isHost || opponentAbandoned;
 
-        if (isHost) {
+        if (shouldWrite) {
             Map<String, Object> update = new HashMap<>();
             update.put("phase", nextPhase);
             if (PHASE_R2_A.equals(nextPhase)) {
@@ -617,7 +621,6 @@ public class SpojniceViewModel extends ViewModel {
             sessionRef.update(update);
         }
         infoText.setValue("Runda završena...");
-
     }
 
     // ═════════════════════════════════════════════════════════════════════════

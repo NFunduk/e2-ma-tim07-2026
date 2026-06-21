@@ -20,6 +20,7 @@ import androidx.navigation.fragment.NavHostFragment;
 
 import com.example.sabona.MainActivity;
 import com.example.sabona.R;
+import com.example.sabona.game.GameSessionManager;
 import com.example.sabona.spojnice.SpojniceRepository.SpojniceQuestion;
 import com.google.firebase.auth.FirebaseAuth;
 
@@ -172,7 +173,7 @@ public class SpojniceFragment extends Fragment {
                 Bundle navArgs = new Bundle();
                 navArgs.putString("sessionId", vm.getSessionId());
                 navArgs.putBoolean("isHost",   vm.isHost());
-                navArgs.putString("hostUid",   vm.getMyUid());
+                navArgs.putString("hostUid", GameSessionManager.get().getPlayer1Uid());
                 NavHostFragment.findNavController(this)
                         .navigate(R.id.action_spojnice_to_associations, navArgs);
             } catch (Exception e) {

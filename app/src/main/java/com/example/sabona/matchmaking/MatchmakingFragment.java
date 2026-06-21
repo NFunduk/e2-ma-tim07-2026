@@ -37,10 +37,11 @@ public class MatchmakingFragment extends Fragment {
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        com.example.sabona.game.GameSessionManager.get().reset();
+
         tvStatus    = view.findViewById(R.id.tvMatchmakingStatus);
         progressBar = view.findViewById(R.id.progressBarMatchmaking);
         btnCancel   = view.findViewById(R.id.btnCancelMatchmaking);
-
         viewModel = new ViewModelProvider(this).get(MatchmakingViewModel.class);
 
         String uid = FirebaseAuth.getInstance().getCurrentUser() != null

@@ -339,6 +339,7 @@ public class NotificationFragment extends Fragment {
                     Bundle args = new Bundle();
                     args.putString("sessionId", sessionId);
                     args.putBoolean("isHost", false);
+                    args.putString("hostUid", fromUid);
 
                     try {
                         Navigation.findNavController(requireView())
