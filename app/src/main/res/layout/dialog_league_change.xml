@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:padding="28dp">
+
+    <!-- Strelica gore/dolje (zamijeniti custom drawable-om) -->
+    <ImageView
+        android:id="@+id/ivLeagueChangeArrow"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:scaleType="fitCenter"
+        android:layout_marginBottom="16dp"
+        android:contentDescription="Promjena lige"/>
+
+    <!-- Naslov: Napredak ili Pad -->
+    <TextView
+        android:id="@+id/tvLeagueChangeTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Napredak u ligi!"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="@color/colorPrimary"
+        android:gravity="center"
+        android:layout_marginBottom="12dp"/>
+
+    <!-- Opis -->
+    <TextView
+        android:id="@+id/tvLeagueChangeMessage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="15sp"
+        android:textColor="#333333"
+        android:gravity="center"
+        android:lineSpacingMultiplier="1.3"
+        android:layout_marginBottom="24dp"/>
+
+    <!-- Dugme OK -->
+    <Button
+        android:id="@+id/btnLeagueChangeOk"
+        android:layout_width="160dp"
+        android:layout_height="48dp"
+        android:text="OK"
+        android:textSize="15sp"
+        android:backgroundTint="@color/colorPrimary"/>
+
+</LinearLayout>

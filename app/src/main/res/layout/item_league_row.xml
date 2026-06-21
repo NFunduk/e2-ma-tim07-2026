@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Red u tabeli svih liga.
+  Programski se popunjava u LeagueProgressFragment ili posebnom Adapteru.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="8dp">
+
+    <!-- Ikona lige -->
+    <ImageView
+        android:id="@+id/ivRowLeagueIcon"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="Ikona"
+        android:layout_marginEnd="12dp"/>
+
+    <!-- Naziv i prag -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvRowLeagueName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textStyle="bold"
+            android:textSize="14sp"
+            android:textColor="#222222"/>
+
+        <TextView
+            android:id="@+id/tvRowLeagueThreshold"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="#777777"/>
+
+    </LinearLayout>
+
+    <!-- Bonus tokeni -->
+    <TextView
+        android:id="@+id/tvRowLeagueBonus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="13sp"
+        android:textColor="@color/colorPrimary"
+        android:textStyle="bold"/>
+
+</LinearLayout>

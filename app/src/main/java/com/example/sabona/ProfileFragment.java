@@ -16,6 +16,7 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
 import androidx.viewpager2.widget.ViewPager2;
 
+import com.example.sabona.league.League;
 import com.example.sabona.viewModel.ProfileViewModel;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
@@ -29,6 +30,7 @@ public class ProfileFragment extends Fragment {
     private ImageView imgAvatar;
     private TextView tvUsername, tvEmail, tvRegion, tvTokens, tvStars, tvLeague;
     private ImageView imgLeagueIcon;
+    private View layoutLeagueRow;
 
     // Guest / logged-in layouts
     private View layoutLoggedIn;
@@ -91,10 +93,18 @@ public class ProfileFragment extends Fragment {
             android.widget.Button btnGuestLogin = layoutGuest.findViewById(R.id.btnGuestLogin);
             if (btnGuestLogin != null) {
                 btnGuestLogin.setOnClickListener(v -> {
-                    androidx.navigation.NavController navController =
-                            androidx.navigation.Navigation.findNavController(
-                                    requireActivity(), R.id.navHostFragment);
-                    navController.navigate(R.id.action_profile_to_login);
+                    try {
+                        androidx.navigation.NavController navController =
+                                androidx.navigation.Navigation.findNavController(
+                                        requireActivity(), R.id.navHostFragment);
+                        navController.navigate(R.id.action_profile_to_login);
+                    } catch (Exception e) {
+                        // Ako navigacija ne uspe (npr. nepredviđeno stanje back stacka),
+                        // bar obavesti korisnika umesto da dugme izgleda "mrtvo".
+                        Toast.makeText(requireContext(),
+                                "Greška pri otvaranju prijave, pokušaj ponovo.",
+                                Toast.LENGTH_SHORT).show();
+                    }
                 });
             }
         }
@@ -109,6 +119,7 @@ public class ProfileFragment extends Fragment {
         tvStars      = view.findViewById(R.id.tvStars);
         tvLeague     = view.findViewById(R.id.tvLeague);
         imgLeagueIcon = view.findViewById(R.id.imgLeagueIcon);
+        layoutLeagueRow = view.findViewById(R.id.layoutLeagueRow);
     }
 
     private void observeViewModel() {
@@ -143,14 +154,44 @@ public class ProfileFragment extends Fragment {
 
             long tokens = getLong(data, "tokens", 0);
             long stars  = getLong(data, "stars", 0);
-            int  league = (int) getLong(data, "league", 0);
+            int  leagueIndex = (int) getLong(data, "league", 0);
 
             if (tvTokens != null) tvTokens.setText(String.valueOf(tokens));
             if (tvStars  != null) tvStars.setText(String.valueOf(stars));
 
-            String leagueName = (league >= 0 && league < LEAGUE_NAMES.length)
-                    ? LEAGUE_NAMES[league] : "Liga " + league;
-            if (tvLeague != null) tvLeague.setText(leagueName);
+            // Koristimo League enum za naziv i ikonu
+            League league = League.fromIndex(leagueIndex);
+            if (tvLeague != null) tvLeague.setText(league.displayName);
+
+            // Postavi ikonu lige – svaka liga ima svoju boju da se razlikuje na profilu
+            if (imgLeagueIcon != null) {
+                int iconResId = getResources().getIdentifier(
+                        league.iconResName, "drawable", requireContext().getPackageName());
+                if (iconResId != 0) {
+                    imgLeagueIcon.setImageResource(iconResId);
+                }
+                imgLeagueIcon.setColorFilter(leagueAccentColor(league.index));
+            }
+
+            // Klik na cijeli red (ikonica + naziv + strelica) → otvori ekran napretka
+            if (layoutLeagueRow != null) {
+                layoutLeagueRow.setOnClickListener(v ->
+                        androidx.navigation.Navigation.findNavController(
+                                        requireActivity(), R.id.navHostFragment)
+                                .navigate(R.id.action_profile_to_league));
+
+                // Dugi pritisak na red lige → meni za testiranje napredovanja kroz lige
+                // (samo u debug buildu, ne ide u produkciju)
+                boolean isDebugBuild = (requireContext().getApplicationInfo().flags
+                        & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+                if (isDebugBuild) {
+                    layoutLeagueRow.setOnLongClickListener(v -> {
+                        com.example.sabona.league.LeagueTestMenu.show(
+                                requireContext(), getChildFragmentManager());
+                        return true;
+                    });
+                }
+            }
 
             String avatarRes = getStr(data, "avatarRes", null);
             if (avatarRes != null && imgAvatar != null) {
@@ -158,6 +199,19 @@ public class ProfileFragment extends Fragment {
                 if (resId != 0) imgAvatar.setImageResource(resId);
             }
         });
+    }
+
+    // ─── Boje liga ────────────────────────────────────────────────────────────
+    /** Vraća akcentnu boju za ikonu lige u headeru profila (po indeksu 0–5). */
+    private int leagueAccentColor(int leagueIndex) {
+        switch (leagueIndex) {
+            case 1:  return 0xFFCD7F32; // Bronzana
+            case 2:  return 0xFFC0C0C0; // Srebrna
+            case 3:  return 0xFFFFD700; // Zlatna
+            case 4:  return 0xFF00BCD4; // Platinska
+            case 5:  return 0xFFCE93D8; // Dijamantska
+            default: return 0xFFBDBDBD; // Nulta
+        }
     }
 
     // ─── Avatar ────────────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@
     <string name="placeholder_tokens">0</string>
     <string name="placeholder_stars">0</string>
     <string name="placeholder_league">-</string>
+    <string name="league_row_content_description">Otvori prikaz napretka kroz lige</string>
     <string name="placeholder_zero">0</string>
     <string name="placeholder_percent">0%</string>
     <string name="placeholder_stats">0 - 0 bod.</string>
@@ -46,4 +47,31 @@
     <string name="logged_out">Odjavljeni ste</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
+
+    <string name="league_title">Napredak u ligi</string>
+    <string name="league_stars_count">%d zvezda</string>
+    <string name="league_stars_to_next">Još %d ⭐ do sljedeće lige</string>
+    <string name="league_max_reached">Maksimalna liga!</string>
+    <string name="league_daily_bonus">Dnevni tokeni: %d (+%d bonus)</string>
+    <string name="league_all_leagues">Sve lige</string>
+
+    <string name="league_name_0">Nulta liga</string>
+    <string name="league_name_1">Bronzana liga</string>
+    <string name="league_name_2">Srebrna liga</string>
+    <string name="league_name_3">Zlatna liga</string>
+    <string name="league_name_4">Platinska liga</string>
+    <string name="league_name_5">Dijamantska liga</string>
+
+    <string name="league_promoted_title">🏆 Napredak u ligi!</string>
+    <string name="league_demoted_title">⬇ Pad u ligi</string>
+    <string name="league_promoted_msg">Prešao si iz \"%1$s\"\nu \"%2$s\"!\nNastavi sa pobjedama!</string>
+    <string name="league_demoted_msg">Spustio si se iz \"%1$s\"\nna \"%2$s\".\nBori se da se vratiš!</string>
+    <string name="league_change_ok">OK</string>
+
+    <string name="league_threshold_0">Početna liga (0 zvezda)</string>
+    <string name="league_threshold_1">Od 100 zvezda</string>
+    <string name="league_threshold_2">Od 200 zvezda</string>
+    <string name="league_threshold_3">Od 400 zvezda</string>
+    <string name="league_threshold_4">Od 800 zvezda</string>
+    <string name="league_threshold_5">Od 1600 zvezda</string>
 </resources>

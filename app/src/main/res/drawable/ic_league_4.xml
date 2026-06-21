@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Platinska liga – petokraka zvijezda, cyan -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp" android:height="96dp"
+    android:viewportWidth="100" android:viewportHeight="100">
+    <path
+        android:fillColor="#006064"
+        android:pathData="M50,3 L61,37 L97,37 L68,58 L79,93 L50,71 L21,93 L32,58 L3,37 L39,37 Z"/>
+    <path
+        android:fillColor="#00BCD4"
+        android:pathData="M50,15 L58,40 L84,40 L63,55 L71,80 L50,65 L29,80 L37,55 L16,40 L42,40 Z"/>
+    <path
+        android:fillColor="#B2EBF2"
+        android:fillAlpha="0.6"
+        android:pathData="M50,15 L54,28 L50,40 L46,28 Z"/>
+</vector>

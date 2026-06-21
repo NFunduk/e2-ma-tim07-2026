@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.example.sabona.league.League;
 import com.example.sabona.model.AppNotification;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentChange;
@@ -44,7 +45,9 @@ public class MainActivity extends AppCompatActivity {
     private ImageView ivPlayer1Avatar, ivPlayer2Avatar;
     private FirebaseFirestore db;
     private ListenerRegistration notificationsListener;
+    private ListenerRegistration userStatsListener;
     private boolean firstLoadNotifications = true;
+    private FirebaseAuth.AuthStateListener authStateListener;
 
     // Listener za ukupan skor partije (root gameSessions dokument), aktivan samo dok je igrač u igri
     private ListenerRegistration matchScoreListener;
@@ -71,16 +74,29 @@ public class MainActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
-
         bottomNav = findViewById(R.id.bottomNav);
         btnNotifications = findViewById(R.id.btnNotifications);
         Toolbar toolbar = findViewById(R.id.toolbar);
         tvToolbarTitle = findViewById(R.id.tvToolbarTitle);
+
+        // ── Window insets (edge-to-edge) ────────────────────────────────────
+        // Root layout dobija padding samo gore/lijevo/desno (status bar, notch, itd).
+        // Donji sistemski razmak (navigation bar) NE ide na root, nego direktno
+        // na BottomNavigationView ispod – tako traka ide do samog dna ekrana,
+        // bez praznog "praznog reda" obojenog pozadinom root layouta.
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, 0);
+            return insets;
+        });
+
+        // Bottom nav dobija svoj donji inset kao padding – traka i dalje ostaje
+        // potpuno klikabilna i vidljiva iznad sistemske navigacije.
+        ViewCompat.setOnApplyWindowInsetsListener(bottomNav, (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(v.getPaddingLeft(), v.getPaddingTop(), v.getPaddingRight(), systemBars.bottom);
+            return insets;
+        });
 
 
         LinearLayout layoutToolbarNormal = toolbar.findViewById(R.id.layoutToolbarNormal);
@@ -96,10 +112,36 @@ public class MainActivity extends AppCompatActivity {
         ivPlayer2Avatar = toolbar.findViewById(R.id.ivPlayer2Avatar);
 
         LinearLayout layoutStatsChip = toolbar.findViewById(R.id.layoutStatsChip);
+        TextView tvStarsChip  = toolbar.findViewById(R.id.tvStarsChip);
+        TextView tvTokensChip = toolbar.findViewById(R.id.tvTokensChip);
+        TextView tvLeagueChip = toolbar.findViewById(R.id.tvLeagueChip);
+
+        // Toolbar chip prikazuje uvijek aktuelne zvezde / tokene / ligu
+        // ulogovanog igrača, učitane iz Firestore-a u real-time (osvježi se
+        // čim se nešto promijeni, npr. odmah nakon odigrane partije).
+        startListeningForUserStats(tvStarsChip, tvTokensChip, tvLeagueChip);
 
         NavHostFragment navHostFragment = (NavHostFragment)
                 getSupportFragmentManager().findFragmentById(R.id.navHostFragment);
         navController = navHostFragment.getNavController();
+
+        // Ako je korisnik već ulogovan (i email mu je potvrđen), preskoči login
+        // ekran i idi direktno na Home – ali SAMO pri prvom pokretanju Activity-ja
+        // (savedInstanceState == null), ne pri svakoj rekonstrukciji (npr. rotacija
+        // ekrana). Ova provjera namjerno NE postoji u LoginFragment-u – tamo bi
+        // mogla pogrešno da se okine i odmah nakon logout-a (Firebase Auth state
+        // ponekad treba trenutak da se ažurira na svim slušaocima), vraćajući
+        // korisnika nazad na Home kao da se logout nikad nije ni desio.
+        // Start destinacija grafa je uvijek loginFragment, pa ovdje ne treba
+        // dodatno provjeravati getCurrentDestination() (može biti null u ovom
+        // tačnom trenutku pri hladnom startu).
+        if (savedInstanceState == null) {
+            com.google.firebase.auth.FirebaseUser current =
+                    FirebaseAuth.getInstance().getCurrentUser();
+            if (current != null && current.isEmailVerified()) {
+                navController.navigate(R.id.action_login_to_home);
+            }
+        }
 
         if (getIntent() != null &&
                 getIntent().getBooleanExtra("open_notifications", false)) {
@@ -110,6 +152,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
+            android.util.Log.d("NAV_DEBUG", "Destinacija promijenjena → " + destination.getLabel()
+                    + " (id=" + destination.getId() + ")");
+
             boolean isAuth = authDestinations.contains(destination.getId());
             boolean isGame = gameDestinations.contains(destination.getId());
             int id = destination.getId();
@@ -180,12 +225,23 @@ public class MainActivity extends AppCompatActivity {
         });
 
         bottomNav.setOnItemSelectedListener(item -> {
+            // Zaštita: ako smo trenutno na auth ekranu (login/register/verify),
+            // ignoriši svaki klik/auto-trigger sa bottomNav-a – ta traka ne bi
+            // trebalo da bude vidljiva niti aktivna na tim ekranima.
+            if (navController.getCurrentDestination() != null
+                    && authDestinations.contains(navController.getCurrentDestination().getId())) {
+                return false;
+            }
+
             int id = item.getItemId();
             if (id == R.id.home) {
                 navController.navigate(R.id.homeFragment);
                 return true;
             } else if (id == R.id.play) {
                 navController.navigate(R.id.koZnaZnaFragment);
+                return true;
+            } else if (id == R.id.rank) {
+                navController.navigate(R.id.leaderboardFragment);
                 return true;
             } else if (id == R.id.friends) {
                 navController.navigate(R.id.friendsFragment);
@@ -232,9 +288,26 @@ public class MainActivity extends AppCompatActivity {
         });
 
         NotificationHelper.createChannels(this);
+        com.example.sabona.league.DailyTokenWorker.scheduleIfNeeded(this);
 
         db = FirebaseFirestore.getInstance();
         startListeningForSystemNotifications();
+
+        // Kad se korisnik odjavi (logout) – zaustavi Firestore listener za notifikacije
+        // umjesto da nastavi da "visi" do uništenja Activity-ja.
+        authStateListener = firebaseAuth -> {
+            if (firebaseAuth.getCurrentUser() == null) {
+                if (notificationsListener != null) {
+                    notificationsListener.remove();
+                    notificationsListener = null;
+                }
+                if (userStatsListener != null) {
+                    userStatsListener.remove();
+                    userStatsListener = null;
+                }
+            }
+        };
+        FirebaseAuth.getInstance().addAuthStateListener(authStateListener);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissions(
@@ -267,6 +340,39 @@ public class MainActivity extends AppCompatActivity {
         PresenceManager.setOnline(false);
     }
 
+    /**
+     * Prati u realnom vremenu dokument trenutnog korisnika i osvježava
+     * toolbar chip (zvezde / tokeni / liga) čim se nešto promijeni u bazi –
+     * npr. odmah nakon odigrane partije ili dnevnog bonusa tokena.
+     */
+    private void startListeningForUserStats(TextView tvStarsChip,
+                                            TextView tvTokensChip,
+                                            TextView tvLeagueChip) {
+        if (FirebaseAuth.getInstance().getCurrentUser() == null) {
+            return;
+        }
+
+        String uid = FirebaseAuth.getInstance().getCurrentUser().getUid();
+
+        userStatsListener = FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(uid)
+                .addSnapshotListener((snapshot, error) -> {
+                    if (error != null || snapshot == null || !snapshot.exists()) return;
+
+                    long stars  = snapshot.contains("stars")  ? snapshot.getLong("stars")  : 0;
+                    long tokens = snapshot.contains("tokens") ? snapshot.getLong("tokens") : 0;
+                    int leagueIndex = snapshot.contains("league")
+                            ? snapshot.getLong("league").intValue() : 0;
+
+                    League league = League.fromIndex(leagueIndex);
+
+                    if (tvStarsChip  != null) tvStarsChip.setText(String.valueOf(stars));
+                    if (tvTokensChip != null) tvTokensChip.setText(String.valueOf(tokens));
+                    if (tvLeagueChip != null) tvLeagueChip.setText(league.displayName);
+                });
+    }
+
     private void startListeningForSystemNotifications() {
         if (FirebaseAuth.getInstance().getCurrentUser() == null) {
             return;
@@ -292,7 +398,7 @@ public class MainActivity extends AppCompatActivity {
 
                             notification.setId(change.getDocument().getId());
 
-                            if (!notification.isRead()) {
+                            if (!firstLoadNotifications && !notification.isRead()) {
                                 NotificationHelper.showNotification(
                                         MainActivity.this,
                                         notification
@@ -300,6 +406,7 @@ public class MainActivity extends AppCompatActivity {
                             }
                         }
                     }
+                    firstLoadNotifications = false;
                 });
     }
 
@@ -319,7 +426,16 @@ public class MainActivity extends AppCompatActivity {
         if (notificationsListener != null) {
             notificationsListener.remove();
         }
+
+        if (userStatsListener != null) {
+            userStatsListener.remove();
+        }
+        if (authStateListener != null) {
+            FirebaseAuth.getInstance().removeAuthStateListener(authStateListener);
+        }
+        
         stopMatchScoreListener();
+
     }
 
     @Override
