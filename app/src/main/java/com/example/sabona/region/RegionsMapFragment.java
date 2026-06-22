@@ -616,7 +616,7 @@ public class RegionsMapFragment extends Fragment {
                 }})
                 .addOnSuccessListener(ref -> {
                     if (!isAdded()) return;
-                    com.example.sabona.game.GameSessionManager.get().setupAsHost(ref.getId());
+                    com.example.sabona.game.GameSessionManager.get().setupAsSolo(ref.getId());
 
                     Bundle args = new Bundle();
                     args.putString("sessionId", ref.getId());
