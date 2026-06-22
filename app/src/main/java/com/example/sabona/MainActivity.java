@@ -1,5 +1,6 @@
 package com.example.sabona;
 
+import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
@@ -331,13 +332,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-
-        // Aplikacija je u prvom planu → igrač je "online" i dostupan za poziv prijatelja.
-        PresenceManager.setOnline(true);
-
-        if (notificationsListener == null &&
-                FirebaseAuth.getInstance().getCurrentUser() != null) {
-            firstLoadNotifications = true;
+        if (FirebaseAuth.getInstance().getCurrentUser() != null) {
+            PresenceManager.setOnline(true);
+            // App je u prvom planu — servis više ne treba da drži listener,
+            // MainActivity ga preuzima (startListeningForSystemNotifications).
+            stopService(new Intent(this, com.example.sabona.utils.NotificationListenerService.class));
             startListeningForSystemNotifications();
         }
     }
@@ -345,9 +344,18 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-
-        // Aplikacija odlazi u pozadinu → igrač više nije dostupan za novi poziv na partiju.
         PresenceManager.setOnline(false);
+
+        // App ide u pozadinu — predajemo štafetu pozadinskom servisu
+        // koji drži Firestore listener aktivan čak i dok MainActivity spava.
+        if (FirebaseAuth.getInstance().getCurrentUser() != null) {
+            if (notificationsListener != null) {
+                notificationsListener.remove();
+                notificationsListener = null;
+                firstLoadNotifications = true; // reset za sledeći onResume
+            }
+            startForegroundService(new Intent(this, com.example.sabona.utils.NotificationListenerService.class));
+        }
     }
 
     /**
