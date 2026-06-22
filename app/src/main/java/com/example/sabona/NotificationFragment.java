@@ -311,7 +311,19 @@ public class NotificationFragment extends Fragment {
             return;
         }
 
+        if ("leaderboard_reward".equals(notification.getType())) {
+            repository.markAsRead(notification.getId());
+
+            if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).showRewardDialog(notification.getMessage());
+            }
+
+            return;
+        }
+
         repository.markAsRead(notification.getId());
+
+
     }
 
     private void startFriendlyMatchAsGuest(String fromUid, String myUid, String gameRequestId) {

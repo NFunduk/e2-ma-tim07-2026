@@ -2,6 +2,7 @@ package com.example.sabona.leaderboard;
 
 import androidx.annotation.NonNull;
 
+import com.example.sabona.model.AppNotification;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
@@ -10,7 +11,9 @@ import java.util.List;
 import com.example.sabona.repository.NotificationFactory;
 import com.example.sabona.repository.NotificationRepository;
 import com.google.firebase.firestore.FieldValue;
-
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.Tasks;
+import com.google.firebase.firestore.DocumentSnapshot;
 public class LeaderboardRepository {
 
     public interface LeaderboardCallback {
@@ -73,11 +76,13 @@ public class LeaderboardRepository {
     public void addStarsAfterMatch(String uid, int earnedStars) {
         if (uid == null || uid.trim().isEmpty()) return;
 
+        int cycleStars = Math.max(earnedStars, 0);
+
         db.collection("users")
                 .document(uid)
                 .update(
-                        "weeklyStars", FieldValue.increment(earnedStars),
-                        "monthlyStars", FieldValue.increment(earnedStars),
+                        "weeklyStars", FieldValue.increment(cycleStars),
+                        "monthlyStars", FieldValue.increment(cycleStars),
                         "weeklyGamesPlayed", FieldValue.increment(1),
                         "monthlyGamesPlayed", FieldValue.increment(1)
                 );
@@ -176,6 +181,115 @@ public class LeaderboardRepository {
                                 "monthlyGamesPlayed", 0
                         );
                     }
+                });
+    }
+
+    public Task<Void> distributeWeeklyRewardsTask() {
+        return distributeRewardsTask("weeklyStars", "weeklyGamesPlayed", "nedeljnoj", true);
+    }
+
+    public Task<Void> distributeMonthlyRewardsTask() {
+        return distributeRewardsTask("monthlyStars", "monthlyGamesPlayed", "mesečnoj", false);
+    }
+
+    private Task<Void> distributeRewardsTask(String starsField,
+                                             String gamesPlayedField,
+                                             String cycleName,
+                                             boolean weekly) {
+
+        return db.collection("users")
+                .get()
+                .continueWithTask(task -> {
+                    if (!task.isSuccessful() || task.getResult() == null) {
+                        throw task.getException() != null
+                                ? task.getException()
+                                : new Exception("Greška pri učitavanju korisnika");
+                    }
+
+                    List<LeaderboardEntry> list = new ArrayList<>();
+
+                    for (QueryDocumentSnapshot doc : task.getResult()) {
+                        String uid = doc.getId();
+                        String username = doc.getString("username");
+
+                        Long leagueLong = doc.getLong("league");
+                        Long starsLong = doc.getLong(starsField);
+                        Long gamesLong = doc.getLong(gamesPlayedField);
+
+                        int league = leagueLong != null ? leagueLong.intValue() : 0;
+                        int stars = starsLong != null ? starsLong.intValue() : 0;
+                        int games = gamesLong != null ? gamesLong.intValue() : 0;
+
+                        if (games <= 0) continue;
+
+                        if (username == null || username.trim().isEmpty()) {
+                            username = "Nepoznat igrač";
+                        }
+
+                        list.add(new LeaderboardEntry(uid, username, league, stars, games));
+                    }
+
+                    list.sort((a, b) -> Integer.compare(b.getStars(), a.getStars()));
+
+                    int max = Math.min(list.size(), 10);
+                    NotificationRepository notificationRepository = new NotificationRepository();
+
+                    List<Task<?>> tasks = new ArrayList<>();
+
+                    for (int i = 0; i < max; i++) {
+                        LeaderboardEntry entry = list.get(i);
+                        int position = i + 1;
+                        int rewardTokens = getRewardTokens(position, weekly);
+
+                        if (rewardTokens <= 0) continue;
+
+                        Task<Void> tokenTask = db.collection("users")
+                                .document(entry.getUserId())
+                                .update("tokens", FieldValue.increment(rewardTokens));
+
+                        tasks.add(tokenTask);
+
+                        AppNotification notification =
+                                NotificationFactory.leaderboardReward(cycleName, position, rewardTokens);
+
+                        Task<com.google.firebase.firestore.DocumentReference> notifTask =
+                                notificationRepository.createNotificationTask(entry.getUserId(), notification);
+
+                        tasks.add(notifTask);
+                    }
+
+                    return Tasks.whenAll(tasks);
+                });
+    }
+
+    public Task<Void> resetWeeklyCycleTask() {
+        return resetCycleTask("weeklyStars", "weeklyGamesPlayed");
+    }
+
+    public Task<Void> resetMonthlyCycleTask() {
+        return resetCycleTask("monthlyStars", "monthlyGamesPlayed");
+    }
+
+    private Task<Void> resetCycleTask(String starsField, String gamesPlayedField) {
+        return db.collection("users")
+                .get()
+                .continueWithTask(task -> {
+                    if (!task.isSuccessful() || task.getResult() == null) {
+                        throw task.getException() != null
+                                ? task.getException()
+                                : new Exception("Greška pri resetovanju ciklusa");
+                    }
+
+                    List<Task<?>> tasks = new ArrayList<>();
+
+                    for (QueryDocumentSnapshot doc : task.getResult()) {
+                        tasks.add(doc.getReference().update(
+                                starsField, 0,
+                                gamesPlayedField, 0
+                        ));
+                    }
+
+                    return Tasks.whenAll(tasks);
                 });
     }
 }

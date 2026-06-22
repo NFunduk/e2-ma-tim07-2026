@@ -5,7 +5,8 @@ import androidx.annotation.Nullable;
 import com.example.sabona.model.AppNotification;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
-
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.firestore.DocumentReference;
 public class NotificationRepository {
 
     private final FirebaseFirestore db = FirebaseFirestore.getInstance();
@@ -64,5 +65,12 @@ public class NotificationRepository {
         }
 
         return FirebaseAuth.getInstance().getCurrentUser().getUid();
+    }
+
+    public Task<DocumentReference> createNotificationTask(String userId, AppNotification notification) {
+        return db.collection("users")
+                .document(userId)
+                .collection("notifications")
+                .add(notification);
     }
 }

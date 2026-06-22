@@ -153,13 +153,7 @@ public class MainActivity extends AppCompatActivity {
                     .addOnSuccessListener(com.example.sabona.utils.MyFirebaseMessagingService::saveTokenToFirestore);
         }
 
-        if (getIntent() != null &&
-                getIntent().getBooleanExtra("open_notifications", false)) {
-            if (navController.getCurrentDestination() != null &&
-                    navController.getCurrentDestination().getId() != R.id.notificationsFragment) {
-                navController.navigate(R.id.notificationsFragment);
-            }
-        }
+        handleNotificationIntent(getIntent());
 
         navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
             android.util.Log.d("NAV_DEBUG", "Destinacija promijenjena → " + destination.getLabel()
@@ -300,6 +294,7 @@ public class MainActivity extends AppCompatActivity {
 
         NotificationHelper.createChannels(this);
         com.example.sabona.league.DailyTokenWorker.scheduleIfNeeded(this);
+        com.example.sabona.leaderboard.LeaderboardCycleWorker.scheduleIfNeeded(this);
 
         db = FirebaseFirestore.getInstance();
         startListeningForSystemNotifications();
@@ -336,7 +331,7 @@ public class MainActivity extends AppCompatActivity {
             PresenceManager.setOnline(true);
             // App je u prvom planu — servis više ne treba da drži listener,
             // MainActivity ga preuzima (startListeningForSystemNotifications).
-            stopService(new Intent(this, com.example.sabona.utils.NotificationListenerService.class));
+           // stopService(new Intent(this, com.example.sabona.utils.NotificationListenerService.class));
             startListeningForSystemNotifications();
         }
     }
@@ -354,7 +349,7 @@ public class MainActivity extends AppCompatActivity {
                 notificationsListener = null;
                 firstLoadNotifications = true; // reset za sledeći onResume
             }
-            startForegroundService(new Intent(this, com.example.sabona.utils.NotificationListenerService.class));
+           // startForegroundService(new Intent(this, com.example.sabona.utils.NotificationListenerService.class));
         }
     }
 
@@ -463,17 +458,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onNewIntent(android.content.Intent intent) {
+    protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-
-        if (intent.getBooleanExtra("open_notifications", false)
-                && navController != null) {
-            if (navController.getCurrentDestination() != null &&
-                    navController.getCurrentDestination().getId() != R.id.notificationsFragment) {
-                navController.navigate(R.id.notificationsFragment);
-            }
-        }
+        handleNotificationIntent(intent);
     }
 
     private void startMatchScoreListener() {
@@ -552,4 +540,87 @@ public class MainActivity extends AppCompatActivity {
             default:         return 0;
         }
     }
+
+    private void openNotificationsSafely() {
+        try {
+            if (navController == null) return;
+            if (navController.getCurrentDestination() == null) return;
+
+            int currentId = navController.getCurrentDestination().getId();
+
+            if (currentId == R.id.notificationsFragment) return;
+
+            navController.navigate(R.id.notificationsFragment);
+
+        } catch (Exception e) {
+            android.util.Log.e("NOTIF_NAV", "Greška pri otvaranju notifikacija", e);
+        }
+    }
+
+    private void handleNotificationIntent(Intent intent) {
+        if (intent == null) return;
+
+        boolean openNotifications = intent.getBooleanExtra("open_notifications", false);
+        if (!openNotifications) return;
+
+        String type = intent.getStringExtra("notification_type");
+        String message = intent.getStringExtra("notification_message");
+
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                if ("leaderboard_reward".equals(type)) {
+                    showRewardDialog(message);
+                } else {
+                    openNotificationsSafely();
+                }
+            } catch (Exception e) {
+                android.util.Log.e("NOTIF_NAV", "Greška pri obradi notifikacije", e);
+            }
+        }, 800);
+    }
+
+    public void showRewardDialog(String message) {
+        if (isFinishing() || isDestroyed()) return;
+
+        View view = getLayoutInflater().inflate(R.layout.dialog_reward, null);
+
+        TextView tvMessage = view.findViewById(R.id.tvRewardMessage);
+        ImageView imgReward = view.findViewById(R.id.imgReward);
+
+        tvMessage.setText(message != null ? message : "Osvojila si nagradu!");
+
+        android.view.animation.ScaleAnimation animation =
+                new android.view.animation.ScaleAnimation(
+                        0.8f, 1.2f,
+                        0.8f, 1.2f,
+                        android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f,
+                        android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f
+                );
+
+        animation.setDuration(500);
+        animation.setRepeatCount(5);
+        animation.setRepeatMode(android.view.animation.Animation.REVERSE);
+        imgReward.startAnimation(animation);
+
+        try {
+            android.media.MediaPlayer mediaPlayer =
+                    android.media.MediaPlayer.create(this, R.raw.reward_sound);
+
+            if (mediaPlayer != null) {
+                mediaPlayer.setOnCompletionListener(mp -> {
+                    mp.release();
+                });
+                mediaPlayer.start();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("REWARD_SOUND", "Zvuk nije pokrenut", e);
+        }
+
+        new AlertDialog.Builder(this)
+                .setView(view)
+                .setPositiveButton("Super!", null)
+                .show();
+    }
+
+
 }

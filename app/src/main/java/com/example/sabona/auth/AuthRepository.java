@@ -61,6 +61,10 @@ public class AuthRepository {
         data.put("tokens", 5);
         data.put("stars", 0);
         data.put("league", 0);
+        data.put("weeklyStars", 0);
+        data.put("monthlyStars", 0);
+        data.put("weeklyGamesPlayed", 0);
+        data.put("monthlyGamesPlayed", 0);
         data.put("createdAt", FieldValue.serverTimestamp());
         data.put("lastTokenGrantDay", currentDayBucket());
 
