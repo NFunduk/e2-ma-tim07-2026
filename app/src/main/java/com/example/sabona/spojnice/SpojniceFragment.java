@@ -174,8 +174,8 @@ public class SpojniceFragment extends Fragment {
                 navArgs.putString("sessionId", vm.getSessionId());
                 navArgs.putBoolean("isHost",   vm.isHost());
                 navArgs.putString("hostUid", GameSessionManager.get().getPlayer1Uid());
-                NavHostFragment.findNavController(this)
-                        .navigate(R.id.action_spojnice_to_associations, navArgs);
+                navArgs.putString("challengeId", getArguments() != null ? getArguments().getString("challengeId", "") : "");
+                NavHostFragment.findNavController(this).navigate(R.id.action_spojnice_to_associations, navArgs);
             } catch (Exception e) {
                 // Navigation fallback
             }

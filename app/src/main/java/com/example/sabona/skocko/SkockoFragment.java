@@ -780,6 +780,7 @@ public class SkockoFragment extends Fragment {
             args.putString("hostUid", GameSessionManager.get().getPlayer1Uid());
         }
 
+        args.putString("challengeId", getArguments() != null ? getArguments().getString("challengeId", "") : "");
         NavHostFragment.findNavController(this)
                 .navigate(R.id.action_skocko_to_korak, args);
     }

@@ -17,6 +17,7 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.example.sabona.R;
+import com.example.sabona.challenge.Challenge;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
 
@@ -535,6 +536,14 @@ public class RegionsMapFragment extends Fragment {
                             new com.example.sabona.challenge.Challenge(
                                     creatorUid, myUsername, myRegion.displayName, stars, tokens);
                     challengeViewModel.createChallenge(ch);
+                    challengeViewModel.getChallenges().observe(getViewLifecycleOwner(), list -> {
+                        if (list != null && !list.isEmpty()) {
+                            Challenge latest = list.get(0); // najnoviji (sortirano po createdAt desc)
+                            if (latest.getCreatorUid().equals(creatorUid) && latest.getId() != null) {
+                                startChallengeGame(latest.getId());
+                            }
+                        }
+                    });
                     myStars  -= stars;
                     myTokens -= tokens;
                 })
@@ -564,6 +573,9 @@ public class RegionsMapFragment extends Fragment {
                             challenge.getStarsWager(), challenge.getTokensWager());
                     myStars  -= challenge.getStarsWager();
                     myTokens -= challenge.getTokensWager();
+
+                    // Pokreni solo partiju sa challengeId-em
+                    startChallengeGame(challenge.getId());
                 })
                 .setNegativeButton("Odustani", null)
                 .show();
@@ -586,5 +598,33 @@ public class RegionsMapFragment extends Fragment {
         super.onDestroyView();
         if (mapView != null) mapView.onDetach();
         if (challengeViewModel != null) challengeViewModel.stopListening();
+    }
+
+    private void startChallengeGame(String challengeId) {
+        String uid = FirebaseAuth.getInstance().getCurrentUser() != null
+                ? FirebaseAuth.getInstance().getCurrentUser().getUid() : "";
+
+        // Kreiramo solo sesiju — igrač je i player1 i player2
+        com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                .collection(com.example.sabona.game.GameSessionManager.COL_GAME_SESSIONS)
+                .add(new java.util.HashMap<String, Object>() {{
+                    put("player1Uid", uid);
+                    put("player2Uid", uid); // solo — isti igrač
+                    put("isFriendlyMatch", true); // ne ulazi u statistiku
+                    put("challengeId", challengeId);
+                    put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
+                }})
+                .addOnSuccessListener(ref -> {
+                    if (!isAdded()) return;
+                    com.example.sabona.game.GameSessionManager.get().setupAsHost(ref.getId());
+
+                    Bundle args = new Bundle();
+                    args.putString("sessionId", ref.getId());
+                    args.putBoolean("isHost", true);
+                    args.putString("challengeId", challengeId);
+                    androidx.navigation.Navigation
+                            .findNavController(requireView())
+                            .navigate(R.id.action_regions_to_kozna_challenge, args);
+                });
     }
 }

@@ -243,8 +243,8 @@ public class KoZnaZnaFragment extends Fragment {
                 Bundle args = new Bundle();
                 args.putString("sessionId", vm.getSessionId());
                 args.putBoolean("isHost",   vm.isHost());
-                NavHostFragment.findNavController(this)
-                        .navigate(R.id.action_kozna_to_spojnice, args);
+                args.putString("challengeId", getArguments() != null ? getArguments().getString("challengeId", "") : "");
+                NavHostFragment.findNavController(this).navigate(R.id.action_kozna_to_spojnice, args);
             } catch (Exception e) {
                 // Navigation fallback
             }

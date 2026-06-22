@@ -245,6 +245,7 @@ public class KorakPoKorakFragment extends Fragment {
             args.putString("sessionId", GameSessionManager.get().getSessionId());
             args.putBoolean("isHost", GameSessionManager.get().isPlayer1());
             args.putString("hostUid", GameSessionManager.get().getPlayer1Uid());
+            args.putString("challengeId", getArguments() != null ? getArguments().getString("challengeId", "") : "");
             try {
                 NavHostFragment.findNavController(this)
                         .navigate(R.id.action_korak_to_mojbroj, args);
