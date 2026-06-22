@@ -357,14 +357,11 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
             Bundle args = new Bundle();
 
             if (!challengeId.isEmpty()) {
-                // Izazov — idi na ChallengeResult
-                int myScore = viewModel.getFinalScores().getValue() != null
-                        ? (GameSessionManager.get().isPlayer1()
-                        ? viewModel.getFinalScores().getValue()[0]
-                        : viewModel.getFinalScores().getValue()[1])
-                        : 0;
+                // Izazov — idi na ChallengeResult sa KUMULATIVNIM skorom (svih 6 igara),
+                // ne samo skorom iz Moj broj. result.myTotalScore čita totalScoreP1/P2
+                // sa dokumenta sesije, koji se akumulira kroz sve igre.
                 args.putString("challengeId", challengeId);
-                args.putInt("myScore", myScore);
+                args.putInt("myScore", result.myTotalScore);
                 NavHostFragment.findNavController(MojBrojFragment.this)
                         .navigate(R.id.action_mojbroj_to_challengeResult, args);
             } else {

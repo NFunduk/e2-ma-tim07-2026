@@ -74,6 +74,11 @@ public class GameSessionManager {
         return uid != null && uid.equals(getMyUid());
     }
 
+    public boolean isSoloSession() {
+        return player2Uid != null
+                && !player2Uid.isEmpty()
+                && player2Uid.equals(player1Uid);
+    }
     public void reset() {
         instance = null;
     }

@@ -90,7 +90,7 @@ public class AsocijacijeViewModel extends ViewModel {
         AsocijacijeGameState state = new AsocijacijeGameState();
 
         state.status = "playing";
-        state.phase = "WAITING_P2";
+        state.phase = GameSessionManager.get().isSoloSession() ? "IDLE" : "WAITING_P2";
         state.round = 1;
         state.activePlayerRole = GameSessionManager.ROLE_PLAYER1;
 

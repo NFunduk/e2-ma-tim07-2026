@@ -147,7 +147,7 @@ public class KorakViewModel extends ViewModel {
         initState.status           = "playing";
         initState.round            = 1;
         initState.activePlayerRole = GameSessionManager.ROLE_PLAYER1;
-        initState.phase            = "WAITING_P2";
+        initState.phase = GameSessionManager.get().isSoloSession() ? "IDLE" : "WAITING_P2";
         initState.stepsRevealed    = 1;
         initState.gameIndex        = 0;
         initState.game0Id          = g0.docId;

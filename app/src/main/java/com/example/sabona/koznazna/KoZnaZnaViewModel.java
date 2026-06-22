@@ -754,8 +754,10 @@ public class KoZnaZnaViewModel extends ViewModel {
         orderedQuestionIds = ids;
         questions = new ArrayList<>(picked);
 
+        boolean solo = com.example.sabona.game.GameSessionManager.get().isSoloSession();
+
         Map<String, Object> data = new HashMap<>();
-        data.put("phase",         "waiting_p2");
+        data.put("phase",         solo ? "question" : "waiting_p2");
         data.put("questionIndex", 0);
         data.put("questionIds",   ids);
         data.put("p1Score",       0);
@@ -769,12 +771,16 @@ public class KoZnaZnaViewModel extends ViewModel {
 
         sessionRef.set(data)
                 .addOnSuccessListener(v -> {
-                    waitingMsg.setValue("Čekam Igrača 2...");
-                    phase.setValue(Phase.WAITING_P2);
-                    startListening();
-                    if (opponentHasLeft) {
-                        infoText.setValue("Protivnik je napustio partiju. Nastavljaš sam/a.");
-                        autoStartAlone();
+                    if (solo) {
+                        startListening();
+                    } else {
+                        waitingMsg.setValue("Čekam Igrača 2...");
+                        phase.setValue(Phase.WAITING_P2);
+                        startListening();
+                        if (opponentHasLeft) {
+                            infoText.setValue("Protivnik je napustio partiju. Nastavljaš sam/a.");
+                            autoStartAlone();
+                        }
                     }
                 })
                 .addOnFailureListener(e ->
