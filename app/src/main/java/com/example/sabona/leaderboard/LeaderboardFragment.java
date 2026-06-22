@@ -81,29 +81,61 @@ public class LeaderboardFragment extends Fragment {
                 repo.distributeWeeklyRewards();
                 Toast.makeText(requireContext(), "Test: podeljene nedeljne nagrade", Toast.LENGTH_SHORT).show();
             } else {
-                // Specifikacija 5.e (Prikaz regiona) zahteva da znamo koji je
-                // region bio 1./2./3. na PRETHODNOM mesečnom ciklusu — taj
-                // podatak se gubi čim resetMonthlyCycle() postavi monthlyStars
-                // na 0. Zato OBAVEZNO snimamo snapshot regiona PRE deljenja
-                // mesečnih nagrada (koje obično prati reset ciklusa).
+                // Specifikacija 5.e (Prikaz regiona) i 6.e (Napredovanje kroz
+                // lige) oboje zahtevaju podatke iz TRENUTNOG ciklusa PRE nego
+                // što resetMonthlyCycle() postavi monthlyStars/
+                // monthlyGamesPlayed na 0. Zato sve to mora da se odradi
+                // PRE reseta, ovim redosledom:
+                //   1) snapshotAndArchive()              – arhiviraj zvezde po regionu (5.b/5.e)
+                //   2) distributeMonthlyRewards()         – podeli tokene igračima
+                //   3) applyMonthlyPenaltyToAllUnranked()  – kazni igrače koji se NISU plasirali (6.e)
+                //   4) resetMonthlyCycle()                 – tek SAD postavi monthlyStars na 0 (4.b/5.b)
                 new com.example.sabona.region.RegionCycleService().snapshotAndArchive(
                         new com.example.sabona.region.RegionCycleService.SnapshotCallback() {
                             @Override
                             public void onSuccess(java.util.List<com.example.sabona.region.RegionCycleResult> top3) {
-
+                                repo.distributeMonthlyRewards();
+                                applyPenaltyThenReset(repo);
                             }
                             @Override
                             public void onError(String message) {
-
+                                // I u slučaju greške u arhiviranju regiona, ne smemo
+                                // blokirati postojeću dodelu nagrada, kaznu i reset —
+                                // arhiviranje regiona je dodatna funkcionalnost, ne
+                                // sme sprečiti glavni tok rang liste.
+                                repo.distributeMonthlyRewards();
+                                applyPenaltyThenReset(repo);
                             }
                         });
 
-                repo.distributeMonthlyRewards();
-                Toast.makeText(requireContext(), "Test: podeljene mesečne nagrade", Toast.LENGTH_SHORT).show();
+                Toast.makeText(requireContext(), "Test: nagrade + kazna za neplasirane + reset ciklusa", Toast.LENGTH_SHORT).show();
             }
 
             return true;
         });
+    }
+
+    /**
+     * Specifikacija 6.e — kazni sve igrače koji se nisu plasirali (nisu
+     * odigrali nijednu partiju u ovom mesečnom ciklusu) sa 30% zvezda,
+     * pa TEK ONDA resetuj ciklus (jer reset briše monthlyGamesPlayed,
+     * podatak po kom se prepoznaju neplasirani igrači).
+     */
+    private void applyPenaltyThenReset(LeaderboardRepository repo) {
+        new com.example.sabona.league.LeagueRepository().applyMonthlyPenaltyToAllUnranked(
+                new com.example.sabona.league.LeagueRepository.SimpleCallback() {
+                    @Override
+                    public void onSuccess() {
+                        repo.resetMonthlyCycle();
+                    }
+                    @Override
+                    public void onError(String message) {
+                        // Ne sprečavaj reset ciklusa zbog greške u kazni —
+                        // kazna za neplasirane je dodatna funkcionalnost, ne
+                        // sme blokirati glavni tok rang liste.
+                        repo.resetMonthlyCycle();
+                    }
+                });
     }
 
     private void initViews(View view) {
