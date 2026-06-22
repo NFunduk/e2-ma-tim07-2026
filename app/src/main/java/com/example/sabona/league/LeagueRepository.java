@@ -104,6 +104,90 @@ public class LeagueRepository {
     }
 
     /**
+     * Specifikacija 6.e — "Ukoliko se igrač ne plasira na mesečnoj rang
+     * listi, gubi 30% zvezda". Prema 4.a, igrač je plasiran samo ako je
+     * odigrao BAR JEDNU partiju u tekućem ciklusu (monthlyGamesPlayed > 0).
+     *
+     * Za razliku od {@link #applyMonthlyPenalty(LeagueCallback)} (koji
+     * kažnjava samo trenutno ulogovanog igrača i koristi se za ručno
+     * testiranje), ova metoda prolazi kroz SVE korisnike i kažnjava
+     * SAMO one koji se nisu plasirali. Igrače koji su odigrali bar jednu
+     * partiju (plasirani su) ne dira.
+     *
+     * Pozvati na kraju mesečnog ciklusa, ZAJEDNO sa ostalom mesečnom
+     * logikom (distributeMonthlyRewards, resetMonthlyCycle,
+     * RegionCycleService.snapshotAndArchive) — ali PRE
+     * resetMonthlyCycle(), jer ova metoda čita monthlyGamesPlayed da bi
+     * znala ko se plasirao, a reset to polje postavlja na 0.
+     */
+    public void applyMonthlyPenaltyToAllUnranked(SimpleCallback callback) {
+        com.example.sabona.repository.NotificationRepository notificationRepo =
+                new com.example.sabona.repository.NotificationRepository();
+
+        db.collection("users")
+                .get()
+                .addOnSuccessListener(snapshot -> {
+                    com.google.firebase.firestore.WriteBatch batch = db.batch();
+                    int penalizedCount = 0;
+
+                    // Specifikacija 6.f — igrač se obaveštava notifikacijom
+                    // kad padne na ligu ispod. Pošto se ova kazna primenjuje
+                    // u pozadini na SVE igrače (ne samo na trenutno
+                    // ulogovanog), notifikacija je ispravan mehanizam — ne
+                    // dijalog, jer kažnjeni igrač možda nije ni otvorio app
+                    // u tom trenutku.
+                    java.util.List<String> uidsToNotify = new java.util.ArrayList<>();
+                    java.util.List<String> leagueNamesForNotify = new java.util.ArrayList<>();
+
+                    for (com.google.firebase.firestore.QueryDocumentSnapshot doc : snapshot) {
+                        Long gamesPlayed = doc.getLong("monthlyGamesPlayed");
+                        boolean isRanked = gamesPlayed != null && gamesPlayed > 0;
+                        if (isRanked) continue; // plasiran je, ne dira se
+
+                        int currentStars  = doc.contains("stars")  ? doc.getLong("stars").intValue()  : 0;
+                        if (currentStars <= 0) continue; // nema šta da se oduzme
+
+                        int currentLeague = doc.contains("league") ? doc.getLong("league").intValue() : 0;
+                        League old = League.fromIndex(currentLeague);
+
+                        LeagueManager.LeagueChangeResult result =
+                                LeagueManager.applyMonthlyPenalty(currentStars, old);
+
+                        Map<String, Object> updates = new HashMap<>();
+                        updates.put("stars",  result.newStars);
+                        updates.put("league", result.newLeague.index);
+                        batch.update(doc.getReference(), updates);
+                        penalizedCount++;
+
+                        if (result.leagueChanged()) {
+                            uidsToNotify.add(doc.getId());
+                            leagueNamesForNotify.add(result.newLeague.displayName);
+                        }
+                    }
+
+                    if (penalizedCount == 0) {
+                        callback.onSuccess(); // niko za kažnjavanje, nema šta da se commit-uje
+                        return;
+                    }
+
+                    batch.commit()
+                            .addOnSuccessListener(v -> {
+                                for (int i = 0; i < uidsToNotify.size(); i++) {
+                                    notificationRepo.createNotification(
+                                            uidsToNotify.get(i),
+                                            com.example.sabona.repository.NotificationFactory
+                                                    .leagueChanged(leagueNamesForNotify.get(i)));
+                                }
+                                callback.onSuccess();
+                            })
+                            .addOnFailureListener(e ->
+                                    callback.onError("Greška pri primeni mesečne kazne: " + e.getMessage()));
+                })
+                .addOnFailureListener(e ->
+                        callback.onError("Greška pri učitavanju korisnika za kaznu: " + e.getMessage()));
+    }
+
+    /**
      * Dodaj dnevne tokene za trenutnog igrača.
      * Poziva se iz WorkManager joba koji se okida jednom dnevno.
      *
