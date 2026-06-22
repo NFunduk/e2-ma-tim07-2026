@@ -67,6 +67,19 @@ public class RegionsMapFragment extends Fragment {
 
     private final List<Marker> markers = new ArrayList<>();
 
+    // Tab sadržaj
+    private View tabContentMap;
+    private View tabContentChallenges;
+
+    // Challenge komponente (tab 2)
+    private com.example.sabona.challenge.ChallengeViewModel challengeViewModel;
+    private com.example.sabona.challenge.ChallengeListAdapter challengeAdapter;
+    private android.widget.ProgressBar progressChallenge;
+    private TextView tvRegionLabel;
+    private String myUsername;
+    private int myStars;
+    private int myTokens;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
@@ -127,6 +140,32 @@ public class RegionsMapFragment extends Fragment {
         viewModel.loadMapPoints();
         viewModel.loadMonthlyRanking();
         loadMyRegion(currentUid);
+
+        // --- Tab switching ---
+        tabContentMap        = view.findViewById(R.id.tabContentMap);
+        tabContentChallenges = view.findViewById(R.id.tabContentChallenges);
+        progressChallenge    = view.findViewById(R.id.progressChallenge);
+        tvRegionLabel        = view.findViewById(R.id.tvRegionLabel);
+
+        com.google.android.material.tabs.TabLayout tabLayout =
+                view.findViewById(R.id.tabLayoutRegions);
+
+        tabLayout.addOnTabSelectedListener(
+                new com.google.android.material.tabs.TabLayout.OnTabSelectedListener() {
+                    @Override
+                    public void onTabSelected(com.google.android.material.tabs.TabLayout.Tab tab) {
+                        if (tab.getPosition() == 0) {
+                            tabContentMap.setVisibility(View.VISIBLE);
+                            tabContentChallenges.setVisibility(View.GONE);
+                        } else {
+                            tabContentMap.setVisibility(View.GONE);
+                            tabContentChallenges.setVisibility(View.VISIBLE);
+                            initChallengesTabIfNeeded(currentUid);
+                        }
+                    }
+                    @Override public void onTabUnselected(com.google.android.material.tabs.TabLayout.Tab tab) {}
+                    @Override public void onTabReselected(com.google.android.material.tabs.TabLayout.Tab tab) {}
+                });
     }
 
     /** Izgradi prikaz mesečne rang liste regiona (5.b), sa istaknutim "tvojim" regionom. */
@@ -381,6 +420,155 @@ public class RegionsMapFragment extends Fragment {
         return Math.round(dp * density);
     }
 
+    private boolean challengesInitialized = false;
+
+    private void initChallengesTabIfNeeded(String uid) {
+        if (challengesInitialized || uid == null) return;
+        challengesInitialized = true;
+
+        // Učitaj korisničke podatke za kreiranje/pridruživanje izazovu
+        FirebaseFirestore.getInstance().collection("users").document(uid).get()
+                .addOnSuccessListener(doc -> {
+                    if (!isAdded() || doc == null) return;
+                    myUsername = doc.getString("username");
+                    myStars    = doc.getLong("stars")  != null ? doc.getLong("stars").intValue()  : 0;
+                    myTokens   = doc.getLong("tokens") != null ? doc.getLong("tokens").intValue() : 0;
+
+                    if (myRegion != null) {
+                        tvRegionLabel.setText("Izazovi za region: " + myRegion);
+                        challengeViewModel.startListening(myRegion.displayName);
+                    }
+                });
+
+        // RecyclerView
+        androidx.recyclerview.widget.RecyclerView rv =
+                requireView().findViewById(R.id.rvChallenges);
+        challengeAdapter = new com.example.sabona.challenge.ChallengeListAdapter(
+                uid, challenge -> showJoinChallengeDialog(challenge));
+        rv.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(requireContext()));
+        rv.setAdapter(challengeAdapter);
+
+        // ViewModel
+        challengeViewModel = new ViewModelProvider(this)
+                .get(com.example.sabona.challenge.ChallengeViewModel.class);
+
+        challengeViewModel.getChallenges().observe(getViewLifecycleOwner(),
+                list -> challengeAdapter.setItems(list));
+        challengeViewModel.getError().observe(getViewLifecycleOwner(), msg -> {
+            if (msg != null) Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show();
+        });
+        challengeViewModel.getLoading().observe(getViewLifecycleOwner(), isLoading ->
+                progressChallenge.setVisibility(
+                        Boolean.TRUE.equals(isLoading) ? View.VISIBLE : View.GONE));
+
+        // FAB — novi izazov
+        requireView().findViewById(R.id.fabNewChallenge)
+                .setOnClickListener(v -> showCreateChallengeDialog());
+    }
+
+    private void showCreateChallengeDialog() {
+        if (myRegion == null) {
+            Toast.makeText(requireContext(), "Sačekaj da se učitaju podaci...", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        android.widget.LinearLayout layout = new android.widget.LinearLayout(requireContext());
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int pad = dp(20);
+        layout.setPadding(pad, pad, pad, 0);
+
+        TextView tvStarsLabel = new TextView(requireContext());
+        tvStarsLabel.setText("Ulog zvezda: 1");
+        tvStarsLabel.setTextColor(0xFF0B1957);
+        layout.addView(tvStarsLabel);
+
+        android.widget.SeekBar sbStars = new android.widget.SeekBar(requireContext());
+        sbStars.setMax(9);
+        sbStars.setProgress(0);
+        sbStars.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar s, int p, boolean f) {
+                tvStarsLabel.setText("Ulog zvezda: " + (p + 1));
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar s) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar s) {}
+        });
+        layout.addView(sbStars);
+
+        TextView tvTokensLabel = new TextView(requireContext());
+        tvTokensLabel.setText("Ulog tokena: 1");
+        tvTokensLabel.setTextColor(0xFF0B1957);
+        android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(12);
+        tvTokensLabel.setLayoutParams(lp);
+        layout.addView(tvTokensLabel);
+
+        android.widget.SeekBar sbTokens = new android.widget.SeekBar(requireContext());
+        sbTokens.setMax(1);
+        sbTokens.setProgress(0);
+        sbTokens.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar s, int p, boolean f) {
+                tvTokensLabel.setText("Ulog tokena: " + (p + 1));
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar s) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar s) {}
+        });
+        layout.addView(sbTokens);
+
+        new android.app.AlertDialog.Builder(requireContext())
+                .setTitle("Novi izazov")
+                .setView(layout)
+                .setPositiveButton("Pošalji", (d, w) -> {
+                    int stars  = sbStars.getProgress()  + 1;
+                    int tokens = sbTokens.getProgress() + 1;
+                    if (myStars < stars) {
+                        Toast.makeText(requireContext(), "Nemaš dovoljno zvezda!", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (myTokens < tokens) {
+                        Toast.makeText(requireContext(), "Nemaš dovoljno tokena!", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    String creatorUid = com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser() != null
+                            ? com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser().getUid() : "";
+                    com.example.sabona.challenge.Challenge ch =
+                            new com.example.sabona.challenge.Challenge(
+                                    creatorUid, myUsername, myRegion.displayName, stars, tokens);
+                    challengeViewModel.createChallenge(ch);
+                    myStars  -= stars;
+                    myTokens -= tokens;
+                })
+                .setNegativeButton("Odustani", null)
+                .show();
+    }
+
+    private void showJoinChallengeDialog(com.example.sabona.challenge.Challenge challenge) {
+        if (myStars < challenge.getStarsWager()) {
+            Toast.makeText(requireContext(), "Nemaš dovoljno zvezda!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (myTokens < challenge.getTokensWager()) {
+            Toast.makeText(requireContext(), "Nemaš dovoljno tokena!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String currentUid = FirebaseAuth.getInstance().getCurrentUser() != null
+                ? FirebaseAuth.getInstance().getCurrentUser().getUid() : "";
+        new android.app.AlertDialog.Builder(requireContext())
+                .setTitle("Prihvati izazov?")
+                .setMessage("Ulog: " + challenge.getStarsWager() + " ⭐ i "
+                        + challenge.getTokensWager() + " 🪙\n\n"
+                        + "Kreator: " + challenge.getCreatorUsername() + "\n"
+                        + "Učesnici: " + challenge.getParticipantCount() + "/4")
+                .setPositiveButton("Prihvati", (d, w) -> {
+                    challengeViewModel.joinChallenge(challenge.getId(), currentUid, myUsername,
+                            challenge.getStarsWager(), challenge.getTokensWager());
+                    myStars  -= challenge.getStarsWager();
+                    myTokens -= challenge.getTokensWager();
+                })
+                .setNegativeButton("Odustani", null)
+                .show();
+    }
+
     @Override
     public void onResume() {
         super.onResume();
@@ -391,5 +579,12 @@ public class RegionsMapFragment extends Fragment {
     public void onPause() {
         super.onPause();
         if (mapView != null) mapView.onPause();
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (mapView != null) mapView.onDetach();
+        if (challengeViewModel != null) challengeViewModel.stopListening();
     }
 }
