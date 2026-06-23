@@ -84,6 +84,8 @@ public class NotificationHelper {
         Intent intent = new Intent(context, MainActivity.class);
         intent.putExtra("open_notifications", true);
         intent.putExtra("notification_id", notification.getId());
+        intent.putExtra("notification_type", notification.getType());
+        intent.putExtra("notification_message", notification.getMessage());
         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         int notificationId = (int) System.currentTimeMillis();
 

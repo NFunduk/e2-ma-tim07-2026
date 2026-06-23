@@ -4,7 +4,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.example.sabona.repository.StatsRepository;
-
+import com.example.sabona.leaderboard.LeaderboardRepository;
 public class MatchFinalizationRepository {
 
     public static class Result {
@@ -66,6 +66,9 @@ public class MatchFinalizationRepository {
                     else            won = myScore > oppScore; // remi → tretira se kao gubitak (formula ispod)
 
                     if (isFriendly) {
+                        new com.example.sabona.daily.DailyMissionRepository()
+                                .completeFriendlyMatch(myUid, null);
+
                         callback.onSuccess(new Result(true, won, 0, 0, myScore, oppScore));
                         return;
                     }
@@ -104,7 +107,17 @@ public class MatchFinalizationRepository {
             return new long[]{newStars - oldStars, tokensEarned};
         }).addOnSuccessListener(d -> {
             statsRepo.incrementGamesPlayed(won);
-            callback.onSuccess(new Result(false, won, (int) d[0], (int) d[1], myScore, oppScore));
+
+            if (won) {
+                new com.example.sabona.daily.DailyMissionRepository()
+                        .completeWinMatch(myUid, null);
+            }
+
+            int starsDelta = (int) d[0];
+
+            new LeaderboardRepository().addStarsAfterMatch(myUid, starsDelta);
+
+            callback.onSuccess(new Result(false, won, starsDelta, (int) d[1], myScore, oppScore));
         }).addOnFailureListener(e -> callback.onError("Greška pri upisu zvezdi: " + e.getMessage()));
     }
 }

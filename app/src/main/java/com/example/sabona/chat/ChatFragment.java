@@ -18,6 +18,7 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import com.example.sabona.daily.DailyMissionRepository;
 
 import com.example.sabona.R;
 import com.google.firebase.auth.FirebaseAuth;
@@ -100,6 +101,9 @@ public class ChatFragment extends Fragment {
 
             viewModel.sendMessage(text);
             etMessage.setText("");
+
+            new DailyMissionRepository()
+                    .completeSendChat(currentUid, null);
         });
 
         viewModel.start();
