@@ -15,12 +15,33 @@ public class ChallengeRepository {
     private final FirebaseFirestore db = FirebaseFirestore.getInstance();
 
     public interface Callback       { void onSuccess(); void onError(String msg); }
+    public interface IdCallback     { void onSuccess(String id); void onError(String msg); }
 
     public interface ListCallback {
         void onSuccess(List<Challenge> list);
         void onError(String msg);
         void onRetry();
     }
+
+    /**
+     * Kreira novi izazov i vraća njegov Firestore ID direktno kroz callback.
+     * Koristiti umesto createChallenge() + observe() kad je potreban ID odmah.
+     */
+    public void createChallengeAndGetId(Challenge challenge, IdCallback cb) {
+        db.collection(COL)
+                .add(challengeToMap(challenge))
+                .addOnSuccessListener(ref -> {
+                    String newId = ref.getId();
+                    deductWager(challenge.getCreatorUid(),
+                            challenge.getStarsWager(), challenge.getTokensWager(),
+                            new Callback() {
+                                @Override public void onSuccess() { cb.onSuccess(newId); }
+                                @Override public void onError(String msg) { cb.onError(msg); }
+                            });
+                })
+                .addOnFailureListener(e -> cb.onError(e.getMessage()));
+    }
+
     /** Kreira novi izazov u Firestore-u i oduzima ulog kreatoreu. */
     public void createChallenge(Challenge challenge, Callback cb) {
         db.collection(COL)

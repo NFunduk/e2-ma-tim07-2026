@@ -535,13 +535,18 @@ public class RegionsMapFragment extends Fragment {
                     com.example.sabona.challenge.Challenge ch =
                             new com.example.sabona.challenge.Challenge(
                                     creatorUid, myUsername, myRegion.displayName, stars, tokens);
-                    challengeViewModel.createChallenge(ch);
-                    challengeViewModel.getChallenges().observe(getViewLifecycleOwner(), list -> {
-                        if (list != null && !list.isEmpty()) {
-                            Challenge latest = list.get(0); // najnoviji (sortirano po createdAt desc)
-                            if (latest.getCreatorUid().equals(creatorUid) && latest.getId() != null) {
-                                startChallengeGame(latest.getId());
-                            }
+                    // Kreiraj izazov direktno u Firestore i pokreni partiju po callback-u,
+                    // bez observe() loopa koji bi se okidao pri svakoj promeni liste.
+                    com.example.sabona.challenge.ChallengeRepository repo =
+                            new com.example.sabona.challenge.ChallengeRepository();
+                    repo.createChallengeAndGetId(ch, new com.example.sabona.challenge.ChallengeRepository.IdCallback() {
+                        @Override public void onSuccess(String challengeId) {
+                            if (!isAdded()) return;
+                            startChallengeGame(challengeId);
+                        }
+                        @Override public void onError(String msg) {
+                            if (!isAdded()) return;
+                            Toast.makeText(requireContext(), "Greška: " + msg, Toast.LENGTH_SHORT).show();
                         }
                     });
                     myStars  -= stars;
