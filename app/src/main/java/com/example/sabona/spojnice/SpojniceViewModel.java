@@ -268,8 +268,10 @@ public class SpojniceViewModel extends ViewModel {
         List<Integer> order1 = shuffledOrder();
         List<Integer> order2 = shuffledOrder();
 
+        boolean isSolo = com.example.sabona.game.GameSessionManager.get().isSoloSession();
+
         Map<String, Object> data = new HashMap<>();
-        data.put("phase",          PHASE_WAIT);
+        data.put("phase",          isSolo ? PHASE_R1_A : PHASE_WAIT);
         data.put("p1Score",        0);
         data.put("p2Score",        0);
         data.put("connected",      buildFalseBoolList());
@@ -283,10 +285,15 @@ public class SpojniceViewModel extends ViewModel {
 
         sessionRef.set(data)
                 .addOnSuccessListener(v -> {
-                    waitingMsg.setValue("Čekam Igrača 2... (Spojnice)");
-                    uiPhase.setValue(UiPhase.WAITING);
-                    startListening();
-                    listenRootForAbandon();
+                    if (isSolo) {
+                        startListening();
+                        listenRootForAbandon();
+                    } else {
+                        waitingMsg.setValue("Čekam Igrača 2... (Spojnice)");
+                        uiPhase.setValue(UiPhase.WAITING);
+                        startListening();
+                        listenRootForAbandon();
+                    }
                 })
                 .addOnFailureListener(e -> infoText.setValue("Greška: " + e.getMessage()));
     }
@@ -561,7 +568,8 @@ public class SpojniceViewModel extends ViewModel {
         if (PHASE_R1_A.equals(ph) || PHASE_R2_B.equals(ph)) activePlayer = 1;
         else                                                  activePlayer = 2;
 
-        myTurn = (isHost && activePlayer == 1) || (!isHost && activePlayer == 2);
+        boolean isSoloNow = com.example.sabona.game.GameSessionManager.get().isSoloSession();
+        myTurn = isSoloNow || (isHost && activePlayer == 1) || (!isHost && activePlayer == 2);
 
         if (PHASE_R1_A.equals(ph) || PHASE_R2_A.equals(ph)) {
             roundScore1    = 0;
@@ -610,12 +618,23 @@ public class SpojniceViewModel extends ViewModel {
         int remaining = 0;
         for (boolean c : connected) if (!c) remaining++;
 
+        boolean isSolo = com.example.sabona.game.GameSessionManager.get().isSoloSession();
+
         String nextPhase;
-        switch (currentPhaseStr) {
-            case PHASE_R1_A: nextPhase = (allConnected || remaining == 0) ? PHASE_R2_A : PHASE_R1_B; break;
-            case PHASE_R1_B: nextPhase = PHASE_R2_A; break;
-            case PHASE_R2_A: nextPhase = (allConnected || remaining == 0) ? PHASE_DONE : PHASE_R2_B; break;
-            default:         nextPhase = PHASE_DONE; break;
+        if (isSolo) {
+            // U solo modu: samo jedna runda, nepovezani parovi ostaju nepovezani — odmah završiti
+            switch (currentPhaseStr) {
+                case PHASE_R1_A: nextPhase = (allConnected || remaining == 0) ? PHASE_DONE : PHASE_DONE; break;
+                case PHASE_R2_A: nextPhase = PHASE_DONE; break;
+                default:         nextPhase = PHASE_DONE; break;
+            }
+        } else {
+            switch (currentPhaseStr) {
+                case PHASE_R1_A: nextPhase = (allConnected || remaining == 0) ? PHASE_R2_A : PHASE_R1_B; break;
+                case PHASE_R1_B: nextPhase = PHASE_R2_A; break;
+                case PHASE_R2_A: nextPhase = (allConnected || remaining == 0) ? PHASE_DONE : PHASE_R2_B; break;
+                default:         nextPhase = PHASE_DONE; break;
+            }
         }
 
         boolean shouldWrite = isHost || opponentAbandoned || opponentHasLeft;
@@ -623,7 +642,7 @@ public class SpojniceViewModel extends ViewModel {
         if (shouldWrite) {
             Map<String, Object> update = new HashMap<>();
             update.put("phase", nextPhase);
-            if (PHASE_R2_A.equals(nextPhase)) {
+            if (!isSolo && PHASE_R2_A.equals(nextPhase)) {
                 update.put("connected",      buildFalseBoolList());
                 update.put("connectedBy",    buildZeroIntList());
                 update.put("connectedCount", 0);

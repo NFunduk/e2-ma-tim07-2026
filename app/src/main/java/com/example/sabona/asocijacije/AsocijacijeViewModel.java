@@ -151,7 +151,9 @@ public class AsocijacijeViewModel extends ViewModel {
                 }
             }
 
-            boolean turn = state.activePlayerRole.equals(sessionMgr.getMyRole()) || opponentHasLeft;
+            boolean turn = GameSessionManager.get().isSoloSession()
+                    || state.activePlayerRole.equals(sessionMgr.getMyRole())
+                    || opponentHasLeft;
             myTurn.setValue(turn);
         });
     }
@@ -223,7 +225,10 @@ public class AsocijacijeViewModel extends ViewModel {
     public void startNextRound() {
         if (remoteState == null) return;
 
-        if (remoteState.round == 1) {
+        boolean isSolo = GameSessionManager.get().isSoloSession();
+
+        if (!isSolo && remoteState.round == 1) {
+            // Multiplayer: prelaz na rundu 2 (protivnik igra)
             remoteState.round = 2;
             remoteState.phase = "PLAYING";
             remoteState.activePlayerRole = GameSessionManager.ROLE_PLAYER2;
@@ -236,6 +241,7 @@ public class AsocijacijeViewModel extends ViewModel {
             remoteState.roundFinished = false;
             remoteState.phaseEndsAtMillis = System.currentTimeMillis() + 120000;
         } else {
+            // Solo mod ili runda 2 u multiplayeru — kraj igre
             remoteState.phase = "GAME_OVER";
             remoteState.status = "finished";
         }

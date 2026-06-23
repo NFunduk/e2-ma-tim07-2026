@@ -327,6 +327,7 @@ public class MojBrojViewModel extends ViewModel {
 
     private void recordMyResult(int myResult) {
         boolean isP1 = sessionMgr.isPlayer1();
+        boolean isSolo = GameSessionManager.get().isSoloSession();
 
         sessionRepo.runMojBrojTransaction(current -> {
             if (!"PLAYING".equals(current.phase)) return null;
@@ -343,7 +344,11 @@ public class MojBrojViewModel extends ViewModel {
                 newState.player2Done = true;
             }
 
-            if (opponentHasLeft) {
+            if (isSolo) {
+                // U solo modu igrač je i p1 i p2 — odmah završiti rundu
+                if (isP1) { newState.player2RoundResult = myResult; newState.player2Done = true; }
+                else      { newState.player1RoundResult = myResult; newState.player1Done = true; }
+            } else if (opponentHasLeft) {
                 if (isP1) { newState.player2RoundResult = -1; newState.player2Done = true; }
                 else      { newState.player1RoundResult = -1; newState.player1Done = true; }
             }

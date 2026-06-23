@@ -93,10 +93,14 @@ public class AssociationsFragment extends Fragment {
             boolean passedIsHost = args.getBoolean("isHost", true);
             String passedHostUid = args.getString("hostUid", "");
 
+            String challengeId  = args.getString("challengeId", "");
+            boolean isChallenge = challengeId != null && !challengeId.isEmpty();
             if (!passedSessionId.isEmpty()) {
                 multiplayerMode = true;
 
-                if (passedIsHost) {
+                if (isChallenge) {
+                    GameSessionManager.get().setupAsSolo(passedSessionId);
+                } else if (passedIsHost) {
                     GameSessionManager.get().setupAsHost(passedSessionId);
                 } else {
                     GameSessionManager.get().setupAsGuest(passedSessionId, passedHostUid);
@@ -268,7 +272,7 @@ public class AssociationsFragment extends Fragment {
 
         finalInput.setText("");
         updateHeader();
-       // startTimer();
+        // startTimer();
     }
 
     private void applyRemoteGameOrder(AsocijacijeGameState state) {

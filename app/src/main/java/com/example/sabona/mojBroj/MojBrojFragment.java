@@ -98,9 +98,13 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
             String passedSessionId = args.getString("sessionId", "");
             boolean passedIsHost   = args.getBoolean("isHost", true);
             String passedHostUid   = args.getString("hostUid", "");
+            String challengeId     = args.getString("challengeId", "");
+            boolean isChallenge    = challengeId != null && !challengeId.isEmpty();
 
             if (!passedSessionId.isEmpty()) {
-                if (passedIsHost) {
+                if (isChallenge) {
+                    GameSessionManager.get().setupAsSolo(passedSessionId);
+                } else if (passedIsHost) {
                     GameSessionManager.get().setupAsHost(passedSessionId);
                 } else {
                     GameSessionManager.get().setupAsGuest(passedSessionId, passedHostUid);

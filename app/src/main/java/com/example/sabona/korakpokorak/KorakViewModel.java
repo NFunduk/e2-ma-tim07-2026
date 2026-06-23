@@ -227,6 +227,18 @@ public class KorakViewModel extends ViewModel {
         int activeNum = GameSessionManager.ROLE_PLAYER1.equals(state.activePlayerRole) ? 1 : 2;
 
         switch (state.phase) {
+            case "IDLE":
+                // Solo mod — odmah preći u MAIN
+                if (GameSessionManager.get().isSoloSession()) {
+                    sessionRepo.runKorakTransaction(current -> {
+                        if (!"IDLE".equals(current.phase)) return null;
+                        KorakGameState newState = copyState(current);
+                        newState.phase = "MAIN";
+                        return newState;
+                    });
+                }
+                break;
+
             case "WAITING_P2":
                 phase.postValue(Phase.WAITING_P2);
                 infoText.postValue("Čekam Igrača 2...");
@@ -275,6 +287,7 @@ public class KorakViewModel extends ViewModel {
     }
 
     private boolean isMyActiveRole(String role) {
+        if (GameSessionManager.get().isSoloSession()) return true;
         if (opponentHasLeft) return true;
         return sessionMgr.isPlayer1()
                 ? GameSessionManager.ROLE_PLAYER1.equals(role)
@@ -344,26 +357,35 @@ public class KorakViewModel extends ViewModel {
         if (!"MAIN".equals(remoteState.phase)) return;
         if (!isMyActiveRole(remoteState.activePlayerRole)) return;
 
+        boolean isSolo = GameSessionManager.get().isSoloSession();
+
         sessionRepo.runKorakTransaction(current -> {
             if (!"MAIN".equals(current.phase)) return null;
             if (!isMyActiveRole(current.activePlayerRole)) return null;
 
             KorakGameState newState = copyState(current);
-            newState.phase = "BONUS";
+            // U solo modu nema protivnika za bonus — odmah ROUND_END
+            newState.phase = isSolo ? "ROUND_END" : "BONUS";
+            if (isSolo) {
+                newState.lastAnswerResult  = "wrong";
+                newState.lastAnswerPlayer  = 0;
+                newState.lastPointsAwarded = 0;
+            }
             return newState;
         });
     }
 
     public void onBonusTimerFinished() {
         if (!"BONUS".equals(remoteState.phase)) return;
+        boolean isSolo = GameSessionManager.get().isSoloSession();
         boolean activeIsP1 = GameSessionManager.ROLE_PLAYER1.equals(remoteState.activePlayerRole);
-        boolean iAmOpponent = sessionMgr.isPlayer1() != activeIsP1;
+        boolean iAmOpponent = isSolo || sessionMgr.isPlayer1() != activeIsP1;
         if (!iAmOpponent && !opponentHasLeft) return;
 
         sessionRepo.runKorakTransaction(current -> {
             if (!"BONUS".equals(current.phase)) return null;
             boolean currentActiveIsP1 = GameSessionManager.ROLE_PLAYER1.equals(current.activePlayerRole);
-            boolean currentIAmOpponent = sessionMgr.isPlayer1() != currentActiveIsP1;
+            boolean currentIAmOpponent = isSolo || sessionMgr.isPlayer1() != currentActiveIsP1;
             if (!currentIAmOpponent && !opponentHasLeft) return null;
 
             KorakGameState newState = copyState(current);
@@ -379,11 +401,13 @@ public class KorakViewModel extends ViewModel {
         if (!"ROUND_END".equals(remoteState.phase)) return;
         if (!sessionMgr.isPlayer1() && !opponentHasLeft) return; // samo host napreduje (ili preostali, ako je host otišao)
 
+        boolean isSolo = GameSessionManager.get().isSoloSession();
+
         sessionRepo.runKorakTransaction(current -> {
             if (!"ROUND_END".equals(current.phase)) return null;
 
             KorakGameState newState = copyState(current);
-            if (current.round == 1) {
+            if (!isSolo && current.round == 1) {
                 newState.round            = 2;
                 newState.activePlayerRole = GameSessionManager.ROLE_PLAYER2;
                 newState.phase            = "MAIN";

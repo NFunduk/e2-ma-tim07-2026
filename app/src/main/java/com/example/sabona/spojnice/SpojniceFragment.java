@@ -67,13 +67,24 @@ public class SpojniceFragment extends Fragment {
         if (args != null) {
             String passedSessionId = args.getString("sessionId", "");
             boolean passedIsHost   = args.getBoolean("isHost", true);
+            String passedHostUid   = args.getString("hostUid", "");
+            String challengeId     = args.getString("challengeId", "");
+            boolean isChallenge    = challengeId != null && !challengeId.isEmpty();
             if (!passedSessionId.isEmpty()) {
                 // Sesija proslijeđena — učitaj pitanja pa se spoji bez dijaloga
                 tvInfo.setText("Učitavanje pitanja...");
                 setAllButtonsEnabled(false);
+                if (isChallenge) {
+                    // Solo challenge mod — setupAsSolo da isSoloSession() vrati true
+                    com.example.sabona.game.GameSessionManager.get().setupAsSolo(passedSessionId);
+                } else if (passedIsHost) {
+                    com.example.sabona.game.GameSessionManager.get().setupAsHost(passedSessionId);
+                } else {
+                    com.example.sabona.game.GameSessionManager.get().setupAsGuest(passedSessionId, passedHostUid);
+                }
                 vm.loadQuestions(() -> {
                     //if (!isAdded()) return;
-                    if (passedIsHost) {
+                    if (isChallenge || passedIsHost) {
                         vm.createSessionSilent(passedSessionId);
                     } else {
                         vm.joinExistingSession(passedSessionId, false);
