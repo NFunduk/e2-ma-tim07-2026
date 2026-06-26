@@ -337,7 +337,7 @@ public class MainActivity extends AppCompatActivity {
             PresenceManager.setOnline(true);
             // App je u prvom planu — servis više ne treba da drži listener,
             // MainActivity ga preuzima (startListeningForSystemNotifications).
-           // stopService(new Intent(this, com.example.sabona.utils.NotificationListenerService.class));
+            stopService(new Intent(this, com.example.sabona.utils.NotificationListenerService.class));
             startListeningForSystemNotifications();
         }
     }
@@ -355,7 +355,7 @@ public class MainActivity extends AppCompatActivity {
                 notificationsListener = null;
                 firstLoadNotifications = true; // reset za sledeći onResume
             }
-           // startForegroundService(new Intent(this, com.example.sabona.utils.NotificationListenerService.class));
+            startNotificationListenerService();
         }
     }
 
@@ -605,20 +605,22 @@ public class MainActivity extends AppCompatActivity {
         boolean openNotifications = intent.getBooleanExtra("open_notifications", false);
         if (!openNotifications) return;
 
-        String type = intent.getStringExtra("notification_type");
-        String message = intent.getStringExtra("notification_message");
-
         new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
             try {
-                if ("leaderboard_reward".equals(type)) {
-                    showRewardDialog(message);
-                } else {
-                    openNotificationsSafely();
-                }
+                openNotificationsSafely();
             } catch (Exception e) {
                 android.util.Log.e("NOTIF_NAV", "Greška pri obradi notifikacije", e);
             }
         }, 800);
+    }
+
+    private void startNotificationListenerService() {
+        Intent serviceIntent = new Intent(this, com.example.sabona.utils.NotificationListenerService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
     }
 
     public void showRewardDialog(String message) {

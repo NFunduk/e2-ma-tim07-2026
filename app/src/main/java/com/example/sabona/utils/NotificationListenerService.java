@@ -25,9 +25,11 @@ public class NotificationListenerService extends Service {
 
     private ListenerRegistration listener;
     private boolean firstLoad = true;
+    private long startedAtMillis;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        startedAtMillis = System.currentTimeMillis();
         startForeground(FOREGROUND_NOTIF_ID, buildForegroundNotification());
         startListening();
         // START_STICKY: ako Android ubije servis zbog memorije, ponovo ga pokreće automatski
@@ -56,7 +58,9 @@ public class NotificationListenerService extends Service {
                                     change.getDocument().toObject(AppNotification.class);
                             notification.setId(change.getDocument().getId());
 
-                            if (!firstLoad && !notification.isRead()) {
+                            boolean createdAfterServiceStart = notification.getCreatedAt() != null
+                                    && notification.getCreatedAt().toDate().getTime() >= startedAtMillis;
+                            if ((!firstLoad || createdAfterServiceStart) && !notification.isRead()) {
                                 NotificationHelper.showNotification(
                                         getApplicationContext(),
                                         notification
