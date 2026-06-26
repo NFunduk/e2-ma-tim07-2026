@@ -120,7 +120,7 @@ public class MojBrojViewModel extends ViewModel {
         initState.status            = "playing";
         initState.round             = 1;
         initState.activePlayerRole  = GameSessionManager.ROLE_PLAYER1;
-        initState.phase             = "WAITING_P2";
+        initState.phase = GameSessionManager.get().isSoloSession() ? "IDLE" : "WAITING_P2";
         initState.targetNumber      = 0;
         initState.offeredNumbers    = "";
         initState.player1Score      = 0;
@@ -177,7 +177,9 @@ public class MojBrojViewModel extends ViewModel {
         isMyTurn.postValue(myTurn);
 
         int activeNum = GameSessionManager.ROLE_PLAYER1.equals(state.activePlayerRole) ? 1 : 2;
-        roundLabel.postValue("Runda " + state.round + "/2  —  Igrač " + activeNum + " stopira");
+        boolean isSolo = GameSessionManager.get().isSoloSession();
+        int totalRounds = isSolo ? 1 : 2;
+        roundLabel.postValue("Runda " + state.round + "/" + totalRounds + "  —  Igrač " + activeNum + " stopira");
 
         if (state.offeredNumbers != null && !state.offeredNumbers.isEmpty()) {
             offeredNumbers.postValue(parseNumbers(state.offeredNumbers));
@@ -327,6 +329,7 @@ public class MojBrojViewModel extends ViewModel {
 
     private void recordMyResult(int myResult) {
         boolean isP1 = sessionMgr.isPlayer1();
+        boolean isSolo = GameSessionManager.get().isSoloSession();
 
         sessionRepo.runMojBrojTransaction(current -> {
             if (!"PLAYING".equals(current.phase)) return null;
@@ -343,7 +346,11 @@ public class MojBrojViewModel extends ViewModel {
                 newState.player2Done = true;
             }
 
-            if (opponentHasLeft) {
+            if (isSolo) {
+                // U solo challenge modu nema druge strane: drugi slot je samo tehnički završen.
+                if (isP1) { newState.player2RoundResult = -1; newState.player2Done = true; }
+                else      { newState.player1RoundResult = -1; newState.player1Done = true; }
+            } else if (opponentHasLeft) {
                 if (isP1) { newState.player2RoundResult = -1; newState.player2Done = true; }
                 else      { newState.player1RoundResult = -1; newState.player1Done = true; }
             }
@@ -395,7 +402,16 @@ public class MojBrojViewModel extends ViewModel {
         if (!"ROUND_END".equals(remoteState.phase)) return;
         if (!sessionMgr.isPlayer1() && !opponentHasLeft) return; // samo host napreduje (ili preostali, ako je host otišao)
 
-        if (remoteState.round == 1) {
+        boolean isSolo = GameSessionManager.get().isSoloSession();
+
+        // U solo modu igra se samo jedna runda — posle runde 1 odmah GAME_OVER
+        if (isSolo || remoteState.round == 2) {
+            MojBrojGameState finalState = copyState(remoteState);
+            finalState.phase  = "GAME_OVER";
+            finalState.status = "finished";
+            sessionRepo.commitMojBrojGameOver(finalState, remoteState.player1Score, remoteState.player2Score);
+        } else {
+            // Multiplayer runda 1 → runda 2
             sessionRepo.runMojBrojTransaction(current -> {
                 if (!"ROUND_END".equals(current.phase)) return null;
                 MojBrojGameState newState = copyState(current);
@@ -410,12 +426,6 @@ public class MojBrojViewModel extends ViewModel {
                 newState.player2Done        = false;
                 return newState;
             });
-        } else {
-            // Poslednja runda — atomski upiši GAME_OVER I konačan prirast u total partije
-            MojBrojGameState finalState = copyState(remoteState);
-            finalState.phase  = "GAME_OVER";
-            finalState.status = "finished";
-            sessionRepo.commitMojBrojGameOver(finalState, remoteState.player1Score, remoteState.player2Score);
         }
     }
 

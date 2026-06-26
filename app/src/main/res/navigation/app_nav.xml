@@ -122,6 +122,11 @@
             app:argType="integer" android:defaultValue="0"/>
         <action android:id="@+id/action_mojbroj_to_gameover"
             app:destination="@id/gameOverFragment"/>
+        <action
+            android:id="@+id/action_mojbroj_to_challengeResult"
+            app:destination="@id/challengeResultFragment"
+            app:popUpTo="@id/koZnaZnaFragment"
+            app:popUpToInclusive="true"/>
     </fragment>
 
     <fragment
@@ -202,13 +207,16 @@
         android:name="com.example.sabona.region.RegionsMapFragment"
         android:label="Regioni">
 
+        <action
+            android:id="@+id/action_regions_to_kozna_challenge"
+            app:destination="@id/koZnaZnaFragment"/>
+
     </fragment>
 
     <fragment
         android:id="@+id/chatFragment"
         android:name="com.example.sabona.chat.ChatFragment"
         android:label="Čet"/>
-
 
     <fragment
         android:id="@+id/tournamentFragment"
@@ -221,6 +229,19 @@
 
     </fragment>
 
-
+    <fragment
+        android:id="@+id/challengeResultFragment"
+        android:name="com.example.sabona.challenge.ChallengeResultFragment"
+        android:label="Rezultat izazova">
+        <argument android:name="challengeId"
+            app:argType="string" android:defaultValue=""/>
+        <argument android:name="myScore"
+            app:argType="integer" android:defaultValue="0"/>
+        <action
+            android:id="@+id/action_challengeResult_to_home"
+            app:destination="@id/homeFragment"
+            app:popUpTo="@id/homeFragment"
+            app:popUpToInclusive="true"/>
+    </fragment>
 
 </navigation>

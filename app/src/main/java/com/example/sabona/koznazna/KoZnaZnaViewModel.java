@@ -398,9 +398,15 @@ public class KoZnaZnaViewModel extends ViewModel {
         if (correct) myCorrectCount++; else myWrongCount++;
 
         Map<String, Object> update = new HashMap<>();
+        boolean isSolo = com.example.sabona.game.GameSessionManager.get().isSoloSession();
         if (isHost) {
             update.put("p1Answer",     answerIndex);
             update.put("p1AnswerTime", elapsed);
+            if (isSolo) {
+                // U solo modu igrač je i p1 i p2 — upisati isti odgovor za p2
+                update.put("p2Answer",     answerIndex);
+                update.put("p2AnswerTime", elapsed);
+            }
         } else {
             update.put("p2Answer",     answerIndex);
             update.put("p2AnswerTime", elapsed);
@@ -408,7 +414,7 @@ public class KoZnaZnaViewModel extends ViewModel {
         sessionRef.update(update).addOnSuccessListener(v -> {
             if (amOrchestrator()) checkIfBothAnswered();
         });
-        infoText.setValue("✅ Odgovoreno! Čekam protivnika...");
+        infoText.setValue(isSolo ? "✅ Odgovoreno!" : "✅ Odgovoreno! Čekam protivnika...");
 
     }
 
@@ -527,10 +533,16 @@ public class KoZnaZnaViewModel extends ViewModel {
                 if (!iAnswered && !questionDone) {
                     iAnswered = true;
                     Map<String, Object> update = new HashMap<>();
+                    boolean isSolo = com.example.sabona.game.GameSessionManager.get().isSoloSession();
                     String answerField = isHost ? "p1Answer" : "p2Answer";
                     String timeField   = isHost ? "p1AnswerTime" : "p2AnswerTime";
                     update.put(answerField, -2);
                     update.put(timeField,   99999L);
+                    if (isHost && isSolo) {
+                        // U solo modu — p2 je isti igrač, istek vremena za oba
+                        update.put("p2Answer",     -2);
+                        update.put("p2AnswerTime", 99999L);
+                    }
                     sessionRef.update(update)
                             .addOnSuccessListener(v -> {
                                 if (amOrchestrator()) checkIfBothAnswered();
@@ -629,11 +641,11 @@ public class KoZnaZnaViewModel extends ViewModel {
 
         p1Status.setValue(p1Ans == -1 ? "Igrač 1 ⏳"
                 : p1Ans == -2         ? "Igrač 1 ⌛"
-                  : p1Ans == q.correctIndex ? "Igrač 1 ✅" : "Igrač 1 ❌");
+                : p1Ans == q.correctIndex ? "Igrač 1 ✅" : "Igrač 1 ❌");
 
         p2Status.setValue(p2Ans == -1 ? "Igrač 2 ⏳"
                 : p2Ans == -2         ? "Igrač 2 ⌛"
-                  : p2Ans == q.correctIndex ? "Igrač 2 ✅" : "Igrač 2 ❌");
+                : p2Ans == q.correctIndex ? "Igrač 2 ✅" : "Igrač 2 ❌");
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -704,7 +716,7 @@ public class KoZnaZnaViewModel extends ViewModel {
         super.onCleared();
         if (timer != null) timer.cancel();
         if (sessionListener != null) sessionListener.remove();
-        if (abandonListener != null) abandonListener.remove();   
+        if (abandonListener != null) abandonListener.remove();
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -754,8 +766,10 @@ public class KoZnaZnaViewModel extends ViewModel {
         orderedQuestionIds = ids;
         questions = new ArrayList<>(picked);
 
+        boolean solo = com.example.sabona.game.GameSessionManager.get().isSoloSession();
+
         Map<String, Object> data = new HashMap<>();
-        data.put("phase",         "waiting_p2");
+        data.put("phase",         solo ? "question" : "waiting_p2");
         data.put("questionIndex", 0);
         data.put("questionIds",   ids);
         data.put("p1Score",       0);
@@ -769,12 +783,16 @@ public class KoZnaZnaViewModel extends ViewModel {
 
         sessionRef.set(data)
                 .addOnSuccessListener(v -> {
-                    waitingMsg.setValue("Čekam Igrača 2...");
-                    phase.setValue(Phase.WAITING_P2);
-                    startListening();
-                    if (opponentHasLeft) {
-                        infoText.setValue("Protivnik je napustio partiju. Nastavljaš sam/a.");
-                        autoStartAlone();
+                    if (solo) {
+                        startListening();
+                    } else {
+                        waitingMsg.setValue("Čekam Igrača 2...");
+                        phase.setValue(Phase.WAITING_P2);
+                        startListening();
+                        if (opponentHasLeft) {
+                            infoText.setValue("Protivnik je napustio partiju. Nastavljaš sam/a.");
+                            autoStartAlone();
+                        }
                     }
                 })
                 .addOnFailureListener(e ->

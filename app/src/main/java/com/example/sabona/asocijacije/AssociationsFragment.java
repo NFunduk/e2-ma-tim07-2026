@@ -93,10 +93,14 @@ public class AssociationsFragment extends Fragment {
             boolean passedIsHost = args.getBoolean("isHost", true);
             String passedHostUid = args.getString("hostUid", "");
 
+            String challengeId  = args.getString("challengeId", "");
+            boolean isChallenge = challengeId != null && !challengeId.isEmpty();
             if (!passedSessionId.isEmpty()) {
                 multiplayerMode = true;
 
-                if (passedIsHost) {
+                if (isChallenge) {
+                    GameSessionManager.get().setupAsSolo(passedSessionId);
+                } else if (passedIsHost) {
                     GameSessionManager.get().setupAsHost(passedSessionId);
                 } else {
                     GameSessionManager.get().setupAsGuest(passedSessionId, passedHostUid);
@@ -268,7 +272,7 @@ public class AssociationsFragment extends Fragment {
 
         finalInput.setText("");
         updateHeader();
-       // startTimer();
+        // startTimer();
     }
 
     private void applyRemoteGameOrder(AsocijacijeGameState state) {
@@ -814,7 +818,10 @@ public class AssociationsFragment extends Fragment {
             args.putString("sessionId", GameSessionManager.get().getSessionId());
             args.putBoolean("isHost", GameSessionManager.get().isPlayer1());
             args.putString("hostUid", GameSessionManager.get().getPlayer1Uid());
+            //args.putString("challengeId", getArguments() != null ? getArguments().getString("challengeId", "") : "");
+
         }
+        args.putString("challengeId", getArguments() != null ? getArguments().getString("challengeId", "") : "");
 
         NavHostFragment.findNavController(this)
                 .navigate(R.id.action_associations_to_skocko, args);

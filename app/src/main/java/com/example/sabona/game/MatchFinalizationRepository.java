@@ -62,10 +62,19 @@ public class MatchFinalizationRepository {
                     long totalP1 = rootSnap.getLong("totalScoreP1") != null ? rootSnap.getLong("totalScoreP1") : 0;
                     long totalP2 = rootSnap.getLong("totalScoreP2") != null ? rootSnap.getLong("totalScoreP2") : 0;
                     String leftByUid = rootSnap.getString("leftByUid");
+                    String player1Uid = rootSnap.getString("player1Uid");
+                    String player2Uid = rootSnap.getString("player2Uid");
+                    boolean isSoloChallenge = player1Uid != null
+                            && player1Uid.equals(player2Uid)
+                            && rootSnap.getString("challengeId") != null;
 
                     boolean isP1 = sessionMgr.isPlayer1();
-                    int myScore  = (int) (isP1 ? totalP1 : totalP2);
-                    int oppScore = (int) (isP1 ? totalP2 : totalP1);
+                    int myScore = isSoloChallenge
+                            ? (int) (totalP1 + totalP2)
+                            : (int) (isP1 ? totalP1 : totalP2);
+                    int oppScore = isSoloChallenge
+                            ? 0
+                            : (int) (isP1 ? totalP2 : totalP1);
 
                     boolean iLeft   = myUid.equals(leftByUid);
                     boolean oppLeft = leftByUid != null && !iLeft;
@@ -130,7 +139,6 @@ public class MatchFinalizationRepository {
             callback.onSuccess(new Result(false, won, starsDelta, (int) d[1], myScore, oppScore));
         }).addOnFailureListener(e -> callback.onError("Greška pri upisu zvezdi: " + e.getMessage()));
     }
-
     private void finalizeTournamentMatch(DocumentSnapshot rootSnap,
                                          String myUid,
                                          Callback callback) {

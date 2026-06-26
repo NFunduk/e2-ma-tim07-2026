@@ -74,9 +74,13 @@ public class KorakPoKorakFragment extends Fragment {
             String passedSessionId = args.getString("sessionId", "");
             boolean passedIsHost   = args.getBoolean("isHost", true);
             String passedHostUid   = args.getString("hostUid", "");
+            String challengeId     = args.getString("challengeId", "");
+            boolean isChallenge    = challengeId != null && !challengeId.isEmpty();
 
             if (!passedSessionId.isEmpty()) {
-                if (passedIsHost) {
+                if (isChallenge) {
+                    GameSessionManager.get().setupAsSolo(passedSessionId);
+                } else if (passedIsHost) {
                     GameSessionManager.get().setupAsHost(passedSessionId);
                 } else {
                     GameSessionManager.get().setupAsGuest(passedSessionId, passedHostUid);
@@ -245,6 +249,7 @@ public class KorakPoKorakFragment extends Fragment {
             args.putString("sessionId", GameSessionManager.get().getSessionId());
             args.putBoolean("isHost", GameSessionManager.get().isPlayer1());
             args.putString("hostUid", GameSessionManager.get().getPlayer1Uid());
+            args.putString("challengeId", getArguments() != null ? getArguments().getString("challengeId", "") : "");
             try {
                 NavHostFragment.findNavController(this)
                         .navigate(R.id.action_korak_to_mojbroj, args);
@@ -286,8 +291,11 @@ public class KorakPoKorakFragment extends Fragment {
             public void onTick(long ms) {
                 if (!isAdded()) return;
                 long secondsLeft = ms / 1000;
-                tvKorakTimer.setText(String.format("00:%02d", secondsLeft));
-                if (secondsLeft % 10 == 0 && secondsLeft != 70 && secondsLeft > 0) {
+                long minutes = secondsLeft / 60;
+                long seconds = secondsLeft % 60;
+                tvKorakTimer.setText(String.format("%02d:%02d", minutes, seconds));
+                // Otkrij novi korak svakih 10 sekundi (na 60s, 50s, 40s, 30s, 20s, 10s)
+                if (secondsLeft % 10 == 0 && secondsLeft < 70 && secondsLeft > 0) {
                     viewModel.revealNextStep();
                 }
             }

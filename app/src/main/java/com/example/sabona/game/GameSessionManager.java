@@ -34,6 +34,19 @@ public class GameSessionManager {
         this.player2Uid = null;
     }
 
+    /**
+     * Poziva se pri pokretanju izazova (challenge) — igrač igra sam,
+     * player1Uid i player2Uid su isti pa isSoloSession() vraća true
+     * i igre preskaču WAITING_P2 fazu.
+     */
+    public void setupAsSolo(String sessionId) {
+        String uid      = getMyUid();
+        this.sessionId  = sessionId;
+        this.myRole     = ROLE_PLAYER1;
+        this.player1Uid = uid;
+        this.player2Uid = uid;   // isti igrač → isSoloSession() == true
+    }
+
     /** Poziva guest pri pridruživanju */
     public void setupAsGuest(String sessionId, String hostUid) {
         this.sessionId  = sessionId;
@@ -74,6 +87,11 @@ public class GameSessionManager {
         return uid != null && uid.equals(getMyUid());
     }
 
+    public boolean isSoloSession() {
+        return player2Uid != null
+                && !player2Uid.isEmpty()
+                && player2Uid.equals(player1Uid);
+    }
     public void reset() {
         instance = null;
     }

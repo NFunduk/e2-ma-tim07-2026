@@ -76,7 +76,7 @@ public class SkockoViewModel extends ViewModel {
         SkockoGameState state = new SkockoGameState();
 
         state.status = "playing";
-        state.phase = "WAITING_P2";
+        state.phase = GameSessionManager.get().isSoloSession() ? "IDLE" : "WAITING_P2";
         state.round = 1;
         state.activePlayerRole = GameSessionManager.ROLE_PLAYER1;
         state.player1Score = 0;
@@ -123,7 +123,9 @@ public class SkockoViewModel extends ViewModel {
                 phase.setValue(Phase.GAME_OVER);
             }
 
-            boolean turn = state.activePlayerRole.equals(sessionMgr.getMyRole()) || opponentHasLeft;
+            boolean turn = GameSessionManager.get().isSoloSession()
+                    || state.activePlayerRole.equals(sessionMgr.getMyRole())
+                    || opponentHasLeft;
             myTurn.setValue(turn);
         });
     }
@@ -175,7 +177,9 @@ public class SkockoViewModel extends ViewModel {
     public void startNextRound() {
         if (remoteState == null) return;
 
-        if (remoteState.round == 1) {
+        boolean isSolo = GameSessionManager.get().isSoloSession();
+
+        if (!isSolo && remoteState.round == 1) {
             remoteState.round = 2;
             remoteState.phase = "PLAYING";
             remoteState.activePlayerRole = GameSessionManager.ROLE_PLAYER2;
@@ -239,6 +243,8 @@ public class SkockoViewModel extends ViewModel {
 
     public void startOpponentChance() {
         if (remoteState == null) return;
+        // U solo modu nema protivnika — dodatni pokušaj se ne daje
+        if (GameSessionManager.get().isSoloSession()) return;
 
         remoteState.opponentChance = true;
 

@@ -53,6 +53,9 @@ public class MainActivity extends AppCompatActivity {
     // Listener za ukupan skor partije (root gameSessions dokument), aktivan samo dok je igrač u igri
     private ListenerRegistration matchScoreListener;
     private String matchScoreListenerSessionId = null;
+    private boolean toolbarSoloMode = false;
+    private int soloSessionBaseScore = 0;
+    private int soloSessionLocalScore = 0;
     private final Set<Integer> authDestinations = new HashSet<>(Arrays.asList(
             R.id.loginFragment,
             R.id.registerFragment,
@@ -190,6 +193,7 @@ public class MainActivity extends AppCompatActivity {
                     if (tvPlayer2Name != null) tvPlayer2Name.setText("Igrač 2");
                     if (ivPlayer1Avatar != null) ivPlayer1Avatar.setImageResource(R.drawable.outline_account_circle_24);
                     if (ivPlayer2Avatar != null) ivPlayer2Avatar.setImageResource(R.drawable.outline_account_circle_24);
+                    setSoloToolbarMode(false);
                 }
             }
             //bottomNav.setVisibility(isAuth ? View.GONE : View.VISIBLE);
@@ -227,6 +231,7 @@ public class MainActivity extends AppCompatActivity {
                 if (tvPlayer1Score != null) tvPlayer1Score.setText("0 bod");
                 if (tvPlayer2Score != null) tvPlayer2Score.setText("0 bod");
                 if (tvMatchScore != null) tvMatchScore.setText("0 : 0");
+                setSoloToolbarMode(false);
             }
         });
 
@@ -426,6 +431,14 @@ public class MainActivity extends AppCompatActivity {
 
     public void updateGameScore(int p1Score, int p2Score, String p1Name, String p2Name) {
         if (tvPlayer1Score == null) return;
+        if (com.example.sabona.game.GameSessionManager.get().isSoloSession()) {
+            soloSessionLocalScore = Math.max(0, p1Score + p2Score);
+            setSoloToolbarMode(true);
+            renderSoloSessionScore();
+            if (p1Name != null) tvPlayer1Name.setText(p1Name);
+            return;
+        }
+        setSoloToolbarMode(false);
         tvPlayer1Score.setText(p1Score + " bod");
         tvPlayer2Score.setText(p2Score + " bod");
         tvMatchScore.setText(p1Score + " : " + p2Score);
@@ -481,18 +494,30 @@ public class MainActivity extends AppCompatActivity {
 
                     long totalP1 = snap.getLong("totalScoreP1") != null ? snap.getLong("totalScoreP1") : 0;
                     long totalP2 = snap.getLong("totalScoreP2") != null ? snap.getLong("totalScoreP2") : 0;
-
-                    if (tvMatchScore != null) {
-                        tvMatchScore.setText(totalP1 + " : " + totalP2);
-                    }
-                    // Ispod imena ne prikazujemo ništa tokom partije
-                    if (tvPlayer1Score != null) tvPlayer1Score.setText("");
-                    if (tvPlayer2Score != null) tvPlayer2Score.setText("");
-
                     String p1Uid = snap.getString("player1Uid");
                     String p2Uid = snap.getString("player2Uid");
+                    boolean isSolo = p1Uid != null && p1Uid.equals(p2Uid);
+
+                    setSoloToolbarMode(isSolo);
+                    if (isSolo) {
+                        long total = totalP1 + totalP2;
+                        int rootTotal = (int) Math.max(0, total);
+                        if (rootTotal >= soloSessionBaseScore + soloSessionLocalScore) {
+                            soloSessionBaseScore = rootTotal;
+                            soloSessionLocalScore = 0;
+                        } else if (rootTotal != soloSessionBaseScore) {
+                            soloSessionBaseScore = rootTotal;
+                        }
+                        renderSoloSessionScore();
+                    } else {
+                        soloSessionBaseScore = 0;
+                        soloSessionLocalScore = 0;
+                        if (tvMatchScore != null) tvMatchScore.setText(totalP1 + " : " + totalP2);
+                        if (tvPlayer1Score != null) tvPlayer1Score.setText("");
+                        if (tvPlayer2Score != null) tvPlayer2Score.setText("");
+                    }
                     if (p1Uid != null) loadPlayerInfo(p1Uid, true);
-                    if (p2Uid != null) loadPlayerInfo(p2Uid, false);
+                    if (!isSolo && p2Uid != null) loadPlayerInfo(p2Uid, false);
                 });
     }
 
@@ -502,6 +527,15 @@ public class MainActivity extends AppCompatActivity {
             matchScoreListener = null;
         }
         matchScoreListenerSessionId = null;
+        soloSessionBaseScore = 0;
+        soloSessionLocalScore = 0;
+    }
+
+    private void renderSoloSessionScore() {
+        int total = soloSessionBaseScore + soloSessionLocalScore;
+        if (tvMatchScore != null) tvMatchScore.setText(String.valueOf(total));
+        if (tvPlayer1Score != null) tvPlayer1Score.setText(total + " bod");
+        if (tvPlayer2Score != null) tvPlayer2Score.setText("");
     }
 
     private void loadPlayerInfo(String uid, boolean isPlayer1) {
@@ -524,6 +558,14 @@ public class MainActivity extends AppCompatActivity {
                 });
     }
 
+    private void setSoloToolbarMode(boolean solo) {
+        toolbarSoloMode = solo;
+        int secondPlayerVisibility = solo ? View.GONE : View.VISIBLE;
+        if (tvPlayer2Name != null) tvPlayer2Name.setVisibility(secondPlayerVisibility);
+        if (tvPlayer2Score != null) tvPlayer2Score.setVisibility(secondPlayerVisibility);
+        if (ivPlayer2Avatar != null) ivPlayer2Avatar.setVisibility(secondPlayerVisibility);
+    }
+
     private int resolveAvatarRes(String name) {
         switch (name) {
             case "gallery":  return android.R.drawable.ic_menu_gallery;
@@ -541,7 +583,6 @@ public class MainActivity extends AppCompatActivity {
             default:         return 0;
         }
     }
-
     private void openNotificationsSafely() {
         try {
             if (navController == null) return;

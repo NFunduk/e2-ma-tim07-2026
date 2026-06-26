@@ -100,10 +100,14 @@ public class SkockoFragment extends Fragment {
             boolean passedIsHost = args.getBoolean("isHost", true);
             String passedHostUid = args.getString("hostUid", "");
 
+            String challengeId  = args.getString("challengeId", "");
+            boolean isChallenge = challengeId != null && !challengeId.isEmpty();
             if (!passedSessionId.isEmpty()) {
                 multiplayerMode = true;
 
-                if (passedIsHost) {
+                if (isChallenge) {
+                    GameSessionManager.get().setupAsSolo(passedSessionId);
+                } else if (passedIsHost) {
                     GameSessionManager.get().setupAsHost(passedSessionId);
                 } else {
                     GameSessionManager.get().setupAsGuest(passedSessionId, passedHostUid);
@@ -401,7 +405,12 @@ public class SkockoFragment extends Fragment {
         clearGuess();
 
         if (attempt == 6) {
-            if (multiplayerMode && viewModel != null) {
+            boolean isSolo = com.example.sabona.game.GameSessionManager.get().isSoloSession();
+            if (isSolo) {
+                // U solo modu nema protivničkog pokušaja — odmah završiti rundu
+                tvInfo.setText("Iskorišćeni su svi pokušaji.");
+                finishRound();
+            } else if (multiplayerMode && viewModel != null) {
                 viewModel.startOpponentChance();
             } else {
                 startOpponentChance();
@@ -678,7 +687,13 @@ public class SkockoFragment extends Fragment {
                     tvInfo.setText("Vreme je isteklo. Rešenje je: " + secretText());
                     finishRound();
                 } else {
-                    startOpponentChance();
+                    boolean isSolo = com.example.sabona.game.GameSessionManager.get().isSoloSession();
+                    if (isSolo) {
+                        tvInfo.setText("Vreme je isteklo. Rešenje je: " + secretText());
+                        finishRound();
+                    } else {
+                        startOpponentChance();
+                    }
                 }
             }
         };
@@ -780,6 +795,7 @@ public class SkockoFragment extends Fragment {
             args.putString("hostUid", GameSessionManager.get().getPlayer1Uid());
         }
 
+        args.putString("challengeId", getArguments() != null ? getArguments().getString("challengeId", "") : "");
         NavHostFragment.findNavController(this)
                 .navigate(R.id.action_skocko_to_korak, args);
     }

@@ -98,9 +98,13 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
             String passedSessionId = args.getString("sessionId", "");
             boolean passedIsHost   = args.getBoolean("isHost", true);
             String passedHostUid   = args.getString("hostUid", "");
+            String challengeId     = args.getString("challengeId", "");
+            boolean isChallenge    = challengeId != null && !challengeId.isEmpty();
 
             if (!passedSessionId.isEmpty()) {
-                if (passedIsHost) {
+                if (isChallenge) {
+                    GameSessionManager.get().setupAsSolo(passedSessionId);
+                } else if (passedIsHost) {
                     GameSessionManager.get().setupAsHost(passedSessionId);
                 } else {
                     GameSessionManager.get().setupAsGuest(passedSessionId, passedHostUid);
@@ -348,23 +352,37 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
         });
 
         viewModel.getMatchResult().observe(getViewLifecycleOwner(), result -> {
-            if (result == null || navigated) return; // dodaj boolean navigated kao field
+            if (result == null || navigated) return;
             navigated = true;
 
-            Bundle args = new Bundle();
-            args.putInt("player1Score", viewModel.getFinalScores().getValue() != null
-                    ? viewModel.getFinalScores().getValue()[0] : 0);
-            args.putInt("player2Score", viewModel.getFinalScores().getValue() != null
-                    ? viewModel.getFinalScores().getValue()[1] : 0);
-            args.putBoolean("friendly", result.friendly);
-            args.putBoolean("won", result.won);
-            args.putInt("starsDelta", result.starsDelta);
-            args.putInt("tokensGained", result.tokensGained);
-            args.putInt("myTotalScore", result.myTotalScore);
-            args.putInt("opponentTotalScore", result.opponentTotalScore);
+            String challengeId = getArguments() != null
+                    ? getArguments().getString("challengeId", "") : "";
 
-            NavHostFragment.findNavController(MojBrojFragment.this)
-                    .navigate(R.id.action_mojbroj_to_gameover, args);
+            Bundle args = new Bundle();
+
+            if (!challengeId.isEmpty()) {
+                // Izazov — idi na ChallengeResult sa KUMULATIVNIM skorom (svih 6 igara),
+                // ne samo skorom iz Moj broj. result.myTotalScore čita totalScoreP1/P2
+                // sa dokumenta sesije, koji se akumulira kroz sve igre.
+                args.putString("challengeId", challengeId);
+                args.putInt("myScore", result.myTotalScore);
+                NavHostFragment.findNavController(MojBrojFragment.this)
+                        .navigate(R.id.action_mojbroj_to_challengeResult, args);
+            } else {
+                // Normalna partija — postojeća logika
+                args.putInt("player1Score", viewModel.getFinalScores().getValue() != null
+                        ? viewModel.getFinalScores().getValue()[0] : 0);
+                args.putInt("player2Score", viewModel.getFinalScores().getValue() != null
+                        ? viewModel.getFinalScores().getValue()[1] : 0);
+                args.putBoolean("friendly", result.friendly);
+                args.putBoolean("won", result.won);
+                args.putInt("starsDelta", result.starsDelta);
+                args.putInt("tokensGained", result.tokensGained);
+                args.putInt("myTotalScore", result.myTotalScore);
+                args.putInt("opponentTotalScore", result.opponentTotalScore);
+                NavHostFragment.findNavController(MojBrojFragment.this)
+                        .navigate(R.id.action_mojbroj_to_gameover, args);
+            }
         });
 
         viewModel.getLiveScores().observe(getViewLifecycleOwner(), scores -> {

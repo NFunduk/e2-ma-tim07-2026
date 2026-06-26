@@ -24,7 +24,8 @@ public class ChallengeViewModel extends ViewModel {
     public LiveData<Boolean>         getLoading()    { return loading; }
 
     public void startListening(String region) {
-        if (region == null || region.equals(currentRegion)) return;
+        if (region == null) return;
+        if (region.equals(currentRegion) && listenerReg != null) return;
         currentRegion = region;
         stopListening();
         startListeningInternal(region);

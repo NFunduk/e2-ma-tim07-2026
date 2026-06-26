@@ -101,8 +101,35 @@ public class KoZnaZnaFragment extends Fragment {
                 : "unknown";
 
         Bundle passedArgs = getArguments();
+        boolean isChallengeMode = passedArgs != null
+                && passedArgs.getString("challengeId", "") != null
+                && !passedArgs.getString("challengeId", "").isEmpty();
+        applyChallengeSoloUi(isChallengeMode);
         if (passedArgs != null && !passedArgs.getString("sessionId", "").isEmpty()) {
             String sessionId = passedArgs.getString("sessionId");
+            boolean isChallenge = isChallengeMode;
+
+            if (isChallenge) {
+                com.example.sabona.game.GameSessionManager.get().setupAsSolo(sessionId);
+                vm.initWithSession(uid, sessionId, true);
+                observeViewModel();
+                return;
+            }
+
+            if (passedArgs.containsKey("isHost")) {
+                boolean isHost = passedArgs.getBoolean("isHost", true);
+                String hostUid = passedArgs.getString("hostUid", "");
+
+                if (isHost) {
+                    com.example.sabona.game.GameSessionManager.get().setupAsHost(sessionId);
+                } else {
+                    com.example.sabona.game.GameSessionManager.get().setupAsGuest(sessionId, hostUid);
+                }
+
+                vm.initWithSession(uid, sessionId, isHost);
+                observeViewModel();
+                return;
+            }
 
             FirebaseFirestore.getInstance()
                     .collection("gameSessions")
@@ -110,7 +137,7 @@ public class KoZnaZnaFragment extends Fragment {
                     .get()
                     .addOnSuccessListener(snap -> {
                         String p1 = snap.getString("player1Uid");
-                        String p2 = snap.getString("player2Uid");
+
 
                         boolean isHost = uid.equals(p1);
 
@@ -243,8 +270,8 @@ public class KoZnaZnaFragment extends Fragment {
                 Bundle args = new Bundle();
                 args.putString("sessionId", vm.getSessionId());
                 args.putBoolean("isHost",   vm.isHost());
-                NavHostFragment.findNavController(this)
-                        .navigate(R.id.action_kozna_to_spojnice, args);
+                args.putString("challengeId", getArguments() != null ? getArguments().getString("challengeId", "") : "");
+                NavHostFragment.findNavController(this).navigate(R.id.action_kozna_to_spojnice, args);
             } catch (Exception e) {
                 // Navigation fallback
             }
@@ -365,5 +392,11 @@ public class KoZnaZnaFragment extends Fragment {
         if (s1 != null && s2 != null && getActivity() instanceof MainActivity) {
             ((MainActivity) getActivity()).updateGameScore(s1, s2, null, null);
         }
+    }
+
+    private void applyChallengeSoloUi(boolean challengeMode) {
+        if (!challengeMode) return;
+        if (tvPlayer2Status != null) tvPlayer2Status.setVisibility(View.GONE);
+        if (tvScore2 != null) tvScore2.setVisibility(View.GONE);
     }
 }
