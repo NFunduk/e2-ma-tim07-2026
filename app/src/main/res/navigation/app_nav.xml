@@ -53,6 +53,10 @@
             app:destination="@id/matchmakingFragment" />
 
         <action
+            android:id="@+id/action_home_to_tournament"
+            app:destination="@id/tournamentFragment" />
+
+        <action
             android:id="@+id/action_home_to_league"
             app:destination="@id/leagueProgressFragment"/>
 
@@ -130,6 +134,9 @@
             app:destination="@id/homeFragment"
             app:popUpTo="@id/homeFragment"
             app:popUpToInclusive="true"/>
+        <action
+            android:id="@+id/action_gameover_to_koZnaZna"
+            app:destination="@id/koZnaZnaFragment" />
     </fragment>
 
     <fragment
@@ -201,6 +208,18 @@
         android:id="@+id/chatFragment"
         android:name="com.example.sabona.chat.ChatFragment"
         android:label="Čet"/>
+
+
+    <fragment
+        android:id="@+id/tournamentFragment"
+        android:name="com.example.sabona.tournament.TournamentFragment"
+        android:label="Turnir">
+
+        <action
+            android:id="@+id/action_tournament_to_koZnaZna"
+            app:destination="@id/koZnaZnaFragment" />
+
+    </fragment>
 
 
 

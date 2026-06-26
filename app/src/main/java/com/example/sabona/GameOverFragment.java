@@ -20,6 +20,7 @@ import com.example.sabona.league.LeagueManager;
 import com.example.sabona.league.LeagueRepository;
 import com.example.sabona.repository.NotificationFactory;
 import com.example.sabona.repository.NotificationRepository;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 /**
  * Fragment koji se prikazuje na kraju svake partije.
@@ -72,6 +73,25 @@ public class GameOverFragment extends Fragment {
             }
             tvWinner.setText(winnerText);
 
+// Animacija pobede/poraza
+            tvWinner.setScaleX(0.5f);
+            tvWinner.setScaleY(0.5f);
+            tvWinner.setAlpha(0f);
+
+            tvWinner.animate()
+                    .alpha(1f)
+                    .scaleX(1.2f)
+                    .scaleY(1.2f)
+                    .setDuration(500)
+                    .withEndAction(() ->
+                            tvWinner.animate()
+                                    .scaleX(1f)
+                                    .scaleY(1f)
+                                    .setDuration(300)
+                                    .start()
+                    )
+                    .start();
+
             // Rezultat
             tvScores.setText(
                     "Tvoj ukupni skor: " + myScore +
@@ -114,12 +134,7 @@ public class GameOverFragment extends Fragment {
         }
 
         btnPlayAgain.setOnClickListener(v ->
-                NavHostFragment.findNavController(this)
-                        .navigate(R.id.action_gameover_to_home));
-
-        btnHome.setOnClickListener(v ->
-                NavHostFragment.findNavController(this)
-                        .navigate(R.id.action_gameover_to_home));
+                checkAndOpenFinalOrHome());
 
         btnHome.setOnClickListener(v ->
                 NavHostFragment.findNavController(this)
@@ -180,5 +195,50 @@ public class GameOverFragment extends Fragment {
                 android.util.Log.e("GameOver", "Greška pri ažuriranju zvezda: " + message);
             }
         });
+    }
+
+
+    private void checkAndOpenFinalOrHome() {
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+
+        if (user == null) {
+            NavHostFragment.findNavController(this)
+                    .navigate(R.id.action_gameover_to_home);
+            return;
+        }
+
+
+
+        String uid = user.getUid();
+
+        FirebaseFirestore.getInstance()
+                .collection("tournamentQueue")
+                .document(uid)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (!isAdded()) return;
+
+                    if (doc.exists()) {
+                        String sessionId = doc.getString("sessionId");
+
+                        if (sessionId != null && sessionId.endsWith("_F")) {
+                            Bundle args = new Bundle();
+                            args.putString("sessionId", sessionId);
+
+                            NavHostFragment.findNavController(this)
+                                    .navigate(R.id.action_gameover_to_koZnaZna, args);
+                            return;
+                        }
+                    }
+
+                    NavHostFragment.findNavController(this)
+                            .navigate(R.id.action_gameover_to_home);
+                })
+                .addOnFailureListener(e -> {
+                    if (!isAdded()) return;
+
+                    NavHostFragment.findNavController(this)
+                            .navigate(R.id.action_gameover_to_home);
+                });
     }
 }

@@ -178,6 +178,17 @@
                     android:textColor="@color/dark_blue"
                     android:backgroundTint="@color/petal" />
 
+                <Button
+                    android:id="@+id/btnHomeTournament"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:layout_marginTop="10dp"
+                    android:text="TURNIR"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/white"
+                    android:backgroundTint="@color/dark_blue" />
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
