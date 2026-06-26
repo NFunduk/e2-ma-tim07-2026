@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.sabona.daily.DailyMissionRepository;
 
 import com.example.sabona.R;
+import com.example.sabona.utils.PresenceManager;
 import com.google.firebase.auth.FirebaseAuth;
 
 public class ChatFragment extends Fragment {
@@ -110,8 +111,21 @@ public class ChatFragment extends Fragment {
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        PresenceManager.setInChat(true);
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        PresenceManager.setInChat(false);
+    }
+
+    @Override
     public void onDestroyView() {
         super.onDestroyView();
+        PresenceManager.setInChat(false);
         if (getActivity() instanceof com.example.sabona.MainActivity) {
             ((com.example.sabona.MainActivity) getActivity()).setBottomNavVisible(true);
         }

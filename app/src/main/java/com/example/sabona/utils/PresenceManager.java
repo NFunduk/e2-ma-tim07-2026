@@ -51,4 +51,14 @@ public class PresenceManager {
         db.collection("users").document(uid)
                 .set(data, com.google.firebase.firestore.SetOptions.merge());
     }
+
+    public static void setInChat(boolean inChat) {
+        String uid = currentUid();
+        if (uid == null) return;
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("inChat", inChat);
+        db.collection("users").document(uid)
+                .set(data, com.google.firebase.firestore.SetOptions.merge());
+    }
 }

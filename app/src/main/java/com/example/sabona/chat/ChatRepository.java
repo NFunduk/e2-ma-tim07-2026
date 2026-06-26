@@ -128,11 +128,11 @@ public class ChatRepository {
     private void notifyOfflineRegionMembers(String region, String senderUid, String senderName) {
         db.collection("users")
                 .whereEqualTo("region", region)
-                .whereEqualTo("online", false)
                 .get()
                 .addOnSuccessListener(snapshot -> {
                     for (DocumentSnapshot doc : snapshot.getDocuments()) {
                         if (doc.getId().equals(senderUid)) continue;
+                        if (Boolean.TRUE.equals(doc.getBoolean("inChat"))) continue;
                         notifRepo.createNotification(
                                 doc.getId(),
                                 NotificationFactory.chatMessage(senderName)
