@@ -116,8 +116,12 @@ public class DailyMissionRepository {
                 return null;
             }
 
-            transaction.update(ref, missionField, true);
-            transaction.update(ref, "stars", FieldValue.increment(3));
+            transaction.update(ref,
+                    missionField, true,
+                    "stars", FieldValue.increment(3),
+                    "weeklyStars", FieldValue.increment(3),
+                    "monthlyStars", FieldValue.increment(3)
+            );
 
             if (MISSION_WIN_MATCH.equals(missionField)) winMatch = true;
             if (MISSION_SEND_CHAT.equals(missionField)) sendChat = true;
@@ -127,9 +131,13 @@ public class DailyMissionRepository {
             boolean allCompleted = winMatch && sendChat && friendlyMatch && tournamentWin;
 
             if (allCompleted && !bonusClaimed) {
-                transaction.update(ref, "tokens", FieldValue.increment(2));
-                transaction.update(ref, "stars", FieldValue.increment(3));
-                transaction.update(ref, "missionBonusClaimed", true);
+                transaction.update(ref,
+                        "tokens", FieldValue.increment(2),
+                        "stars", FieldValue.increment(3),
+                        "weeklyStars", FieldValue.increment(3),
+                        "monthlyStars", FieldValue.increment(3),
+                        "missionBonusClaimed", true
+                );
             }
 
             return null;

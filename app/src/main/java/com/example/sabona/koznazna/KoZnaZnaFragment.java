@@ -22,6 +22,7 @@ import com.example.sabona.MainActivity;
 import com.example.sabona.R;
 
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 /**
  * Ko Zna Zna — prezentacijski sloj.
@@ -102,21 +103,38 @@ public class KoZnaZnaFragment extends Fragment {
         Bundle passedArgs = getArguments();
         if (passedArgs != null && !passedArgs.getString("sessionId", "").isEmpty()) {
             String sessionId = passedArgs.getString("sessionId");
-            boolean isHost    = passedArgs.getBoolean("isHost", true);
-            String hostUid    = passedArgs.getString("hostUid", "");
 
-            if (isHost) {
-                com.example.sabona.game.GameSessionManager.get().setupAsHost(sessionId);
-            } else {
-                com.example.sabona.game.GameSessionManager.get().setupAsGuest(sessionId, hostUid);
-            }
+            FirebaseFirestore.getInstance()
+                    .collection("gameSessions")
+                    .document(sessionId)
+                    .get()
+                    .addOnSuccessListener(snap -> {
+                        String p1 = snap.getString("player1Uid");
+                        String p2 = snap.getString("player2Uid");
 
-            vm.initWithSession(uid, sessionId, isHost);
+                        boolean isHost = uid.equals(p1);
+
+                        if (isHost) {
+                            com.example.sabona.game.GameSessionManager.get().setupAsHost(sessionId);
+                        } else {
+                            com.example.sabona.game.GameSessionManager.get().setupAsGuest(sessionId, p1);
+                        }
+
+                        vm.initWithSession(uid, sessionId, isHost);
+                        observeViewModel();
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(requireContext(), "Greška pri učitavanju sesije", Toast.LENGTH_LONG).show();
+                        NavHostFragment.findNavController(this).navigateUp();
+                    });
+
+            return;
         } else {
             vm.init(uid);
+            observeViewModel();
         }
 
-        observeViewModel();
+       // observeViewModel();
     }
 
     // ═══════════════════════════════════════════════════════════════════════

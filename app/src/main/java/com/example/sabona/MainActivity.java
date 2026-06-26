@@ -66,7 +66,8 @@ public class MainActivity extends AppCompatActivity {
             R.id.skockoFragment,
             R.id.korakPoKorakFragment,
             R.id.mojBrojFragment,
-            R.id.matchmakingFragment
+            R.id.matchmakingFragment,
+            R.id.tournamentFragment
     ));
 
     private final Set<Integer> fullScreenInputDestinations = new HashSet<>(Arrays.asList(

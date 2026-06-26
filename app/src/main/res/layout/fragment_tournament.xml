@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/lace"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="TURNIR"
+        android:textColor="@color/dark_blue"
+        android:textSize="28sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvTournamentStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:gravity="center"
+        android:text="Čekamo 4 igrača za turnir..."
+        android:textColor="@color/dark_blue"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <ProgressBar
+        android:id="@+id/progressTournament"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="20dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:gravity="center"
+        android:text="Ulazak u turnir košta 3 tokena.&#10;Pobednici polufinala idu u finale."
+        android:textColor="@color/blue"
+        android:textSize="14sp" />
+
+    <LinearLayout
+        android:id="@+id/layoutPlayers"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="22dp"
+        android:orientation="vertical">
+
+        <!-- Igrač 1 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/channel_chip_bg"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="10dp">
+
+            <ImageView
+                android:id="@+id/ivPlayerAvatar1"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:src="@drawable/outline_account_circle_24" />
+
+            <TextView
+                android:id="@+id/tvPlayerSlot1"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="1. Čeka se igrač..."
+                android:textColor="@color/dark_blue"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Igrač 2 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/channel_chip_bg"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="10dp">
+
+            <ImageView
+                android:id="@+id/ivPlayerAvatar2"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:src="@drawable/outline_account_circle_24" />
+
+            <TextView
+                android:id="@+id/tvPlayerSlot2"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="2. Čeka se igrač..."
+                android:textColor="@color/dark_blue"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Igrač 3 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/channel_chip_bg"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="10dp">
+
+            <ImageView
+                android:id="@+id/ivPlayerAvatar3"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:src="@drawable/outline_account_circle_24" />
+
+            <TextView
+                android:id="@+id/tvPlayerSlot3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="3. Čeka se igrač..."
+                android:textColor="@color/dark_blue"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Igrač 4 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:background="@drawable/channel_chip_bg"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="10dp">
+
+            <ImageView
+                android:id="@+id/ivPlayerAvatar4"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:src="@drawable/outline_account_circle_24" />
+
+            <TextView
+                android:id="@+id/tvPlayerSlot4"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="4. Čeka se igrač..."
+                android:textColor="@color/dark_blue"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnCancelTournament"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="28dp"
+        android:backgroundTint="@color/dark_blue"
+        android:text="Odustani od čekanja"
+        android:textColor="@color/white" />
+
+</LinearLayout>

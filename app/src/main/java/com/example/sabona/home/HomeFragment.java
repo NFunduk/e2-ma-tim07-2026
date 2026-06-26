@@ -100,6 +100,9 @@ public class HomeFragment extends Fragment {
         view.findViewById(R.id.btnHomePlay).setOnClickListener(v ->
                 Navigation.findNavController(view).navigate(R.id.action_home_to_matchmaking));
 
+        view.findViewById(R.id.btnHomeTournament).setOnClickListener(v ->
+                Navigation.findNavController(view).navigate(R.id.action_home_to_tournament));
+
         tvMission1Status.setOnLongClickListener(v -> {
             dailyMissionRepository.completeWinMatch(currentUid, null);
             Toast.makeText(requireContext(), "Test: završena misija Pobedi partiju", Toast.LENGTH_SHORT).show();
