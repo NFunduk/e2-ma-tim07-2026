@@ -20,6 +20,7 @@ public class Challenge {
     private List<String> participantUids;       // uid-ovi svih igrača koji su ušli
     private List<String> participantUsernames;  // username-ovi (za prikaz)
     private List<Integer> participantScores;    // finalni skorovi (paralelno sa uid listom)
+    private List<String> submittedUids;         // igraci koji su vec zavrsili solo partiju
     private long createdAt;
 
     public Challenge() {} // Firestore zahteva prazan konstruktor
@@ -35,6 +36,7 @@ public class Challenge {
         this.participantUids = new ArrayList<>();
         this.participantUsernames = new ArrayList<>();
         this.participantScores = new ArrayList<>();
+        this.submittedUids = new ArrayList<>();
         this.createdAt = System.currentTimeMillis();
 
         // Kreator automatski ulazi kao prvi učesnik
@@ -64,6 +66,8 @@ public class Challenge {
     public void setParticipantUsernames(List<String> v) { this.participantUsernames = v; }
     public List<Integer> getParticipantScores()   { return participantScores; }
     public void setParticipantScores(List<Integer> v)   { this.participantScores = v; }
+    public List<String> getSubmittedUids()         { return submittedUids; }
+    public void setSubmittedUids(List<String> v)   { this.submittedUids = v; }
     public long getCreatedAt()                    { return createdAt; }
     public void setCreatedAt(long v)              { this.createdAt = v; }
 
@@ -75,4 +79,8 @@ public class Challenge {
     public boolean isFull() { return getParticipantCount() >= 4; }
     public boolean isOpen() { return STATUS_OPEN.equals(status); }
     public boolean isFinished() { return STATUS_FINISHED.equals(status); }
+
+    public boolean hasSubmitted(String uid) {
+        return submittedUids != null && uid != null && submittedUids.contains(uid);
+    }
 }

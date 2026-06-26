@@ -320,6 +320,7 @@ public class RegionsMapFragment extends Fragment {
                     buildRegionLegend();
                     List<RegionMonthlyRankEntry> cachedRanking = viewModel.getMonthlyRanking().getValue();
                     if (cachedRanking != null) buildMonthlyRanking(cachedRanking);
+                    startChallengeListeningIfReady();
                 });
     }
 
@@ -435,17 +436,24 @@ public class RegionsMapFragment extends Fragment {
                     myStars    = doc.getLong("stars")  != null ? doc.getLong("stars").intValue()  : 0;
                     myTokens   = doc.getLong("tokens") != null ? doc.getLong("tokens").intValue() : 0;
 
-                    if (myRegion != null) {
-                        tvRegionLabel.setText("Izazovi za region: " + myRegion);
-                        challengeViewModel.startListening(myRegion.displayName);
-                    }
+                    startChallengeListeningIfReady();
                 });
 
         // RecyclerView
         androidx.recyclerview.widget.RecyclerView rv =
                 requireView().findViewById(R.id.rvChallenges);
         challengeAdapter = new com.example.sabona.challenge.ChallengeListAdapter(
-                uid, challenge -> showJoinChallengeDialog(challenge));
+                uid, new com.example.sabona.challenge.ChallengeListAdapter.OnJoinListener() {
+            @Override
+            public void onJoin(com.example.sabona.challenge.Challenge challenge) {
+                showJoinChallengeDialog(challenge);
+            }
+
+            @Override
+            public void onPlay(com.example.sabona.challenge.Challenge challenge) {
+                startChallengeGame(challenge.getId());
+            }
+        });
         rv.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(requireContext()));
         rv.setAdapter(challengeAdapter);
 
@@ -465,6 +473,12 @@ public class RegionsMapFragment extends Fragment {
         // FAB — novi izazov
         requireView().findViewById(R.id.fabNewChallenge)
                 .setOnClickListener(v -> showCreateChallengeDialog());
+    }
+
+    private void startChallengeListeningIfReady() {
+        if (!challengesInitialized || challengeViewModel == null || myRegion == null) return;
+        tvRegionLabel.setText("Izazovi za region: " + myRegion.displayName);
+        challengeViewModel.startListening(myRegion.displayName);
     }
 
     private void showCreateChallengeDialog() {
@@ -542,7 +556,9 @@ public class RegionsMapFragment extends Fragment {
                     repo.createChallengeAndGetId(ch, new com.example.sabona.challenge.ChallengeRepository.IdCallback() {
                         @Override public void onSuccess(String challengeId) {
                             if (!isAdded()) return;
-                            startChallengeGame(challengeId);
+                            Toast.makeText(requireContext(),
+                                    "Izazov je kreiran. Pokreni ga iz liste kada budes spreman/a.",
+                                    Toast.LENGTH_SHORT).show();
                         }
                         @Override public void onError(String msg) {
                             if (!isAdded()) return;
@@ -574,13 +590,27 @@ public class RegionsMapFragment extends Fragment {
                         + "Kreator: " + challenge.getCreatorUsername() + "\n"
                         + "Učesnici: " + challenge.getParticipantCount() + "/4")
                 .setPositiveButton("Prihvati", (d, w) -> {
-                    challengeViewModel.joinChallenge(challenge.getId(), currentUid, myUsername,
-                            challenge.getStarsWager(), challenge.getTokensWager());
-                    myStars  -= challenge.getStarsWager();
-                    myTokens -= challenge.getTokensWager();
+                    progressChallenge.setVisibility(View.VISIBLE);
+                    new com.example.sabona.challenge.ChallengeRepository()
+                            .joinChallenge(challenge.getId(), currentUid, myUsername,
+                                    challenge.getStarsWager(), challenge.getTokensWager(),
+                                    new com.example.sabona.challenge.ChallengeRepository.Callback() {
+                                        @Override public void onSuccess() {
+                                            if (!isAdded()) return;
+                                            progressChallenge.setVisibility(View.GONE);
+                                            myStars  -= challenge.getStarsWager();
+                                            myTokens -= challenge.getTokensWager();
+                                            startChallengeGame(challenge.getId());
+                                        }
 
-                    // Pokreni solo partiju sa challengeId-em
-                    startChallengeGame(challenge.getId());
+                                        @Override public void onError(String msg) {
+                                            if (!isAdded()) return;
+                                            progressChallenge.setVisibility(View.GONE);
+                                            Toast.makeText(requireContext(),
+                                                    "Greška: " + msg,
+                                                    Toast.LENGTH_SHORT).show();
+                                        }
+                                    });
                 })
                 .setNegativeButton("Odustani", null)
                 .show();
@@ -609,6 +639,26 @@ public class RegionsMapFragment extends Fragment {
         String uid = FirebaseAuth.getInstance().getCurrentUser() != null
                 ? FirebaseAuth.getInstance().getCurrentUser().getUid() : "";
 
+        if (progressChallenge != null) progressChallenge.setVisibility(View.VISIBLE);
+        new com.example.sabona.challenge.ChallengeRepository()
+                .markChallengeStarted(challengeId, uid, new com.example.sabona.challenge.ChallengeRepository.Callback() {
+                    @Override public void onSuccess() {
+                        if (!isAdded()) return;
+                        createChallengeGameSession(challengeId);
+                    }
+
+                    @Override public void onError(String msg) {
+                        if (!isAdded()) return;
+                        if (progressChallenge != null) progressChallenge.setVisibility(View.GONE);
+                        Toast.makeText(requireContext(), "Greska: " + msg, Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+    private void createChallengeGameSession(String challengeId) {
+        String uid = FirebaseAuth.getInstance().getCurrentUser() != null
+                ? FirebaseAuth.getInstance().getCurrentUser().getUid() : "";
+
         // Kreiramo solo sesiju — igrač je i player1 i player2
         com.google.firebase.firestore.FirebaseFirestore.getInstance()
                 .collection(com.example.sabona.game.GameSessionManager.COL_GAME_SESSIONS)
@@ -617,10 +667,14 @@ public class RegionsMapFragment extends Fragment {
                     put("player2Uid", uid); // solo — isti igrač
                     put("isFriendlyMatch", true); // ne ulazi u statistiku
                     put("challengeId", challengeId);
+                    put("totalScoreP1", 0);
+                    put("totalScoreP2", 0);
+                    put("status", "active");
                     put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
                 }})
                 .addOnSuccessListener(ref -> {
                     if (!isAdded()) return;
+                    if (progressChallenge != null) progressChallenge.setVisibility(View.GONE);
                     com.example.sabona.game.GameSessionManager.get().setupAsSolo(ref.getId());
 
                     Bundle args = new Bundle();
@@ -630,6 +684,11 @@ public class RegionsMapFragment extends Fragment {
                     androidx.navigation.Navigation
                             .findNavController(requireView())
                             .navigate(R.id.action_regions_to_kozna_challenge, args);
+                })
+                .addOnFailureListener(e -> {
+                    if (!isAdded()) return;
+                    if (progressChallenge != null) progressChallenge.setVisibility(View.GONE);
+                    Toast.makeText(requireContext(), "Greska pri pokretanju izazova", Toast.LENGTH_SHORT).show();
                 });
     }
 }

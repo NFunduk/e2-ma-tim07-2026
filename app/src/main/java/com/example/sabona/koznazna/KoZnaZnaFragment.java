@@ -101,10 +101,13 @@ public class KoZnaZnaFragment extends Fragment {
                 : "unknown";
 
         Bundle passedArgs = getArguments();
+        boolean isChallengeMode = passedArgs != null
+                && passedArgs.getString("challengeId", "") != null
+                && !passedArgs.getString("challengeId", "").isEmpty();
+        applyChallengeSoloUi(isChallengeMode);
         if (passedArgs != null && !passedArgs.getString("sessionId", "").isEmpty()) {
             String sessionId = passedArgs.getString("sessionId");
-            boolean isChallenge = passedArgs.getString("challengeId", "") != null
-                    && !passedArgs.getString("challengeId", "").isEmpty();
+            boolean isChallenge = isChallengeMode;
 
             if (isChallenge) {
                 com.example.sabona.game.GameSessionManager.get().setupAsSolo(sessionId);
@@ -389,5 +392,11 @@ public class KoZnaZnaFragment extends Fragment {
         if (s1 != null && s2 != null && getActivity() instanceof MainActivity) {
             ((MainActivity) getActivity()).updateGameScore(s1, s2, null, null);
         }
+    }
+
+    private void applyChallengeSoloUi(boolean challengeMode) {
+        if (!challengeMode) return;
+        if (tvPlayer2Status != null) tvPlayer2Status.setVisibility(View.GONE);
+        if (tvScore2 != null) tvScore2.setVisibility(View.GONE);
     }
 }
