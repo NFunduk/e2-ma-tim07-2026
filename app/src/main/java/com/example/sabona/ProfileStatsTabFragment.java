@@ -12,6 +12,8 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.example.sabona.viewModel.ProfileViewModel;
+import com.example.sabona.widget.DonutProgressView;
+import com.example.sabona.widget.MiniBarChartView;
 
 import java.util.Map;
 
@@ -111,6 +113,10 @@ public class ProfileStatsTabFragment extends Fragment {
         long kzzW = getLong(d, "kzzWrong", 0);
         tv(view, R.id.tvStatsKzzRatio).setText(kzzC + " / " + kzzW);
 
+        long kzzTotal = kzzC + kzzW;
+        int kzzPct = kzzTotal > 0 ? (int) (kzzC * 100 / kzzTotal) : 0;
+        donut(view, R.id.donutKoZnaZna).setPercent(kzzPct);
+
         // ── Spojnice ──────────────────────────────────────────────────────
         long spojMin = getLong(d, "spojMinPts", 0);
         long spojMax = getLong(d, "spojMaxPts", 0);
@@ -118,9 +124,9 @@ public class ProfileStatsTabFragment extends Fragment {
 
         long spojConn  = getLong(d, "spojConnected", 0);
         long spojTotal = getLong(d, "spojTotal", 0);
-        String spojPct = spojTotal > 0
-                ? (int)(spojConn * 100 / spojTotal) + "%" : "0%";
-        tv(view, R.id.tvStatsSpojnicePercent).setText(spojPct);
+        int spojPctInt = spojTotal > 0 ? (int) (spojConn * 100 / spojTotal) : 0;
+        tv(view, R.id.tvStatsSpojnicePercent).setText(spojPctInt + "%");
+        donut(view, R.id.donutSpojnice).setPercent(spojPctInt);
 
         // ── Asocijacije ───────────────────────────────────────────────────
         long asocMin = getLong(d, "asocMinPts", 0);
@@ -130,6 +136,10 @@ public class ProfileStatsTabFragment extends Fragment {
         long asocSol   = getLong(d, "asocSolved", 0);
         long asocUnsol = getLong(d, "asocUnsolved", 0);
         tv(view, R.id.tvStatsAsocijacijeRatio).setText(asocSol + " / " + asocUnsol);
+
+        long asocTotal = asocSol + asocUnsol;
+        int asocPct = asocTotal > 0 ? (int) (asocSol * 100 / asocTotal) : 0;
+        donut(view, R.id.donutAsocijacije).setPercent(asocPct);
 
         // ── Skočko ────────────────────────────────────────────────────────
         long skMin = getLong(d, "skockoMinPts", 0);
@@ -141,10 +151,12 @@ public class ProfileStatsTabFragment extends Fragment {
         long sk56  = getLong(d, "skockoAttempts56", 0);
         long skTot = getLong(d, "skockoTotal", 1); // izbjegni /0
         if (skTot == 0) skTot = 1;
-        String skPct = (int)(sk12*100/skTot) + "% / "
-                + (int)(sk34*100/skTot) + "% / "
-                + (int)(sk56*100/skTot) + "%";
+        int sk12Pct = (int) (sk12 * 100 / skTot);
+        int sk34Pct = (int) (sk34 * 100 / skTot);
+        int sk56Pct = (int) (sk56 * 100 / skTot);
+        String skPct = sk12Pct + "% / " + sk34Pct + "% / " + sk56Pct + "%";
         tv(view, R.id.tvStatsSkockoPercent).setText(skPct);
+        barChart(view, R.id.barChartSkocko).setPercents(new int[]{sk12Pct, sk34Pct, sk56Pct});
 
         // ── Korak po korak ────────────────────────────────────────────────
         long kMin = getLong(d, "korakMinPts", 0);
@@ -156,13 +168,17 @@ public class ProfileStatsTabFragment extends Fragment {
         if (korakTot == 0) korakTot = 1;
         boolean hasAnyKorakData = false;
         StringBuilder korakSb = new StringBuilder();
+        int[] korakPercents = new int[7];
         for (int i = 0; i < 7; i++) {
             long cnt = getLong(d, "korakStep" + i, 0);
             if (cnt > 0) hasAnyKorakData = true;
-            korakSb.append((int)(cnt * 100 / korakTot)).append("% k.").append(i + 1);
+            int pct = (int) (cnt * 100 / korakTot);
+            korakPercents[i] = pct;
+            korakSb.append(pct).append("% k.").append(i + 1);
             if (i < 6) korakSb.append(" / ");
         }
         tv(view, R.id.tvStatsKorakPercent).setText(hasAnyKorakData ? korakSb.toString() : "—");
+        barChart(view, R.id.barChartKorak).setPercents(korakPercents);
 
         // ── Moj broj ──────────────────────────────────────────────────────
         long mbMin = getLong(d, "mojBrojMinPts", 0);
@@ -172,11 +188,19 @@ public class ProfileStatsTabFragment extends Fragment {
         long mbCorr  = getLong(d, "mojBrojCorrect", 0);
         long mbTotal = getLong(d, "mojBrojTotal", 1);
         if (mbTotal == 0) mbTotal = 1;
-        tv(view, R.id.tvStatsMojBrojPercent)
-                .setText((int)(mbCorr * 100 / mbTotal) + "%");
+        int mbPct = (int) (mbCorr * 100 / mbTotal);
+        tv(view, R.id.tvStatsMojBrojPercent).setText(mbPct + "%");
+        donut(view, R.id.donutMojBroj).setPercent(mbPct);
     }
 
     // ─── Utils ─────────────────────────────────────────────────────────────────
+    private DonutProgressView donut(View root, int id) {
+        return root.findViewById(id);
+    }
+
+    private MiniBarChartView barChart(View root, int id) {
+        return root.findViewById(id);
+    }
     private TextView tv(View root, int id) {
         return root.findViewById(id);
     }

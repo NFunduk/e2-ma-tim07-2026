@@ -388,7 +388,27 @@ public class SpojniceViewModel extends ViewModel {
             attempted[pairIndex] = true;
             infoText.setValue("❌ Netačno! Taj pojam više nije dostupan.");
             emitBoard();
+
+            // Ako je ovim pokušajem igrač "obradio" sve parove (svaki je
+            // ili spojen, ili već netačno pokušan), nema više validnih
+            // poteza za njega — nema smisla čekati da istekne ceo tajmer.
+            // Pređi na sledeću fazu nakon kratke pauze (2s), da igrač
+            // stigne da vidi crveni "✗" pre prelaska.
+            if (allPairsResolved() && !roundFinished) {
+                infoText.setValue("❌ Netačno! Nema više pokušaja — prelazimo dalje...");
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    if (!roundFinished) advancePhase(false, false, true);
+                }, 2000);
+            }
         }
+    }
+
+    /** Da li je svaki od 5 parova ili spojen, ili već netačno pokušan (nema više validnih poteza). */
+    private boolean allPairsResolved() {
+        for (int i = 0; i < 5; i++) {
+            if (!connected[i] && !attempted[i]) return false;
+        }
+        return true;
     }
 
     public int getSelectedLeft() { return selectedLeft; }
@@ -608,10 +628,24 @@ public class SpojniceViewModel extends ViewModel {
     }
 
     private void advancePhase(boolean allConnected) {
-        advancePhase(allConnected, false);
+        advancePhase(allConnected, false, false);
     }
 
     private void advancePhase(boolean allConnected, boolean opponentAbandoned) {
+        advancePhase(allConnected, opponentAbandoned, false);
+    }
+
+    /**
+     * @param triggeredByActivePlayer true kad ovaj poziv dolazi od strane
+     *        igrača koji je TRENUTNO NA POTEZU, a iskoristio je sve svoje
+     *        poteze (svi parovi spojeni ili pokušani) — bez obzira je li
+     *        host ili ne. Ovo je bezbedno za upis (nema "trke" sa drugim
+     *        klijentom, jer samo igrač na potezu generiše ovaj event), za
+     *        razliku od isteka tajmera kod igrača koji NIJE na potezu (taj
+     *        slučaj ostaje rezervisan za host, kao i ranije).
+     */
+    private void advancePhase(boolean allConnected, boolean opponentAbandoned,
+                              boolean triggeredByActivePlayer) {
         if (timer != null) timer.cancel();
         roundFinished = true;
 
@@ -637,7 +671,8 @@ public class SpojniceViewModel extends ViewModel {
             }
         }
 
-        boolean shouldWrite = isHost || opponentAbandoned || opponentHasLeft;
+        boolean shouldWrite = isHost || opponentAbandoned || opponentHasLeft
+                || (triggeredByActivePlayer && myTurn);
 
         if (shouldWrite) {
             Map<String, Object> update = new HashMap<>();
