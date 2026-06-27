@@ -65,6 +65,11 @@ public class SkockoViewModel extends ViewModel {
             String leftUid = snap.getString("leftByUid");
             if (leftUid == null || sessionMgr.isMe(leftUid)) return;
             opponentHasLeft = true;
+            if (remoteState == null && !sessionMgr.isPlayer1()) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    if (remoteState == null) setupAsRemainingPlayer();
+                }, 500);
+            }
         });
     }
 
@@ -79,6 +84,25 @@ public class SkockoViewModel extends ViewModel {
         state.phase = GameSessionManager.get().isSoloSession() ? "IDLE" : "WAITING_P2";
         state.round = 1;
         state.activePlayerRole = GameSessionManager.ROLE_PLAYER1;
+        state.player1Score = 0;
+        state.player2Score = 0;
+        state.secret = generateSecretAsString();
+        state.attempt = 0;
+        state.opponentChance = false;
+        state.roundFinished = false;
+        state.hostUid = sessionMgr.getMyUid();
+
+        sessionRepo.initSkockoState(state);
+        startListening();
+    }
+
+    private void setupAsRemainingPlayer() {
+        SkockoGameState state = new SkockoGameState();
+
+        state.status = "playing";
+        state.phase = "PLAYING";
+        state.round = 1;
+        state.activePlayerRole = sessionMgr.getMyRole();
         state.player1Score = 0;
         state.player2Score = 0;
         state.secret = generateSecretAsString();
@@ -179,7 +203,7 @@ public class SkockoViewModel extends ViewModel {
 
         boolean isSolo = GameSessionManager.get().isSoloSession();
 
-        if (!isSolo && remoteState.round == 1) {
+        if (!isSolo && !opponentHasLeft && remoteState.round == 1) {
             remoteState.round = 2;
             remoteState.phase = "PLAYING";
             remoteState.activePlayerRole = GameSessionManager.ROLE_PLAYER2;
@@ -245,6 +269,10 @@ public class SkockoViewModel extends ViewModel {
         if (remoteState == null) return;
         // U solo modu nema protivnika — dodatni pokušaj se ne daje
         if (GameSessionManager.get().isSoloSession()) return;
+        if (opponentHasLeft) {
+            finishRound();
+            return;
+        }
 
         remoteState.opponentChance = true;
 

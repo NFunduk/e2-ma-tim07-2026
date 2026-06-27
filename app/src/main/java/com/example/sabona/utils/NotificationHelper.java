@@ -82,11 +82,12 @@ public class NotificationHelper {
     public static void showNotification(Context context, AppNotification notification) {
 
         Intent intent = new Intent(context, MainActivity.class);
+        intent.setAction("com.example.sabona.OPEN_NOTIFICATIONS");
         intent.putExtra("open_notifications", true);
         intent.putExtra("notification_id", notification.getId());
         intent.putExtra("notification_type", notification.getType());
         intent.putExtra("notification_message", notification.getMessage());
-        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         int notificationId = notification.getId() != null && !notification.getId().isEmpty()
                 ? notification.getId().hashCode()
                 : (int) System.currentTimeMillis();

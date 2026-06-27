@@ -101,9 +101,18 @@ public class KorakViewModel extends ViewModel {
                     if (g.docId != null) gameIdMap.put(g.docId, g);
                 }
 
-                if ((sessionMgr.isPlayer1() || opponentHasLeft) && !gameInitialized) {
+                if (sessionMgr.isPlayer1() && !gameInitialized) {
                     gameInitialized = true;
                     setupAsHost();
+                } else if (opponentHasLeft && !gameInitialized) {
+                    gameInitialized = true;
+                    sessionRepo.getKorakOnce((existing, err) -> {
+                        if (existing != null && existing.exists()) {
+                            setupAsGuest();
+                        } else {
+                            setupAsHost();
+                        }
+                    });
                 } else if (!sessionMgr.isPlayer1() && !opponentHasLeft) {
                     setupAsGuest();
                 }
@@ -125,7 +134,15 @@ public class KorakViewModel extends ViewModel {
 
             if (!gameInitialized && allGames != null) {
                 gameInitialized = true;
-                setupAsHost();
+                sessionRepo.getKorakOnce((existing, err) -> {
+                    if (existing != null && existing.exists()) {
+                        setupAsGuest();
+                    } else {
+                        setupAsHost();
+                    }
+                });
+            } else {
+                skipAbandonedPlayerWait();
             }
         });
     }
@@ -240,6 +257,10 @@ public class KorakViewModel extends ViewModel {
                 break;
 
             case "WAITING_P2":
+                if (opponentHasLeft) {
+                    skipAbandonedPlayerWait();
+                    break;
+                }
                 phase.postValue(Phase.WAITING_P2);
                 infoText.postValue("Čekam Igrača 2...");
                 break;
@@ -365,8 +386,8 @@ public class KorakViewModel extends ViewModel {
 
             KorakGameState newState = copyState(current);
             // U solo modu nema protivnika za bonus — odmah ROUND_END
-            newState.phase = isSolo ? "ROUND_END" : "BONUS";
-            if (isSolo) {
+            newState.phase = (isSolo || opponentHasLeft) ? "ROUND_END" : "BONUS";
+            if (isSolo || opponentHasLeft) {
                 newState.lastAnswerResult  = "wrong";
                 newState.lastAnswerPlayer  = 0;
                 newState.lastPointsAwarded = 0;
@@ -393,6 +414,26 @@ public class KorakViewModel extends ViewModel {
             newState.lastAnswerPlayer  = 0;
             newState.lastPointsAwarded = 0;
             newState.phase = "ROUND_END";
+            return newState;
+        });
+    }
+
+    private void skipAbandonedPlayerWait() {
+        sessionRepo.runKorakTransaction(current -> {
+            if (!"WAITING_P2".equals(current.phase)
+                    && !"BONUS".equals(current.phase)) return null;
+
+            KorakGameState newState = copyState(current);
+            if ("WAITING_P2".equals(current.phase)) {
+                newState.phase = "MAIN";
+                newState.activePlayerRole = sessionMgr.getMyRole();
+                newState.stepsRevealed = Math.max(1, current.stepsRevealed);
+            } else {
+                newState.phase = "ROUND_END";
+                newState.lastAnswerResult = "wrong";
+                newState.lastAnswerPlayer = 0;
+                newState.lastPointsAwarded = 0;
+            }
             return newState;
         });
     }

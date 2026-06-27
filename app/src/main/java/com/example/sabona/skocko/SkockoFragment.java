@@ -747,7 +747,7 @@ public class SkockoFragment extends Fragment {
                         Toast.makeText(requireContext(),
                                 "Protivnik je napustio partiju.", Toast.LENGTH_SHORT).show();
 
-                        if (!roundFinished) {
+                        if (!roundFinished && !myTurnNow) {
                             // Preskoči timer i završi rundu odmah
                             if (timer != null) timer.cancel();
                             if (opponentChance) {
@@ -755,7 +755,7 @@ public class SkockoFragment extends Fragment {
                                 finishRound();
                             } else {
                                 // Protivnik je otišao tokom svoje glavne runde — preskoči na opponent chance ili završi
-                                startOpponentChance();
+                                finishRound();
                             }
                         }
                     });

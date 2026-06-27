@@ -91,7 +91,10 @@ public class MojBrojViewModel extends ViewModel {
         phase.setValue(Phase.LOADING);
         listenForAbandon();
 
-        if ((sessionMgr.isPlayer1() || opponentHasLeft) && !gameInitialized) {
+        if (sessionMgr.isPlayer1() && !gameInitialized) {
+            gameInitialized = true;
+            setupAsHost();
+        } else if (opponentHasLeft && !gameInitialized) {
             gameInitialized = true;
             setupAsHost();
         } else if (!sessionMgr.isPlayer1() && !opponentHasLeft) {
@@ -111,6 +114,8 @@ public class MojBrojViewModel extends ViewModel {
             if (!gameInitialized) {
                 gameInitialized = true;
                 setupAsHost();
+            } else {
+                skipAbandonedPlayerWait();
             }
         });
     }
@@ -119,8 +124,8 @@ public class MojBrojViewModel extends ViewModel {
         MojBrojGameState initState = new MojBrojGameState();
         initState.status            = "playing";
         initState.round             = 1;
-        initState.activePlayerRole  = GameSessionManager.ROLE_PLAYER1;
-        initState.phase = GameSessionManager.get().isSoloSession() ? "IDLE" : "WAITING_P2";
+        initState.activePlayerRole  = opponentHasLeft ? sessionMgr.getMyRole() : GameSessionManager.ROLE_PLAYER1;
+        initState.phase = (GameSessionManager.get().isSoloSession() || opponentHasLeft) ? "IDLE" : "WAITING_P2";
         initState.targetNumber      = 0;
         initState.offeredNumbers    = "";
         initState.player1Score      = 0;
@@ -188,6 +193,10 @@ public class MojBrojViewModel extends ViewModel {
 
         switch (state.phase) {
             case "WAITING_P2":
+                if (opponentHasLeft) {
+                    skipAbandonedPlayerWait();
+                    break;
+                }
                 iDoneLocal.postValue(false);
                 phase.postValue(Phase.WAITING_P2);
                 infoText.postValue("Čekam Igrača 2...\nKod: " + sessionMgr.getSessionId());
@@ -366,6 +375,48 @@ public class MojBrojViewModel extends ViewModel {
         iDoneLocal.postValue(true);
     }
 
+    private void skipAbandonedPlayerWait() {
+        sessionRepo.runMojBrojTransaction(current -> {
+            if (!"WAITING_P2".equals(current.phase)
+                    && !"IDLE".equals(current.phase)
+                    && !"REVEAL_TARGET".equals(current.phase)
+                    && !"PLAYING".equals(current.phase)) return null;
+
+            MojBrojGameState newState = copyState(current);
+            String myRole = sessionMgr.getMyRole();
+
+            if ("WAITING_P2".equals(current.phase)) {
+                newState.phase = "IDLE";
+                newState.activePlayerRole = myRole;
+                return newState;
+            }
+
+            if (("IDLE".equals(current.phase) || "REVEAL_TARGET".equals(current.phase))
+                    && !myRole.equals(current.activePlayerRole)) {
+                newState.activePlayerRole = myRole;
+                return newState;
+            }
+
+            if ("PLAYING".equals(current.phase)) {
+                if (sessionMgr.isPlayer1()) {
+                    newState.player2RoundResult = -1;
+                    newState.player2Done = true;
+                } else {
+                    newState.player1RoundResult = -1;
+                    newState.player1Done = true;
+                }
+
+                if (newState.player1Done && newState.player2Done) {
+                    applyScoring(newState);
+                    newState.phase = "ROUND_END";
+                }
+                return newState;
+            }
+
+            return null;
+        });
+    }
+
     /** Bodovanje po specifikaciji */
     private void applyScoring(MojBrojGameState s) {
         int target = s.targetNumber;
@@ -410,6 +461,21 @@ public class MojBrojViewModel extends ViewModel {
             finalState.phase  = "GAME_OVER";
             finalState.status = "finished";
             sessionRepo.commitMojBrojGameOver(finalState, remoteState.player1Score, remoteState.player2Score);
+        } else if (opponentHasLeft) {
+            sessionRepo.runMojBrojTransaction(current -> {
+                if (!"ROUND_END".equals(current.phase)) return null;
+                MojBrojGameState newState = copyState(current);
+                newState.round              = 2;
+                newState.activePlayerRole   = sessionMgr.getMyRole();
+                newState.phase              = "IDLE";
+                newState.targetNumber       = 0;
+                newState.offeredNumbers     = "";
+                newState.player1RoundResult = -1;
+                newState.player2RoundResult = -1;
+                newState.player1Done        = false;
+                newState.player2Done        = false;
+                return newState;
+            });
         } else {
             // Multiplayer runda 1 → runda 2
             sessionRepo.runMojBrojTransaction(current -> {

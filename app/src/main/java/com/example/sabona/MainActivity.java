@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -85,6 +86,7 @@ public class MainActivity extends AppCompatActivity {
 
         bottomNav = findViewById(R.id.bottomNav);
         btnNotifications = findViewById(R.id.btnNotifications);
+        db = FirebaseFirestore.getInstance();
         Toolbar toolbar = findViewById(R.id.toolbar);
         tvToolbarTitle = findViewById(R.id.tvToolbarTitle);
 
@@ -124,11 +126,16 @@ public class MainActivity extends AppCompatActivity {
         TextView tvStarsChip  = toolbar.findViewById(R.id.tvStarsChip);
         TextView tvTokensChip = toolbar.findViewById(R.id.tvTokensChip);
         TextView tvLeagueChip = toolbar.findViewById(R.id.tvLeagueChip);
+        TextView tvGameStars  = toolbar.findViewById(R.id.tvStars);
+        TextView tvGameTokens = toolbar.findViewById(R.id.tvTokens);
+        TextView tvGameLeague = toolbar.findViewById(R.id.tvLeague);
 
         // Toolbar chip prikazuje uvijek aktuelne zvezde / tokene / ligu
         // ulogovanog igrača, učitane iz Firestore-a u real-time (osvježi se
         // čim se nešto promijeni, npr. odmah nakon odigrane partije).
-        startListeningForUserStats(tvStarsChip, tvTokensChip, tvLeagueChip);
+        startListeningForUserStats(
+                tvStarsChip, tvTokensChip, tvLeagueChip,
+                tvGameStars, tvGameTokens, tvGameLeague);
 
         NavHostFragment navHostFragment = (NavHostFragment)
                 getSupportFragmentManager().findFragmentById(R.id.navHostFragment);
@@ -209,6 +216,19 @@ public class MainActivity extends AppCompatActivity {
                     ? R.drawable.outline_close_24
                     : R.drawable.outline_notifications_24);
             btnNotifications.setAlpha(1.0f);
+            ViewGroup.LayoutParams notifParams = btnNotifications.getLayoutParams();
+            int notifSize = dp(isGame ? 26 : 40);
+            notifParams.width = notifSize;
+            notifParams.height = notifSize;
+            btnNotifications.setLayoutParams(notifParams);
+            int notifPadding = dp(isGame ? 5 : 8);
+            btnNotifications.setPadding(notifPadding, notifPadding, notifPadding, notifPadding);
+            if (btnNotifications.getLayoutParams() instanceof LinearLayout.LayoutParams) {
+                LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) btnNotifications.getLayoutParams();
+                lp.gravity = isGame ? android.view.Gravity.TOP : android.view.Gravity.CENTER_VERTICAL;
+                lp.topMargin = isGame ? dp(2) : 0;
+                btnNotifications.setLayoutParams(lp);
+            }
 
             if (isGame) {
                 // Prikaži game mod toolbara
@@ -302,7 +322,6 @@ public class MainActivity extends AppCompatActivity {
         com.example.sabona.league.DailyTokenWorker.scheduleIfNeeded(this);
         com.example.sabona.leaderboard.LeaderboardCycleWorker.scheduleIfNeeded(this);
 
-        db = FirebaseFirestore.getInstance();
         startListeningForSystemNotifications();
 
         // Kad se korisnik odjavi (logout) – zaustavi Firestore listener za notifikacije
@@ -366,7 +385,10 @@ public class MainActivity extends AppCompatActivity {
      */
     private void startListeningForUserStats(TextView tvStarsChip,
                                             TextView tvTokensChip,
-                                            TextView tvLeagueChip) {
+                                            TextView tvLeagueChip,
+                                            TextView tvGameStars,
+                                            TextView tvGameTokens,
+                                            TextView tvGameLeague) {
         if (FirebaseAuth.getInstance().getCurrentUser() == null) {
             return;
         }
@@ -389,6 +411,9 @@ public class MainActivity extends AppCompatActivity {
                     if (tvStarsChip  != null) tvStarsChip.setText(String.valueOf(stars));
                     if (tvTokensChip != null) tvTokensChip.setText(String.valueOf(tokens));
                     if (tvLeagueChip != null) tvLeagueChip.setText(league.displayName);
+                    if (tvGameStars  != null) tvGameStars.setText(String.valueOf(stars));
+                    if (tvGameTokens != null) tvGameTokens.setText(String.valueOf(tokens));
+                    if (tvGameLeague != null) tvGameLeague.setText(league.displayName);
                 });
     }
 
@@ -431,6 +456,9 @@ public class MainActivity extends AppCompatActivity {
 
     public void updateGameScore(int p1Score, int p2Score, String p1Name, String p2Name) {
         if (tvPlayer1Score == null) return;
+        if (matchScoreListener == null) {
+            startMatchScoreListener();
+        }
         if (com.example.sabona.game.GameSessionManager.get().isSoloSession()) {
             soloSessionLocalScore = Math.max(0, p1Score + p2Score);
             setSoloToolbarMode(true);
@@ -439,9 +467,11 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         setSoloToolbarMode(false);
-        tvPlayer1Score.setText(p1Score + " bod");
-        tvPlayer2Score.setText(p2Score + " bod");
-        tvMatchScore.setText(p1Score + " : " + p2Score);
+        if (matchScoreListener == null) {
+            tvPlayer1Score.setText(p1Score + " bod");
+            tvPlayer2Score.setText(p2Score + " bod");
+            tvMatchScore.setText(p1Score + " : " + p2Score);
+        }
         if (p1Name != null) tvPlayer1Name.setText(p1Name);
         if (p2Name != null) tvPlayer2Name.setText(p2Name);
     }
@@ -513,8 +543,8 @@ public class MainActivity extends AppCompatActivity {
                         soloSessionBaseScore = 0;
                         soloSessionLocalScore = 0;
                         if (tvMatchScore != null) tvMatchScore.setText(totalP1 + " : " + totalP2);
-                        if (tvPlayer1Score != null) tvPlayer1Score.setText("");
-                        if (tvPlayer2Score != null) tvPlayer2Score.setText("");
+                        if (tvPlayer1Score != null) tvPlayer1Score.setText(totalP1 + " bod");
+                        if (tvPlayer2Score != null) tvPlayer2Score.setText(totalP2 + " bod");
                     }
                     if (p1Uid != null) loadPlayerInfo(p1Uid, true);
                     if (!isSolo && p2Uid != null) loadPlayerInfo(p2Uid, false);
@@ -583,16 +613,28 @@ public class MainActivity extends AppCompatActivity {
             default:         return 0;
         }
     }
+
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
     private void openNotificationsSafely() {
         try {
             if (navController == null) return;
             if (navController.getCurrentDestination() == null) return;
+            if (!getLifecycle().getCurrentState().isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                new android.os.Handler(android.os.Looper.getMainLooper())
+                        .postDelayed(this::openNotificationsSafely, 300);
+                return;
+            }
 
             int currentId = navController.getCurrentDestination().getId();
 
             if (currentId == R.id.notificationsFragment) return;
 
-            navController.navigate(R.id.notificationsFragment);
+            androidx.navigation.NavOptions navOptions = new androidx.navigation.NavOptions.Builder()
+                    .setLaunchSingleTop(true)
+                    .build();
+            navController.navigate(R.id.notificationsFragment, null, navOptions);
 
         } catch (Exception e) {
             android.util.Log.e("NOTIF_NAV", "Greška pri otvaranju notifikacija", e);
@@ -616,10 +658,14 @@ public class MainActivity extends AppCompatActivity {
 
     private void startNotificationListenerService() {
         Intent serviceIntent = new Intent(this, com.example.sabona.utils.NotificationListenerService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent);
-        } else {
-            startService(serviceIntent);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+        } catch (RuntimeException e) {
+            android.util.Log.w("NOTIF_SERVICE", "Background notification listener start skipped", e);
         }
     }
 
