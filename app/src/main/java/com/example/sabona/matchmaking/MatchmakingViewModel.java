@@ -8,7 +8,7 @@ import com.google.firebase.firestore.ListenerRegistration;
 
 public class MatchmakingViewModel extends ViewModel {
 
-    public enum State { SEARCHING, MATCHED, ERROR }
+    public enum State { SEARCHING, WAITING, MATCHED, TIMEOUT, ERROR }
 
     private final MutableLiveData<State>   state       = new MutableLiveData<>(State.SEARCHING);
     private final MutableLiveData<String>  errorMsg    = new MutableLiveData<>();
@@ -19,6 +19,11 @@ public class MatchmakingViewModel extends ViewModel {
     private ListenerRegistration listener;
     private boolean started = false;
     private boolean matched = false;
+    private final Runnable timeoutRunnable = () -> {
+        if (!matched && started) {
+            state.postValue(State.TIMEOUT);
+        }
+    };
 
     public LiveData<State>    getState()       { return state; }
     public LiveData<String>   getErrorMsg()    { return errorMsg; }
@@ -36,6 +41,7 @@ public class MatchmakingViewModel extends ViewModel {
                 });
                 attemptFind();
                 retryHandler.postDelayed(retryRunnable, 3000);
+                retryHandler.postDelayed(timeoutRunnable, 60000);
             }
             @Override public void onError(String message) {
                 state.postValue(State.ERROR);
@@ -60,6 +66,7 @@ public class MatchmakingViewModel extends ViewModel {
         repo.findOpponentAndMatch(new MatchmakingRepository.Callback<String[]>() {
             @Override public void onSuccess(String[] result) {
                 if (result != null) onMatchedAsHost(result[0]);
+                else if (!matched) state.postValue(State.WAITING);
             }
             @Override public void onError(String message) {
                 // tiha greška
@@ -87,6 +94,7 @@ public class MatchmakingViewModel extends ViewModel {
         if (matched) return; // već smo upareni, kasno za otkazivanje
         if (listener != null) listener.remove();
         retryHandler.removeCallbacks(retryRunnable);
+        retryHandler.removeCallbacks(timeoutRunnable);
         repo.cancelQueue();
     }
 
@@ -95,5 +103,6 @@ public class MatchmakingViewModel extends ViewModel {
         super.onCleared();
         if (listener != null) listener.remove();
         retryHandler.removeCallbacks(retryRunnable);
+        retryHandler.removeCallbacks(timeoutRunnable);
     }
 }

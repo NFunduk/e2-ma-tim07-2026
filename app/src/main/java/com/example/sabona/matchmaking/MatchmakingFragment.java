@@ -75,8 +75,18 @@ public class MatchmakingFragment extends Fragment {
                     progressBar.setVisibility(View.VISIBLE);
                     btnCancel.setEnabled(true);
                     break;
+                case WAITING:
+                    tvStatus.setText("Cekam protivnika...\nMozes odustati u bilo kom trenutku.");
+                    progressBar.setVisibility(View.VISIBLE);
+                    btnCancel.setEnabled(true);
+                    break;
                 case ERROR:
                     progressBar.setVisibility(View.GONE);
+                    break;
+                case TIMEOUT:
+                    tvStatus.setText("Protivnik trenutno nije pronadjen.\nPokusavamo i dalje, ili odustani.");
+                    progressBar.setVisibility(View.VISIBLE);
+                    btnCancel.setEnabled(true);
                     break;
                 case MATCHED:
                     tvStatus.setText("Protivnik pronađen! Počinjemo...");

@@ -305,7 +305,38 @@ public class SpojniceViewModel extends ViewModel {
         sessionRef = sessionRef(sid);
 
         infoText.setValue("Čekam host da kreira Spojnice...");
+        listenRootForAbandon();
         waitForSessionThenJoin();
+    }
+
+    private void createSessionForRemainingGuest() {
+        List<SpojniceQuestion> shuffled = new ArrayList<>(allQuestions);
+        Collections.shuffle(shuffled);
+        SpojniceQuestion q0 = shuffled.get(0);
+        SpojniceQuestion q1 = shuffled.get(1);
+        questions.clear();
+        questions.add(q0);
+        questions.add(q1);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("phase",          PHASE_R2_A);
+        data.put("p1Score",        0);
+        data.put("p2Score",        0);
+        data.put("connected",      buildFalseBoolList());
+        data.put("connectedBy",    buildZeroIntList());
+        data.put("connectedCount", 0);
+        data.put("round1Order",    shuffledOrder());
+        data.put("round2Order",    shuffledOrder());
+        data.put("question0Id",    q0.docId != null ? q0.docId : "");
+        data.put("question1Id",    q1.docId != null ? q1.docId : "");
+        data.put("hostUid",        myUid);
+
+        sessionRef.set(data)
+                .addOnSuccessListener(v -> {
+                    startListening();
+                    listenRootForAbandon();
+                })
+                .addOnFailureListener(e -> infoText.setValue("Greska: " + e.getMessage()));
     }
 
     /*public void startSoloGame() {
@@ -438,6 +469,10 @@ public class SpojniceViewModel extends ViewModel {
             if (snap.exists()) {
                 doJoinSession(snap);
             } else {
+                if (opponentHasLeft) {
+                    createSessionForRemainingGuest();
+                    return;
+                }
                 infoText.setValue("Čekam host... (pokušaj ponovo)");
                 new Handler(Looper.getMainLooper())
                         .postDelayed(this::waitForSessionThenJoin, 1000);
@@ -486,6 +521,12 @@ public class SpojniceViewModel extends ViewModel {
             player2Score = toInt(snap.get("p2Score"));
 
             if (PHASE_WAIT.equals(newPhase)) {
+                if (opponentHasLeft) {
+                    if (isHost) {
+                        sessionRef.update("phase", PHASE_R1_A);
+                    }
+                    return;
+                }
                 waitingMsg.setValue("Čekam Igrača 2...\nKod: " + sessionId);
                 uiPhase.setValue(UiPhase.WAITING);
                 return;
@@ -565,6 +606,18 @@ public class SpojniceViewModel extends ViewModel {
                     if (leftUid.equals(myUid)) return;
 
                     opponentHasLeft = true; // pamtimo trajno, ne samo za ovaj event
+
+                    if (PHASE_WAIT.equals(currentPhaseStr) || currentPhaseStr == null || currentPhaseStr.isEmpty()) {
+                        if (sessionRef != null) {
+                            sessionRef.get().addOnSuccessListener(gameSnap -> {
+                                if (gameSnap != null && gameSnap.exists()
+                                        && PHASE_WAIT.equals(gameSnap.getString("phase"))) {
+                                    sessionRef.update("phase", isHost ? PHASE_R1_A : PHASE_R2_A);
+                                }
+                            });
+                        }
+                        return;
+                    }
 
                     if (!roundFinished) {
                         if (timer != null) timer.cancel();
@@ -713,7 +766,13 @@ public class SpojniceViewModel extends ViewModel {
         update.put(scoreField,       FieldValue.increment(2));
 
         sessionRef.update(update)
-                .addOnSuccessListener(v -> { if (connectedCount == 5) onAllConnected(); })
+                .addOnSuccessListener(v -> {
+                    if (connectedCount == 5) {
+                        onAllConnected();
+                    } else if (allPairsResolved() && !roundFinished) {
+                        advancePhase(false, false, true);
+                    }
+                })
                 .addOnFailureListener(e -> infoText.setValue("Greška spajanja: " + e.getMessage()));
     }
 

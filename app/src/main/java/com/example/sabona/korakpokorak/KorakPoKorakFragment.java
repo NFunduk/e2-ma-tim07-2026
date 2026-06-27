@@ -398,7 +398,8 @@ public class KorakPoKorakFragment extends Fragment {
                                 "Protivnik je napustio partiju.", Toast.LENGTH_SHORT).show();
 
                         KorakViewModel.Phase currentPhase = viewModel.getPhase().getValue();
-                        if (currentPhase == KorakViewModel.Phase.MAIN) {
+                        if (currentPhase == KorakViewModel.Phase.MAIN
+                                && !Boolean.TRUE.equals(viewModel.getIsMyTurn().getValue())) {
                             cancelTimer();
                             viewModel.onMainTimerFinished();
                         } else if (currentPhase == KorakViewModel.Phase.BONUS) {

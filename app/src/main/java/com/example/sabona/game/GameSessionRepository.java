@@ -213,7 +213,11 @@ public class GameSessionRepository {
 
     /** Igrač napušta partiju. */
     public void markLeft(String myUid) {
-        rootSessionRef().update("leftByUid", myUid, "status", "abandoned");
+        rootSessionRef().update(
+                "leftByUid", myUid,
+                "forfeitByUid", myUid,
+                "forfeitedAt", FieldValue.serverTimestamp(),
+                "status", "abandoned");
     }
 
     public void isFriendlyMatch(com.google.firebase.firestore.EventListener<Boolean> callback) {

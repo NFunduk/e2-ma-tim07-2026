@@ -90,9 +90,9 @@ public class AsocijacijeViewModel extends ViewModel {
         AsocijacijeGameState state = new AsocijacijeGameState();
 
         state.status = "playing";
-        state.phase = GameSessionManager.get().isSoloSession() ? "IDLE" : "WAITING_P2";
+        state.phase = (GameSessionManager.get().isSoloSession() || opponentHasLeft) ? "PLAYING" : "WAITING_P2";
         state.round = 1;
-        state.activePlayerRole = GameSessionManager.ROLE_PLAYER1;
+        state.activePlayerRole = opponentHasLeft ? sessionMgr.getMyRole() : GameSessionManager.ROLE_PLAYER1;
 
         if (games != null && games.size() >= 2) {
             state.game0Id = games.get(0).docId;
@@ -132,6 +132,12 @@ public class AsocijacijeViewModel extends ViewModel {
             stateLiveData.setValue(state);
 
             if ("WAITING_P2".equals(state.phase)) {
+                if (opponentHasLeft) {
+                    state.phase = "PLAYING";
+                    state.activePlayerRole = sessionMgr.getMyRole();
+                    sessionRepo.updateAsocijacijeState(state);
+                    return;
+                }
                 if (!sessionMgr.isPlayer1()) {
                     state.phase = "PLAYING";
                     sessionRepo.updateAsocijacijeState(state);

@@ -120,14 +120,16 @@ public class KoZnaZnaFragment extends Fragment {
                 boolean isHost = passedArgs.getBoolean("isHost", true);
                 String hostUid = passedArgs.getString("hostUid", "");
 
-                if (isHost) {
-                    com.example.sabona.game.GameSessionManager.get().setupAsHost(sessionId);
-                } else {
-                    com.example.sabona.game.GameSessionManager.get().setupAsGuest(sessionId, hostUid);
-                }
+                guardForfeitedSession(sessionId, uid, () -> {
+                    if (isHost) {
+                        com.example.sabona.game.GameSessionManager.get().setupAsHost(sessionId);
+                    } else {
+                        com.example.sabona.game.GameSessionManager.get().setupAsGuest(sessionId, hostUid);
+                    }
 
-                vm.initWithSession(uid, sessionId, isHost);
-                observeViewModel();
+                    vm.initWithSession(uid, sessionId, isHost);
+                    observeViewModel();
+                });
                 return;
             }
 
@@ -136,6 +138,15 @@ public class KoZnaZnaFragment extends Fragment {
                     .document(sessionId)
                     .get()
                     .addOnSuccessListener(snap -> {
+                        String leftBy = snap.getString("leftByUid");
+                        String forfeitBy = snap.getString("forfeitByUid");
+                        if (uid.equals(leftBy) || uid.equals(forfeitBy)) {
+                            Toast.makeText(requireContext(),
+                                    "Ovu partiju si napustio/la i ne mozes se vratiti.",
+                                    Toast.LENGTH_LONG).show();
+                            NavHostFragment.findNavController(this).navigate(R.id.homeFragment);
+                            return;
+                        }
                         String p1 = snap.getString("player1Uid");
 
 
@@ -162,6 +173,29 @@ public class KoZnaZnaFragment extends Fragment {
         }
 
        // observeViewModel();
+    }
+
+    private void guardForfeitedSession(String sessionId, String uid, Runnable onAllowed) {
+        FirebaseFirestore.getInstance()
+                .collection("gameSessions")
+                .document(sessionId)
+                .get()
+                .addOnSuccessListener(snap -> {
+                    String leftBy = snap.getString("leftByUid");
+                    String forfeitBy = snap.getString("forfeitByUid");
+                    if (uid.equals(leftBy) || uid.equals(forfeitBy)) {
+                        Toast.makeText(requireContext(),
+                                "Ovu partiju si napustio/la i ne mozes se vratiti.",
+                                Toast.LENGTH_LONG).show();
+                        NavHostFragment.findNavController(this).navigate(R.id.homeFragment);
+                        return;
+                    }
+                    onAllowed.run();
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(requireContext(), "Greska pri ucitavanju sesije", Toast.LENGTH_LONG).show();
+                    NavHostFragment.findNavController(this).navigateUp();
+                });
     }
 
     // ═══════════════════════════════════════════════════════════════════════

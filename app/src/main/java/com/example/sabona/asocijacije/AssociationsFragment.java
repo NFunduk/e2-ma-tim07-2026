@@ -796,6 +796,7 @@ public class AssociationsFragment extends Fragment {
     }
 
     private void showEndGame() {
+        if (!isAdded()) return;
         if (alreadyNavigated) return;
         alreadyNavigated = true;
         String winner;
@@ -823,8 +824,16 @@ public class AssociationsFragment extends Fragment {
         }
         args.putString("challengeId", getArguments() != null ? getArguments().getString("challengeId", "") : "");
 
-        NavHostFragment.findNavController(this)
-                .navigate(R.id.action_associations_to_skocko, args);
+        try {
+            androidx.navigation.NavController controller = NavHostFragment.findNavController(this);
+            if (controller.getCurrentDestination() == null
+                    || controller.getCurrentDestination().getId() != R.id.associationsFragment) {
+                return;
+            }
+            controller.navigate(R.id.action_associations_to_skocko, args);
+        } catch (Exception e) {
+            android.util.Log.e("ASSOC_NAV", "Navigation after associations failed", e);
+        }
     }
 
     private void updateHeader() {
