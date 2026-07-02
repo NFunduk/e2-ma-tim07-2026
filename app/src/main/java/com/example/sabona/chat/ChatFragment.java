@@ -103,8 +103,7 @@ public class ChatFragment extends Fragment {
             viewModel.sendMessage(text);
             etMessage.setText("");
 
-            new DailyMissionRepository()
-                    .completeSendChat(currentUid, null);
+
         });
 
         viewModel.start();

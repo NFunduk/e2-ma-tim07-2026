@@ -95,7 +95,7 @@ public class TournamentRepository {
             DocumentSnapshot snap = transaction.get(myQueueRef());
 
             if (snap.exists() && "waiting".equals(snap.getString("status"))) {
-                transaction.update(userRef(myUid), "tokens", FieldValue.increment(3));
+                //transaction.update(userRef(myUid), "tokens", FieldValue.increment(3));
                 transaction.delete(myQueueRef());
             }
 
@@ -212,6 +212,121 @@ public class TournamentRepository {
         session.put("createdAt", FieldValue.serverTimestamp());
 
         transaction.set(db.collection(GameSessionManager.COL_GAME_SESSIONS).document(sessionId), session);
+    }
+
+    public void finishTournamentMatch(String sessionId, Callback<String> cb) {
+        if (sessionId == null || sessionId.isEmpty()) {
+            cb.onError("Nema sessionId");
+            return;
+        }
+
+        DocumentReference sessionRef = db.collection(GameSessionManager.COL_GAME_SESSIONS).document(sessionId);
+
+        db.runTransaction(transaction -> {
+                    DocumentSnapshot sessionSnap = transaction.get(sessionRef);
+
+                    if (!sessionSnap.exists()) return null;
+
+                    Boolean isTournament = sessionSnap.getBoolean("isTournamentMatch");
+                    if (!Boolean.TRUE.equals(isTournament)) return null;
+
+                    String alreadyWinner = sessionSnap.getString("winnerUid");
+                    if (alreadyWinner != null) return null;
+
+                    String tournamentId = sessionSnap.getString("tournamentId");
+                    String round = sessionSnap.getString("tournamentRound");
+                    Long bracketLong = sessionSnap.getLong("bracketIndex");
+
+                    String p1 = sessionSnap.getString("player1Uid");
+                    String p2 = sessionSnap.getString("player2Uid");
+
+                    long s1 = sessionSnap.getLong("totalScoreP1") != null ? sessionSnap.getLong("totalScoreP1") : 0;
+                    long s2 = sessionSnap.getLong("totalScoreP2") != null ? sessionSnap.getLong("totalScoreP2") : 0;
+
+                    String winnerUid = s1 >= s2 ? p1 : p2;
+                    String loserUid = winnerUid.equals(p1) ? p2 : p1;
+
+                    transaction.update(sessionRef,
+                            "status", "finished",
+                            "winnerUid", winnerUid,
+                            "finishedAt", FieldValue.serverTimestamp()
+                    );
+
+                    DocumentReference tournamentRef = db.collection("tournaments").document(tournamentId);
+                    DocumentSnapshot tournamentSnap = transaction.get(tournamentRef);
+
+                    if ("semifinal".equals(round)) {
+                        int bracket = bracketLong != null ? bracketLong.intValue() : 0;
+
+                        String semi1Winner = tournamentSnap.getString("semi1WinnerUid");
+                        String semi2Winner = tournamentSnap.getString("semi2WinnerUid");
+
+                        if (bracket == 1) semi1Winner = winnerUid;
+                        if (bracket == 2) semi2Winner = winnerUid;
+
+                        Map<String, Object> updates = new HashMap<>();
+                        if (bracket == 1) updates.put("semi1WinnerUid", winnerUid);
+                        if (bracket == 2) updates.put("semi2WinnerUid", winnerUid);
+
+                        transaction.update(userRef(winnerUid), "tokens", FieldValue.increment(2));
+
+                        transaction.update(db.collection("tournamentQueue").document(winnerUid),
+                                "status", "waiting_final");
+
+                        transaction.update(db.collection("tournamentQueue").document(loserUid),
+                                "status", "eliminated");
+
+                        if (semi1Winner != null && semi2Winner != null) {
+                            String finalSessionId = tournamentId + "_F";
+
+                            updates.put("status", "final");
+                            updates.put("finalSessionId", finalSessionId);
+
+                            createGameSession(transaction, finalSessionId, tournamentId,
+                                    "final", 0, semi1Winner, semi2Winner);
+
+                            transaction.update(db.collection("tournamentQueue").document(semi1Winner),
+                                    "status", "matched",
+                                    "sessionId", finalSessionId);
+
+                            transaction.update(db.collection("tournamentQueue").document(semi2Winner),
+                                    "status", "matched",
+                                    "sessionId", finalSessionId);
+
+                            transaction.update(tournamentRef, updates);
+                            return finalSessionId;
+                        }
+
+                        transaction.update(tournamentRef, updates);
+                        return null;
+                    }
+
+                    if ("final".equals(round)) {
+                        transaction.update(tournamentRef,
+                                "status", "finished",
+                                "winnerUid", winnerUid,
+                                "finishedAt", FieldValue.serverTimestamp()
+                        );
+
+                        transaction.update(userRef(winnerUid),
+                                "tokens", FieldValue.increment(3),
+                                "stars", FieldValue.increment(10),
+                                "weeklyStars", FieldValue.increment(10),
+                                "monthlyStars", FieldValue.increment(10)
+                        );
+
+                        transaction.update(db.collection("tournamentQueue").document(winnerUid),
+                                "status", "winner");
+
+                        transaction.update(db.collection("tournamentQueue").document(loserUid),
+                                "status", "final_loser");
+
+                        return null;
+                    }
+
+                    return null;
+                }).addOnSuccessListener(cb::onSuccess)
+                .addOnFailureListener(e -> cb.onError(e.getMessage()));
     }
 
     public ListenerRegistration listenMyTournamentMatch(Callback<String> cb) {

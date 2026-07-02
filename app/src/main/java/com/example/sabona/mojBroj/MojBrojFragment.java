@@ -380,6 +380,10 @@ public class MojBrojFragment extends Fragment implements SensorEventListener {
                 args.putInt("tokensGained", result.tokensGained);
                 args.putInt("myTotalScore", result.myTotalScore);
                 args.putInt("opponentTotalScore", result.opponentTotalScore);
+
+                args.putString("sessionId", GameSessionManager.get().getSessionId());
+                args.putBoolean("tournament",
+                        getArguments() != null && getArguments().getBoolean("tournament", false));
                 NavHostFragment.findNavController(MojBrojFragment.this)
                         .navigate(R.id.action_mojbroj_to_gameover, args);
             }

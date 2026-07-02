@@ -14,13 +14,14 @@ import androidx.navigation.fragment.NavHostFragment;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-
+import com.example.sabona.daily.DailyMissionRepository;
 import com.example.sabona.league.LeagueChangeDialog;
 import com.example.sabona.league.LeagueManager;
 import com.example.sabona.league.LeagueRepository;
 import com.example.sabona.repository.NotificationFactory;
 import com.example.sabona.repository.NotificationRepository;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.example.sabona.tournament.TournamentRepository;
 
 /**
  * Fragment koji se prikazuje na kraju svake partije.
@@ -38,6 +39,11 @@ public class GameOverFragment extends Fragment {
 
     private final LeagueRepository    leagueRepo    = new LeagueRepository();
     private final NotificationRepository notifRepo  = new NotificationRepository();
+
+    private final DailyMissionRepository dailyRepo = new DailyMissionRepository();
+
+    private com.google.firebase.firestore.ListenerRegistration finalListener;
+    private boolean finalNavigated = false;
 
     @Nullable
     @Override
@@ -65,6 +71,52 @@ public class GameOverFragment extends Fragment {
             int tokensGained  = args.getInt("tokensGained", 0);
             int myScore       = args.getInt("myTotalScore", 0);
             int oppScore      = args.getInt("opponentTotalScore", 0);
+
+            String uid = FirebaseAuth.getInstance().getCurrentUser() != null
+                    ? FirebaseAuth.getInstance().getCurrentUser().getUid()
+                    : null;
+
+            boolean tournament = args.getBoolean("tournament", false);
+            String sessionId = args.getString("sessionId");
+            boolean finalRound = sessionId != null && sessionId.endsWith("_F");
+
+            if (uid != null) {
+                if (friendly) {
+                    dailyRepo.completeFriendlyMatch(uid, null);
+                }
+
+                if (won) {
+                    dailyRepo.completeWinMatch(uid, null);
+
+                    if (tournament) {
+                        dailyRepo.completeTournamentWin(uid, null);
+                    }
+                }
+            }
+
+            if (tournament && sessionId != null && uid != null) {
+                boolean isFinal = sessionId.endsWith("_F");
+
+                if (won && !isFinal) {
+                    listenForFinal(uid);
+                }
+
+                new TournamentRepository().finishTournamentMatch(sessionId, new TournamentRepository.Callback<String>() {
+                    @Override
+                    public void onSuccess(String finalSessionId) {
+                        if (!isAdded()) return;
+
+                        if (won && !isFinal && finalSessionId != null) {
+                            openFinal(finalSessionId);
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        android.util.Log.e("TOURNAMENT", "Greška završavanja turnira: " + message);
+                    }
+                });
+            }
 
             // Pobjednik
             String winnerText = won ? "Pobijedio/la si! 🏆" : "Izgubio/la si.";
@@ -99,7 +151,10 @@ public class GameOverFragment extends Fragment {
             );
 
             // Zvijezde i tokeni
-            if (friendly) {
+            boolean shouldApplyStars =
+                    !friendly && (!tournament || finalRound || won);
+
+            if (!shouldApplyStars) {
                 tvStars.setVisibility(View.GONE);
                 tvTokens.setVisibility(View.GONE);
             } else {
@@ -197,6 +252,54 @@ public class GameOverFragment extends Fragment {
         });
     }
 
+    private void listenForFinal(String uid) {
+        if (finalListener != null) {
+            finalListener.remove();
+            finalListener = null;
+        }
+
+        finalListener = FirebaseFirestore.getInstance()
+                .collection("tournamentQueue")
+                .document(uid)
+                .addSnapshotListener((doc, error) -> {
+                    if (error != null || doc == null || !doc.exists()) return;
+
+                    String status = doc.getString("status");
+                    String sessionId = doc.getString("sessionId");
+
+                    if ("matched".equals(status) && sessionId != null && sessionId.endsWith("_F")) {
+                        openFinal(sessionId);
+                    }
+                });
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+
+        if (finalListener != null) {
+            finalListener.remove();
+            finalListener = null;
+        }
+    }
+
+    private void openFinal(String finalSessionId) {
+        if (!isAdded() || finalNavigated) return;
+        finalNavigated = true;
+
+        if (finalListener != null) {
+            finalListener.remove();
+            finalListener = null;
+        }
+
+        Bundle args = new Bundle();
+        args.putString("sessionId", finalSessionId);
+        args.putBoolean("tournament", true);
+
+        NavHostFragment.findNavController(this)
+                .navigate(R.id.action_gameover_to_koZnaZna, args);
+    }
+
 
     private void checkAndOpenFinalOrHome() {
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
@@ -224,6 +327,7 @@ public class GameOverFragment extends Fragment {
                         if (sessionId != null && sessionId.endsWith("_F")) {
                             Bundle args = new Bundle();
                             args.putString("sessionId", sessionId);
+                            args.putBoolean("tournament", true);
 
                             NavHostFragment.findNavController(this)
                                     .navigate(R.id.action_gameover_to_koZnaZna, args);
