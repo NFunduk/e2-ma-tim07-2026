@@ -57,6 +57,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean toolbarSoloMode = false;
     private int soloSessionBaseScore = 0;
     private int soloSessionLocalScore = 0;
+
+    private android.media.MediaPlayer rewardMediaPlayer;
     private final Set<Integer> authDestinations = new HashSet<>(Arrays.asList(
             R.id.loginFragment,
             R.id.registerFragment,
@@ -359,6 +361,7 @@ public class MainActivity extends AppCompatActivity {
             stopService(new Intent(this, com.example.sabona.utils.NotificationListenerService.class));
             startListeningForSystemNotifications();
         }
+        handleNotificationIntent(getIntent());
     }
 
     @Override
@@ -374,7 +377,7 @@ public class MainActivity extends AppCompatActivity {
                 notificationsListener = null;
                 firstLoadNotifications = true; // reset za sledeći onResume
             }
-            startNotificationListenerService();
+            //startNotificationListenerService();
         }
     }
 
@@ -498,6 +501,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         stopMatchScoreListener();
+
+        if (rewardMediaPlayer != null) {
+            rewardMediaPlayer.release();
+            rewardMediaPlayer = null;
+        }
 
     }
 
@@ -647,6 +655,18 @@ public class MainActivity extends AppCompatActivity {
         boolean openNotifications = intent.getBooleanExtra("open_notifications", false);
         if (!openNotifications) return;
 
+        intent.removeExtra("open_notifications");
+
+        String type = intent.getStringExtra("notification_type");
+        String message = intent.getStringExtra("notification_message");
+
+        if ("leaderboard_reward".equals(type)) {
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                showRewardDialog(message);
+            }, 800);
+            return;
+        }
+
         new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
             try {
                 openNotificationsSafely();
@@ -693,14 +713,21 @@ public class MainActivity extends AppCompatActivity {
         imgReward.startAnimation(animation);
 
         try {
-            android.media.MediaPlayer mediaPlayer =
-                    android.media.MediaPlayer.create(this, R.raw.reward_sound);
+            if (rewardMediaPlayer != null) {
+                rewardMediaPlayer.release();
+                rewardMediaPlayer = null;
+            }
 
-            if (mediaPlayer != null) {
-                mediaPlayer.setOnCompletionListener(mp -> {
+            rewardMediaPlayer = android.media.MediaPlayer.create(this, R.raw.reward_sound);
+
+            if (rewardMediaPlayer != null) {
+                rewardMediaPlayer.setOnCompletionListener(mp -> {
                     mp.release();
+                    rewardMediaPlayer = null;
                 });
-                mediaPlayer.start();
+                rewardMediaPlayer.start();
+            } else {
+                android.util.Log.e("REWARD_SOUND", "MediaPlayer je null");
             }
         } catch (Exception e) {
             android.util.Log.e("REWARD_SOUND", "Zvuk nije pokrenut", e);

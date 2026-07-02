@@ -87,7 +87,8 @@ public class NotificationHelper {
         intent.putExtra("notification_id", notification.getId());
         intent.putExtra("notification_type", notification.getType());
         intent.putExtra("notification_message", notification.getMessage());
-        intent.setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+       // intent.setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         int notificationId = notification.getId() != null && !notification.getId().isEmpty()
                 ? notification.getId().hashCode()
                 : (int) System.currentTimeMillis();

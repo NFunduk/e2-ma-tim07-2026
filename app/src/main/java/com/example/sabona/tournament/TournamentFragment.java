@@ -131,6 +131,7 @@ public class TournamentFragment extends Fragment {
 
             Bundle args = new Bundle();
             args.putString("sessionId", sessionId);
+            args.putBoolean("tournament", true);
 
             tvStatus.setText("Igrači su spojeni! Partija počinje...");
             view.postDelayed(() ->

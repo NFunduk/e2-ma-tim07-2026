@@ -81,6 +81,11 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
         bindGameInviteCountdown(holder, notification);
 
         holder.card.setOnClickListener(v -> {
+            if ("leaderboard_reward".equals(notification.getType())) {
+                listener.onAccept(notification);
+                return;
+            }
+
             if (!notification.isRead()) {
                 listener.onMarkAsRead(notification);
             }
