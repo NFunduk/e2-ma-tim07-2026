@@ -170,8 +170,11 @@ public class TournamentRepository {
 
                     transaction.set(db.collection("tournaments").document(tournamentId), tournament);
 
-                    createGameSession(transaction, semi1SessionId, tournamentId, "semifinal", 1, uids.get(0), uids.get(1));
-                    createGameSession(transaction, semi2SessionId, tournamentId, "semifinal", 2, uids.get(2), uids.get(3));
+                    createGameSession(transaction, semi1SessionId, tournamentId, "semifinal", 1,
+                            playerInfos.get(0), playerInfos.get(1));
+
+                    createGameSession(transaction, semi2SessionId, tournamentId, "semifinal", 2,
+                            playerInfos.get(2), playerInfos.get(3));
 
                     for (int i = 0; i < 4; i++) {
                         String sessionId = i < 2 ? semi1SessionId : semi2SessionId;
@@ -194,8 +197,11 @@ public class TournamentRepository {
                                    String tournamentId,
                                    String round,
                                    int bracketIndex,
-                                   String p1,
-                                   String p2) {
+                                   Map<String, Object> p1Info,
+                                   Map<String, Object> p2Info) {
+
+        String p1 = (String) p1Info.get("uid");
+        String p2 = (String) p2Info.get("uid");
 
         Map<String, Object> session = new HashMap<>();
         session.put("status", "active");
@@ -204,14 +210,36 @@ public class TournamentRepository {
         session.put("tournamentId", tournamentId);
         session.put("tournamentRound", round);
         session.put("bracketIndex", bracketIndex);
+
         session.put("player1Uid", p1);
         session.put("player2Uid", p2);
+
+        session.put("player1Username", p1Info.get("username"));
+        session.put("player2Username", p2Info.get("username"));
+        session.put("player1AvatarRes", p1Info.get("avatarRes"));
+        session.put("player2AvatarRes", p2Info.get("avatarRes"));
+
         session.put("totalScoreP1", 0);
         session.put("totalScoreP2", 0);
         session.put("leftByUid", null);
         session.put("createdAt", FieldValue.serverTimestamp());
 
         transaction.set(db.collection(GameSessionManager.COL_GAME_SESSIONS).document(sessionId), session);
+    }
+
+    private Map<String, Object> findPlayerInfo(List<Map<String, Object>> playerInfos, String uid) {
+        for (Map<String, Object> p : playerInfos) {
+            if (uid.equals(p.get("uid"))) {
+                return p;
+            }
+        }
+
+        Map<String, Object> fallback = new HashMap<>();
+        fallback.put("uid", uid);
+        fallback.put("username", "Igrač");
+        fallback.put("avatarRes", null);
+        fallback.put("league", 0);
+        return fallback;
     }
 
     public void finishTournamentMatch(String sessionId, Callback<String> cb) {
@@ -282,9 +310,13 @@ public class TournamentRepository {
                             updates.put("status", "final");
                             updates.put("finalSessionId", finalSessionId);
 
-                            createGameSession(transaction, finalSessionId, tournamentId,
-                                    "final", 0, semi1Winner, semi2Winner);
+                            List<Map<String, Object>> playerInfos =
+                                    (List<Map<String, Object>>) tournamentSnap.get("playerInfos");
 
+                            createGameSession(transaction, finalSessionId, tournamentId,
+                                    "final", 0,
+                                    findPlayerInfo(playerInfos, semi1Winner),
+                                    findPlayerInfo(playerInfos, semi2Winner));
                             transaction.update(db.collection("tournamentQueue").document(semi1Winner),
                                     "status", "matched",
                                     "sessionId", finalSessionId);
