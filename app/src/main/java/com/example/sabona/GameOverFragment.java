@@ -9,6 +9,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
@@ -87,7 +88,26 @@ if (won && !isFinal) {
 }
             }
 
-            String winnerText = won ? "Pobijedio/la si!" : "Izgubio/la si.";
+            String winnerText;
+
+            if (tournament && finalRound) {
+                if (won) {
+                    winnerText = "🏆 Ti si pobednik turnira!";
+                } else {
+                    winnerText = "Kraj turnira.\nDrugo mesto u finalu!";
+                }
+
+                new AlertDialog.Builder(requireContext())
+                        .setTitle("Turnir završen")
+                        .setMessage(won
+                                ? "Bravo! Ti si pobednik turnira! 🏆"
+                                : "Kraj turnira. Stigao/la si do finala!")
+                        .setPositiveButton("Super", null)
+                        .show();
+
+            } else {
+                winnerText = won ? "Pobijedio/la si!" : "Izgubio/la si.";
+            }
             if (friendly) {
                 winnerText += "\n(Prijateljska partija - bez zvezda)";
             }

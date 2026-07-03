@@ -517,13 +517,21 @@ public class MainActivity extends AppCompatActivity {
 
     private void startMatchScoreListener() {
         String sessionId = com.example.sabona.game.GameSessionManager.get().getSessionId();
-        if (sessionId == null || sessionId.isEmpty()) return;
 
-        // Već slušamo istu sesiju — ne dupliraj listener
+        if (sessionId == null || sessionId.isEmpty()) {
+            new android.os.Handler(android.os.Looper.getMainLooper())
+                    .postDelayed(this::startMatchScoreListener, 500);
+            return;
+        }
+
         if (matchScoreListener != null && sessionId.equals(matchScoreListenerSessionId)) return;
 
         stopMatchScoreListener();
         matchScoreListenerSessionId = sessionId;
+
+        if (tvMatchScore != null) tvMatchScore.setText("0 : 0");
+        if (tvPlayer1Score != null) tvPlayer1Score.setText("0 bod");
+        if (tvPlayer2Score != null) tvPlayer2Score.setText("0 bod");
 
         matchScoreListener = db.collection("gameSessions").document(sessionId)
                 .addSnapshotListener((snap, e) -> {
@@ -531,30 +539,41 @@ public class MainActivity extends AppCompatActivity {
 
                     long totalP1 = snap.getLong("totalScoreP1") != null ? snap.getLong("totalScoreP1") : 0;
                     long totalP2 = snap.getLong("totalScoreP2") != null ? snap.getLong("totalScoreP2") : 0;
+
                     String p1Uid = snap.getString("player1Uid");
                     String p2Uid = snap.getString("player2Uid");
+
+                    String p1Name = snap.getString("player1Username");
+                    String p2Name = snap.getString("player2Username");
+
+                    String p1Avatar = snap.getString("player1AvatarRes");
+                    String p2Avatar = snap.getString("player2AvatarRes");
+
                     boolean isSolo = p1Uid != null && p1Uid.equals(p2Uid);
 
                     setSoloToolbarMode(isSolo);
-                    if (isSolo) {
-                        long total = totalP1 + totalP2;
-                        int rootTotal = (int) Math.max(0, total);
-                        if (rootTotal >= soloSessionBaseScore + soloSessionLocalScore) {
-                            soloSessionBaseScore = rootTotal;
-                            soloSessionLocalScore = 0;
-                        } else if (rootTotal != soloSessionBaseScore) {
-                            soloSessionBaseScore = rootTotal;
-                        }
-                        renderSoloSessionScore();
-                    } else {
-                        soloSessionBaseScore = 0;
-                        soloSessionLocalScore = 0;
-                        if (tvMatchScore != null) tvMatchScore.setText(totalP1 + " : " + totalP2);
+
+                    if (!isSolo) {
+                        tvMatchScore.setText(totalP1 + " : " + totalP2);
                         if (tvPlayer1Score != null) tvPlayer1Score.setText(totalP1 + " bod");
                         if (tvPlayer2Score != null) tvPlayer2Score.setText(totalP2 + " bod");
                     }
-                    if (p1Uid != null) loadPlayerInfo(p1Uid, true);
-                    if (!isSolo && p2Uid != null) loadPlayerInfo(p2Uid, false);
+
+                    if (tvPlayer1Name != null) tvPlayer1Name.setText(p1Name != null ? p1Name : "Igrač 1");
+                    if (tvPlayer2Name != null) tvPlayer2Name.setText(p2Name != null ? p2Name : "Igrač 2");
+
+                    if (ivPlayer1Avatar != null && p1Avatar != null) {
+                        int resId = resolveAvatarRes(p1Avatar);
+                        if (resId != 0) ivPlayer1Avatar.setImageResource(resId);
+                    }
+
+                    if (ivPlayer2Avatar != null && p2Avatar != null) {
+                        int resId = resolveAvatarRes(p2Avatar);
+                        if (resId != 0) ivPlayer2Avatar.setImageResource(resId);
+                    }
+
+                    if (p1Name == null && p1Uid != null) loadPlayerInfo(p1Uid, true);
+                    if (!isSolo && p2Name == null && p2Uid != null) loadPlayerInfo(p2Uid, false);
                 });
     }
 
