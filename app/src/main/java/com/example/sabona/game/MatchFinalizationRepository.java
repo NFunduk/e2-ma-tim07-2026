@@ -1,15 +1,21 @@
 package com.example.sabona.game;
 
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.DocumentReference;
-import com.google.firebase.firestore.FieldValue;
-import com.example.sabona.repository.StatsRepository;
 import com.example.sabona.leaderboard.LeaderboardRepository;
+import com.example.sabona.league.League;
+import com.example.sabona.league.LeagueManager;
+import com.example.sabona.repository.StatsRepository;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
+
 import java.util.HashMap;
 import java.util.Map;
+
 public class MatchFinalizationRepository {
+
+    private static final String FIELD_STAR_TOKEN_REWARD_LEVEL = "starTokenRewardLevel";
 
     public static class Result {
         public final boolean friendly;
@@ -39,18 +45,26 @@ public class MatchFinalizationRepository {
     private final GameSessionManager sessionMgr = GameSessionManager.get();
     private final StatsRepository statsRepo = new StatsRepository();
 
-    /** Zove ga SVAKI klijent nezavisno nakon GAME_OVER poslednje igre (Moj broj). */
     public void finalizeForMe(Callback callback) {
         String myUid = FirebaseAuth.getInstance().getCurrentUser() != null
                 ? FirebaseAuth.getInstance().getCurrentUser().getUid() : null;
-        if (myUid == null) { callback.onError("Nisi prijavljen/a"); return; }
+        if (myUid == null) {
+            callback.onError("Nisi prijavljen/a");
+            return;
+        }
 
         String sessionId = sessionMgr.getSessionId();
-        if (sessionId == null || sessionId.isEmpty()) { callback.onError("Nema sessionId-a"); return; }
+        if (sessionId == null || sessionId.isEmpty()) {
+            callback.onError("Nema sessionId-a");
+            return;
+        }
 
         db.collection(GameSessionManager.COL_GAME_SESSIONS).document(sessionId).get()
                 .addOnSuccessListener(rootSnap -> {
-                    if (!rootSnap.exists()) { callback.onError("Sesija nije nađena"); return; }
+                    if (!rootSnap.exists()) {
+                        callback.onError("Sesija nije nadjena");
+                        return;
+                    }
 
                     boolean isTournamentMatch = Boolean.TRUE.equals(rootSnap.getBoolean("isTournamentMatch"));
                     if (isTournamentMatch) {
@@ -76,13 +90,13 @@ public class MatchFinalizationRepository {
                             ? 0
                             : (int) (isP1 ? totalP2 : totalP1);
 
-                    boolean iLeft   = myUid.equals(leftByUid);
+                    boolean iLeft = myUid.equals(leftByUid);
                     boolean oppLeft = leftByUid != null && !iLeft;
 
                     boolean won;
-                    if (oppLeft)    won = true;
+                    if (oppLeft) won = true;
                     else if (iLeft) won = false;
-                    else            won = myScore > oppScore; // remi → tretira se kao gubitak (formula ispod)
+                    else won = myScore > oppScore;
 
                     if (isFriendly) {
                         new com.example.sabona.daily.DailyMissionRepository()
@@ -92,38 +106,36 @@ public class MatchFinalizationRepository {
                         return;
                     }
 
-                    if (iLeft) {
-                        // Napustio/la si partiju — gubiš je i ne dobijaš zvezde (ni gubitničke)
-                        statsRepo.incrementGamesPlayed(false);
-                        callback.onSuccess(new Result(false, false, 0, 0, myScore, oppScore));
-                        return;
-                    }
-
-                    int bonus = myScore / 40;
-                    int rawDelta = won ? (10 + bonus) : (-10 + bonus);
-                    applyStarsAndTokens(myUid, rawDelta, won, myScore, oppScore, callback);
+                    applyStarsAndTokens(myUid, won, myScore, oppScore, callback);
                 })
-                .addOnFailureListener(e -> callback.onError("Greška: " + e.getMessage()));
+                .addOnFailureListener(e -> callback.onError("Greska: " + e.getMessage()));
     }
 
-    private void applyStarsAndTokens(String myUid, int rawDelta, boolean won,
+    private void applyStarsAndTokens(String myUid, boolean won,
                                      int myScore, int oppScore, Callback callback) {
         db.runTransaction(transaction -> {
-            DocumentSnapshot userSnap = transaction.get(db.collection("users").document(myUid));
-            long oldStars  = userSnap.contains("stars")  && userSnap.getLong("stars")  != null ? userSnap.getLong("stars")  : 0;
-            long oldTokens = userSnap.contains("tokens") && userSnap.getLong("tokens") != null ? userSnap.getLong("tokens") : 0;
+            DocumentReference userRef = db.collection("users").document(myUid);
+            DocumentSnapshot userSnap = transaction.get(userRef);
+            long oldStars = userSnap.contains("stars") && userSnap.getLong("stars") != null
+                    ? userSnap.getLong("stars") : 0;
+            long oldTokens = userSnap.contains("tokens") && userSnap.getLong("tokens") != null
+                    ? userSnap.getLong("tokens") : 0;
+            int rewardLevel = userSnap.contains(FIELD_STAR_TOKEN_REWARD_LEVEL)
+                    && userSnap.getLong(FIELD_STAR_TOKEN_REWARD_LEVEL) != null
+                    ? userSnap.getLong(FIELD_STAR_TOKEN_REWARD_LEVEL).intValue()
+                    : (int) (oldStars / MatchRewardCalculator.STARS_PER_TOKEN);
 
-            long newStars = oldStars + rawDelta;
-            if (newStars < 0) newStars = 0; // "ako nema do tada zvezde ne može ih ni izgubiti"
+            MatchRewardCalculator.Reward reward =
+                    MatchRewardCalculator.applyRegularReward(oldStars, oldTokens, rewardLevel, won, myScore);
+            League newLeague = LeagueManager.computeLeague((int) reward.newStars);
 
-            long tokensEarned = (newStars / 50) - (oldStars / 50);
-            if (tokensEarned < 0) tokensEarned = 0;
-            long newTokens = oldTokens + tokensEarned;
+            transaction.update(userRef,
+                    "stars", reward.newStars,
+                    "tokens", reward.newTokens,
+                    "league", newLeague.index,
+                    FIELD_STAR_TOKEN_REWARD_LEVEL, reward.tokenRewardLevel);
 
-            transaction.update(db.collection("users").document(myUid),
-                    "stars", newStars, "tokens", newTokens);
-
-            return new long[]{newStars - oldStars, tokensEarned};
+            return new long[]{reward.starsDelta, reward.tokensGained};
         }).addOnSuccessListener(d -> {
             statsRepo.incrementGamesPlayed(won);
 
@@ -133,16 +145,15 @@ public class MatchFinalizationRepository {
             }
 
             int starsDelta = (int) d[0];
-
             new LeaderboardRepository().addStarsAfterMatch(myUid, starsDelta);
 
             callback.onSuccess(new Result(false, won, starsDelta, (int) d[1], myScore, oppScore));
-        }).addOnFailureListener(e -> callback.onError("Greška pri upisu zvezdi: " + e.getMessage()));
+        }).addOnFailureListener(e -> callback.onError("Greska pri upisu zvezdi: " + e.getMessage()));
     }
+
     private void finalizeTournamentMatch(DocumentSnapshot rootSnap,
                                          String myUid,
                                          Callback callback) {
-
         long totalP1 = rootSnap.getLong("totalScoreP1") != null ? rootSnap.getLong("totalScoreP1") : 0;
         long totalP2 = rootSnap.getLong("totalScoreP2") != null ? rootSnap.getLong("totalScoreP2") : 0;
 
@@ -156,7 +167,6 @@ public class MatchFinalizationRepository {
         int bracketIndex = bracketIndexLong != null ? bracketIndexLong.intValue() : 0;
 
         boolean isP1 = myUid.equals(p1);
-
         int myScore = (int) (isP1 ? totalP1 : totalP2);
         int oppScore = (int) (isP1 ? totalP2 : totalP1);
 
@@ -164,14 +174,9 @@ public class MatchFinalizationRepository {
         boolean opponentLeft = leftByUid != null && !iLeft;
 
         boolean won;
-
-        if (iLeft) {
-            won = false;
-        } else if (opponentLeft) {
-            won = true;
-        } else {
-            won = myScore > oppScore;
-        }
+        if (iLeft) won = false;
+        else if (opponentLeft) won = true;
+        else won = myScore > oppScore;
 
         if (iLeft) {
             statsRepo.incrementGamesPlayed(false);
@@ -180,7 +185,6 @@ public class MatchFinalizationRepository {
         }
 
         int regularStars = calculateRegularStars(myScore, won);
-
         int extraTokens = 0;
         int extraStars = 0;
 
@@ -190,14 +194,11 @@ public class MatchFinalizationRepository {
                 callback.onSuccess(new Result(false, false, 0, 0, myScore, oppScore));
                 return;
             }
-
             extraTokens = 2;
-
         } else if ("final".equals(round)) {
             if (won) {
                 extraTokens = 3;
                 extraStars = 10;
-
                 new com.example.sabona.daily.DailyMissionRepository()
                         .completeTournamentWin(myUid, null);
             }
@@ -210,8 +211,7 @@ public class MatchFinalizationRepository {
     }
 
     private int calculateRegularStars(int score, boolean won) {
-        int bonus = score / 40;
-        return won ? (10 + bonus) : (-10 + bonus);
+        return MatchRewardCalculator.regularStarsDelta(won, score);
     }
 
     private void applyTournamentReward(String myUid,
@@ -224,7 +224,6 @@ public class MatchFinalizationRepository {
                                        int myScore,
                                        int oppScore,
                                        Callback callback) {
-
         String rewardDocId = round + "_" + myUid;
 
         db.runTransaction(transaction -> {
@@ -242,18 +241,17 @@ public class MatchFinalizationRepository {
             long oldStars = userSnap.getLong("stars") != null ? userSnap.getLong("stars") : 0;
             long oldTokens = userSnap.getLong("tokens") != null ? userSnap.getLong("tokens") : 0;
 
-            long newStars = oldStars + starsDelta;
-            if (newStars < 0) newStars = 0;
-
+            long newStars = Math.max(0, oldStars + starsDelta);
             long tokensFromStars = (newStars / 50) - (oldStars / 50);
             if (tokensFromStars < 0) tokensFromStars = 0;
 
             long newTokens = oldTokens + tokensDelta + tokensFromStars;
+            League newLeague = LeagueManager.computeLeague((int) newStars);
 
             transaction.update(userRef,
                     "stars", newStars,
-                    "tokens", newTokens
-            );
+                    "tokens", newTokens,
+                    "league", newLeague.index);
 
             Map<String, Object> reward = new HashMap<>();
             reward.put("uid", myUid);
@@ -276,8 +274,7 @@ public class MatchFinalizationRepository {
             if ("final".equals(round) && won) {
                 transaction.update(tournamentRef,
                         "winnerUid", myUid,
-                        "status", "finished"
-                );
+                        "status", "finished");
             }
 
             return true;
@@ -294,7 +291,7 @@ public class MatchFinalizationRepository {
 
             callback.onSuccess(new Result(false, won, starsDelta, tokensDelta, myScore, oppScore));
         }).addOnFailureListener(e ->
-                callback.onError("Greška pri turnir nagradi: " + e.getMessage()));
+                callback.onError("Greska pri turnir nagradi: " + e.getMessage()));
     }
 
     private void tryCreateFinalIfReady(String tournamentId) {
@@ -331,18 +328,15 @@ public class MatchFinalizationRepository {
 
             transaction.update(tournamentRef,
                     "finalSessionId", finalSessionId,
-                    "status", "final"
-            );
+                    "status", "final");
 
             transaction.update(db.collection("tournamentQueue").document(w1),
                     "status", "matched",
-                    "sessionId", finalSessionId
-            );
+                    "sessionId", finalSessionId);
 
             transaction.update(db.collection("tournamentQueue").document(w2),
                     "status", "matched",
-                    "sessionId", finalSessionId
-            );
+                    "sessionId", finalSessionId);
 
             return null;
         });
