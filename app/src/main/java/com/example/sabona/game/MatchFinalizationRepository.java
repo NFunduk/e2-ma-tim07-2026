@@ -99,6 +99,9 @@ public class MatchFinalizationRepository {
                     else won = myScore > oppScore;
 
                     if (isFriendly) {
+                        new com.example.sabona.daily.DailyMissionRepository()
+                                .completeFriendlyMatch(myUid, null);
+
                         callback.onSuccess(new Result(true, won, 0, 0, myScore, oppScore));
                         return;
                     }
@@ -135,6 +138,11 @@ public class MatchFinalizationRepository {
             return new long[]{reward.starsDelta, reward.tokensGained};
         }).addOnSuccessListener(d -> {
             statsRepo.incrementGamesPlayed(won);
+
+            if (won) {
+                new com.example.sabona.daily.DailyMissionRepository()
+                        .completeWinMatch(myUid, null);
+            }
 
             int starsDelta = (int) d[0];
             new LeaderboardRepository().addStarsAfterMatch(myUid, starsDelta);
