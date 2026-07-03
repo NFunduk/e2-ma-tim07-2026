@@ -129,16 +129,33 @@ public class TournamentFragment extends Fragment {
             if (sessionId == null || navigated) return;
             navigated = true;
 
-            Bundle args = new Bundle();
-            args.putString("sessionId", sessionId);
-            args.putBoolean("tournament", true);
-
             tvStatus.setText("Igrači su spojeni! Partija počinje...");
-            view.postDelayed(() ->
-                            NavHostFragment.findNavController(this)
-                                    .navigate(R.id.action_tournament_to_koZnaZna, args),
-                    1800
-            );
+
+            com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    .collection("gameSessions")
+                    .document(sessionId)
+                    .get()
+                    .addOnSuccessListener(doc -> {
+                        if (!isAdded()) return;
+
+                        String currentUid = FirebaseAuth.getInstance()
+                                .getCurrentUser()
+                                .getUid();
+
+                        String player1Uid = doc.getString("player1Uid");
+
+                        Bundle args = new Bundle();
+                        args.putString("sessionId", sessionId);
+                        args.putBoolean("tournament", true);
+                        args.putBoolean("isHost", currentUid.equals(player1Uid));
+                        args.putString("hostUid", player1Uid);
+
+                        view.postDelayed(() ->
+                                        NavHostFragment.findNavController(this)
+                                                .navigate(R.id.action_tournament_to_koZnaZna, args),
+                                1800
+                        );
+                    });
         });
 
         btnCancel.setOnClickListener(v -> {

@@ -329,15 +329,81 @@ public class TournamentRepository {
                 .addOnFailureListener(e -> cb.onError(e.getMessage()));
     }
 
-    public ListenerRegistration listenMyTournamentMatch(Callback<String> cb) {
+    public static class QueueUpdate {
+        public final String status;
+        public final String tournamentId;
+        public final String sessionId;
+
+        public QueueUpdate(String status, String tournamentId, String sessionId) {
+            this.status = status;
+            this.tournamentId = tournamentId;
+            this.sessionId = sessionId;
+        }
+    }
+
+    /**
+     * Sluša moj queue dokument i javlja SVAKU promenu statusa (ne samo "matched"),
+     * zajedno sa tournamentId, kako bi viewmodel mogao da se prebaci na slušanje
+     * pravog tournament dokumenta čim je poznat tournamentId.
+     */
+    public ListenerRegistration listenMyQueueStatus(Callback<QueueUpdate> cb) {
         return myQueueRef().addSnapshotListener((snap, e) -> {
+            if (e != null) {
+                cb.onError(e.getMessage());
+                return;
+            }
             if (snap == null || !snap.exists()) return;
 
-            if ("matched".equals(snap.getString("status"))) {
-                String sessionId = snap.getString("sessionId");
-                if (sessionId != null) cb.onSuccess(sessionId);
-            }
+            cb.onSuccess(new QueueUpdate(
+                    snap.getString("status"),
+                    snap.getString("tournamentId"),
+                    snap.getString("sessionId")
+            ));
         });
+    }
+
+    /**
+     * Sluša sam tournaments/{tournamentId} dokument i vraća playerInfos u tačnom
+     * redosledu u kom je turnir napravljen (isti za sve uređaje!):
+     * indeksi 0 i 1 -> polufinale 1, indeksi 2 i 3 -> polufinale 2.
+     */
+    @SuppressWarnings("unchecked")
+    public ListenerRegistration listenTournamentPlayers(String tournamentId, Callback<List<TournamentPlayer>> cb) {
+        return db.collection("tournaments").document(tournamentId)
+                .addSnapshotListener((snap, e) -> {
+                    if (e != null) {
+                        cb.onError(e.getMessage());
+                        return;
+                    }
+                    if (snap == null || !snap.exists()) return;
+
+                    List<Map<String, Object>> playerInfos =
+                            (List<Map<String, Object>>) snap.get("playerInfos");
+
+                    List<TournamentPlayer> list = new ArrayList<>();
+
+                    if (playerInfos != null) {
+                        for (Map<String, Object> p : playerInfos) {
+                            String uid = (String) p.get("uid");
+                            String username = (String) p.get("username");
+                            String avatarRes = (String) p.get("avatarRes");
+
+                            Object leagueObj = p.get("league");
+                            long league = leagueObj instanceof Number
+                                    ? ((Number) leagueObj).longValue()
+                                    : 0;
+
+                            list.add(new TournamentPlayer(
+                                    uid,
+                                    username != null ? username : "Igrač",
+                                    avatarRes,
+                                    league
+                            ));
+                        }
+                    }
+
+                    cb.onSuccess(list);
+                });
     }
 
     public static class TournamentPlayer {

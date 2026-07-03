@@ -25,8 +25,10 @@ public class TournamentViewModel extends ViewModel {
             new MutableLiveData<>();
 
     private ListenerRegistration listener;
+    private ListenerRegistration tournamentPlayersListener;
     private boolean started = false;
     private boolean matched = false;
+    private String subscribedTournamentId = null;
 
     private final android.os.Handler handler =
             new android.os.Handler(android.os.Looper.getMainLooper());
@@ -79,17 +81,47 @@ public class TournamentViewModel extends ViewModel {
                     @Override
                     public void onError(String message) { }
                 });
-                listener = repo.listenMyTournamentMatch(new TournamentRepository.Callback<String>() {
+                listener = repo.listenMyQueueStatus(new TournamentRepository.Callback<TournamentRepository.QueueUpdate>() {
                     @Override
-                    public void onSuccess(String result) {
+                    public void onSuccess(TournamentRepository.QueueUpdate result) {
+                        // Čim je poznat tournamentId, prestani da vučeš prikaz iz
+                        // "waiting" reda (koji se menja nezavisno na svakom uređaju)
+                        // i preveži se na sam tournament dokument - isti je za sva
+                        // 4 uređaja, pa je prikaz garantovano konzistentan.
+                        if (result.tournamentId != null
+                                && !result.tournamentId.equals(subscribedTournamentId)) {
+                            subscribedTournamentId = result.tournamentId;
+
+                            if (playersListener != null) {
+                                playersListener.remove();
+                                playersListener = null;
+                            }
+                            if (tournamentPlayersListener != null) {
+                                tournamentPlayersListener.remove();
+                            }
+
+                            tournamentPlayersListener = repo.listenTournamentPlayers(
+                                    result.tournamentId,
+                                    new TournamentRepository.Callback<List<TournamentRepository.TournamentPlayer>>() {
+                                        @Override
+                                        public void onSuccess(List<TournamentRepository.TournamentPlayer> list) {
+                                            players.postValue(list);
+                                        }
+
+                                        @Override
+                                        public void onError(String message) { }
+                                    });
+                        }
+
                         if (matched) return;
 
-                        matched = true;
-                        state.postValue(State.MATCHED);
-                        sessionId.postValue(result);
+                        if ("matched".equals(result.status) && result.sessionId != null) {
+                            matched = true;
+                            state.postValue(State.MATCHED);
+                            sessionId.postValue(result.sessionId);
 
-                        if (listener != null) listener.remove();
-                        handler.removeCallbacks(retryRunnable);
+                            handler.removeCallbacks(retryRunnable);
+                        }
                     }
 
                     @Override
@@ -117,6 +149,7 @@ public class TournamentViewModel extends ViewModel {
         if (matched) return;
 
         if (playersListener != null) playersListener.remove();
+        if (tournamentPlayersListener != null) tournamentPlayersListener.remove();
         if (listener != null) listener.remove();
 
         handler.removeCallbacks(retryRunnable);
@@ -126,6 +159,7 @@ public class TournamentViewModel extends ViewModel {
     @Override
     protected void onCleared() {
         if (playersListener != null) playersListener.remove();
+        if (tournamentPlayersListener != null) tournamentPlayersListener.remove();
         super.onCleared();
 
         if (listener != null) listener.remove();

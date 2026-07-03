@@ -21,7 +21,6 @@ import com.example.sabona.league.LeagueRepository;
 import com.example.sabona.repository.NotificationFactory;
 import com.example.sabona.repository.NotificationRepository;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.example.sabona.tournament.TournamentRepository;
 
 /**
  * Fragment koji se prikazuje na kraju svake partije.
@@ -97,25 +96,19 @@ public class GameOverFragment extends Fragment {
             if (tournament && sessionId != null && uid != null) {
                 boolean isFinal = sessionId.endsWith("_F");
 
+                // NAPOMENA: nagrade (zvezde/tokeni) i eventualno kreiranje finalne
+                // partije već su odrađeni u MatchFinalizationRepository.finalizeForMe()
+                // (poziva se iz MojBrojViewModel čim runda završi, PRE nego što se
+                // uopšte dođe na ovaj ekran). Ovde se više NE sme ponovo zvati
+                // TournamentRepository.finishTournamentMatch() - to je bila stara/
+                // paralelna implementacija koja je duplirala nagrade i trkala se sa
+                // MatchFinalizationRepository oko kreiranja finalne sesije, što je i
+                // pravilo da finale ponekad uopšte ne nastane (ili igrač dobije duplo
+                // vise zvezda/tokena). Ovde samo čekamo da neko od klijenata (bilo koji
+                // od 2 finalista) kreira finalSessionId u tournamentQueue dokumentu.
                 if (won && !isFinal) {
                     listenForFinal(uid);
                 }
-
-                new TournamentRepository().finishTournamentMatch(sessionId, new TournamentRepository.Callback<String>() {
-                    @Override
-                    public void onSuccess(String finalSessionId) {
-                        if (!isAdded()) return;
-
-                        if (won && !isFinal && finalSessionId != null) {
-                            openFinal(finalSessionId);
-                        }
-                    }
-
-                    @Override
-                    public void onError(String message) {
-                        android.util.Log.e("TOURNAMENT", "Greška završavanja turnira: " + message);
-                    }
-                });
             }
 
             // Pobjednik
@@ -147,7 +140,7 @@ public class GameOverFragment extends Fragment {
             // Rezultat
             tvScores.setText(
                     "Tvoj ukupni skor: " + myScore +
-                    " | Protivnik: " + oppScore
+                            " | Protivnik: " + oppScore
             );
 
             // Zvijezde i tokeni
@@ -292,12 +285,31 @@ public class GameOverFragment extends Fragment {
             finalListener = null;
         }
 
-        Bundle args = new Bundle();
-        args.putString("sessionId", finalSessionId);
-        args.putBoolean("tournament", true);
+        FirebaseFirestore.getInstance()
+                .collection("gameSessions")
+                .document(finalSessionId)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (!isAdded()) return;
 
-        NavHostFragment.findNavController(this)
-                .navigate(R.id.action_gameover_to_koZnaZna, args);
+                    String currentUid = FirebaseAuth.getInstance()
+                            .getCurrentUser()
+                            .getUid();
+
+                    String player1Uid = doc.getString("player1Uid");
+
+                    Bundle args = new Bundle();
+                    args.putString("sessionId", finalSessionId);
+                    args.putBoolean("tournament", true);
+                    args.putBoolean("isHost", currentUid.equals(player1Uid));
+                    args.putString("hostUid", player1Uid);
+
+                    NavHostFragment.findNavController(this)
+                            .navigate(R.id.action_gameover_to_koZnaZna, args);
+                })
+                .addOnFailureListener(e ->
+                        android.util.Log.e("TOURNAMENT", "Ne mogu da otvorim finale", e)
+                );
     }
 
 
@@ -325,12 +337,29 @@ public class GameOverFragment extends Fragment {
                         String sessionId = doc.getString("sessionId");
 
                         if (sessionId != null && sessionId.endsWith("_F")) {
-                            Bundle args = new Bundle();
-                            args.putString("sessionId", sessionId);
-                            args.putBoolean("tournament", true);
+                            FirebaseFirestore.getInstance()
+                                    .collection("gameSessions")
+                                    .document(sessionId)
+                                    .get()
+                                    .addOnSuccessListener(gameDoc -> {
+                                        if (!isAdded()) return;
 
-                            NavHostFragment.findNavController(this)
-                                    .navigate(R.id.action_gameover_to_koZnaZna, args);
+                                        String currentUid = FirebaseAuth.getInstance()
+                                                .getCurrentUser()
+                                                .getUid();
+
+                                        String player1Uid = gameDoc.getString("player1Uid");
+
+                                        Bundle args = new Bundle();
+                                        args.putString("sessionId", sessionId);
+                                        args.putBoolean("tournament", true);
+                                        args.putBoolean("isHost", currentUid.equals(player1Uid));
+                                        args.putString("hostUid", player1Uid);
+
+                                        NavHostFragment.findNavController(this)
+                                                .navigate(R.id.action_gameover_to_koZnaZna, args);
+                                    });
+
                             return;
                         }
                     }
