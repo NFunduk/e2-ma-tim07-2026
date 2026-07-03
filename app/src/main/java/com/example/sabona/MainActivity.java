@@ -348,7 +348,6 @@ public class MainActivity extends AppCompatActivity {
                     101
             );
         }
-
     }
 
     @Override
